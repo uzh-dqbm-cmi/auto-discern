@@ -6,6 +6,7 @@ setup(name='autodiscern',
       url='https://github.com/CMI-UZH/auto-discern',
       packages=['autodiscern'],
       install_requires=[
-              'pandas',
+            'flake8',
+            'pandas',
       ],
       zip_safe=False)
