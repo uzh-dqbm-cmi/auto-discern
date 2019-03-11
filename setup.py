@@ -8,5 +8,6 @@ setup(name='autodiscern',
       install_requires=[
             'flake8',
             'pandas',
+            'spacy',
       ],
       zip_safe=False)

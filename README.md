@@ -16,7 +16,7 @@ path/to/discern/data/
 └── data/
     ├── target_ids.csv
     ├── responses.csv
-    └── html/
+    └── html_articles/
         └── *.html
 
 ```
