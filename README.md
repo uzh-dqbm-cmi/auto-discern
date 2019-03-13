@@ -29,6 +29,7 @@ path/to/discern/data/
 %autoreload 2
 
 import autodiscern as ad
+import autodiscern.transformations as adt
 
 # see "Note on Data" above for what to pass here
 dm = ad.DataManager("path/to/discern/data")
@@ -36,5 +37,18 @@ dm = ad.DataManager("path/to/discern/data")
 # data is loaded in automatically
 dm.articles.head()
 dm.responses.head()
+
+input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
+              for i, row in dm.html_articles.iterrows()]
+
+transforms = [
+    adt.remove_selected_html,
+]
+transformer = adt.Transformer(transforms, num_cores=4)
+
+transformed_data = transformer.apply(input_list)
+
+for item in output_list[:5]:
+    print(item)
 
 ```

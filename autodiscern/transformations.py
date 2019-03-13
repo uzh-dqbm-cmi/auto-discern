@@ -40,9 +40,33 @@ def remove_html(x: str, replacement_char='. ') -> str:
     return BeautifulSoup(x, features="html.parser").get_text(separator=replacement_char)
 
 
-def remove_selected_html(x: str, replacement_char='. ') -> str:
-    print("I don't know how to do this!")
-    return x
+def remove_selected_html(x: str) -> str:
+    """Remove all tags except for tags_to_keep, and replace the contents of link tags with LINK"""
+
+    soup = BeautifulSoup(x, features="html.parser")
+    tags_to_keep_attr = ['a']
+    tags_to_keep = {'a', 'h1', 'h2', 'h3', 'h4'}
+    tags_to_remove = set([tag.name for tag in soup.find_all()]) - tags_to_keep
+
+    for tag in soup.find_all(True):
+        if tag.name not in tags_to_keep_attr:
+            # clear all attributes
+            tag.attrs = {}
+        else:
+            attrs = dict(tag.attrs)
+            for attr in attrs:
+                if attr not in ['src', 'href']:
+                    del tag.attrs[attr]
+                else:
+                    tag.attrs[attr] = 'LINK'
+
+    text = str(soup)
+
+    # all tags to remove have been cleared down to their bare tag form without attributes, and can be found/replaced
+    for t in tags_to_remove:
+        text = text.replace('<{}>'.format(t), '').replace('</{}>'.format(t), '').replace('<{}/>'.format(t), '')
+
+    return text
 
 
 def replace_problem_chars(x: str, replacement_char=' ') -> str:
