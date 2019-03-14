@@ -40,22 +40,22 @@ import autodiscern.transformations as adt
 dm = ad.DataManager("path/to/discern/data")
 
 # data is loaded in automatically
-dm.articles.head()
+dm.html_articles.head()
 dm.responses.head()
 
 input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
               for i, row in dm.html_articles.iterrows()]
 
-# select which transofrmation you want to apply
+# select which transformation you want to apply
 transforms = [
     # adt.remove_html,
     adt.remove_selected_html,
 ]
 transformer = adt.Transformer(transforms, num_cores=4)
 
-transformed_data = transformer.apply(input_list)
+transformed_data = transformer.apply(input_dicts)
 
-for item in output_list[:5]:
+for item in transformed_data[:5]:
     print(item)
 
 ```
