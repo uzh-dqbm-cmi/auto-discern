@@ -14,7 +14,9 @@ class DataManager:
 
         self.data = {}
 
-    def _load_articles(self, version_id):
+    def _load_articles(self, version_id: str) -> None:
+        """Loads all files located in self.data_path/data/<version_id> into a pd.df at self.data dict[version_id]"""
+
         print("Loading articles...")
         target_ids = pd.read_csv(Path(self.data_path, "data/target_ids.csv"))
 
@@ -37,27 +39,27 @@ class DataManager:
         print("{} articles loaded".format(articles.shape[0]))
         self.data[version_id] = articles
 
-    def _load_responses(self):
+    def _load_responses(self) -> None:
         print("Loading responses...")
         self.data['responses'] = pd.read_csv(Path(self.data_path, "data/responses.csv"))
         print("{} responses loaded".format(self.data['responses'].shape[0]))
 
-    def _articles(self, version):
+    def _articles(self, version) -> pd.DataFrame:
         version_id = "{}_articles".format(version)
         if version_id not in self.data:
             self._load_articles(version_id)
         return self.data[version_id]
 
     @property
-    def html_articles(self):
+    def html_articles(self) -> pd.DataFrame:
         return self._articles('html')
 
     @property
-    def clean_articles(self):
+    def clean_articles(self) -> pd.DataFrame:
         return self._articles('cleaned_text')
 
     @property
-    def responses(self):
+    def responses(self) -> pd.DataFrame:
         if 'responses' not in self.data:
             self._load_responses()
         return self.data['responses']

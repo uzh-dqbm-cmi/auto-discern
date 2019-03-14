@@ -5,6 +5,7 @@ setup(name='autodiscern',
       description='',
       url='https://github.com/CMI-UZH/auto-discern',
       packages=['autodiscern'],
+      python_requires='>3.5.0',
       install_requires=[
             'beautifulsoup4',
             'flake8',
