@@ -21,6 +21,11 @@ path/to/discern/data/
 
 ```
 
+### Notebooks
+
+Please follow this notebook naming convention for exploratory notebooks in the shared Switchdrive folder: 
+`<number>_<initials>_<short_description>.ipynb`. 
+
 ### Example Usage
 
 ```python
@@ -41,7 +46,9 @@ dm.responses.head()
 input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
               for i, row in dm.html_articles.iterrows()]
 
+# select which transofrmation you want to apply
 transforms = [
+    # adt.remove_html,
     adt.remove_selected_html,
 ]
 transformer = adt.Transformer(transforms, num_cores=4)
