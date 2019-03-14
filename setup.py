@@ -7,6 +7,7 @@ setup(name='autodiscern',
       packages=['autodiscern'],
       python_requires='>3.5.0',
       install_requires=[
+            'allennlp',
             'beautifulsoup4',
             'flake8',
             'pandas',

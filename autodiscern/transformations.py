@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from bs4 import BeautifulSoup
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 
 
 TransformType = Callable[[str], str]
@@ -38,6 +38,13 @@ class Transformer:
 def remove_html(x: str, replacement_char='. ') -> str:
     """Replace all html tags with replacement_char. """
     return BeautifulSoup(x, features="html.parser").get_text(separator=replacement_char)
+
+
+def remove_html_to_sentences(x: str) -> List[str]:
+    """Extract non-html strings as list of strings. """
+
+    soup = BeautifulSoup(x, features="html.parser")
+    return [text for text in soup.stripped_strings]
 
 
 def remove_selected_html(x: str) -> str:
@@ -78,3 +85,36 @@ def replace_problem_chars(x: str, replacement_char=' ') -> str:
     for p in problem_chars:
         x = x.replace(p, replacement_char)
     return x
+
+
+def allennlp_ner_tagger(sentence: str, predictor: Callable) -> List[Tuple[str, str]]:
+    # pass this function the predictor of
+    # predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+    prediction = predictor.predict(sentence)
+    # the predictor also gives logits. For now we just want to look at the tags
+    return [(w, prediction['tags'][i]) for i, w in enumerate(prediction['words'])]
+
+
+def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
+    """Display the output of allennlp_ner_tagger as text color-coded by ner type.
+    Wrap this function call in IPython.display.HTML() to see output in notebook. """
+
+    ner_type_to_html_tag = {
+        "U-PER": 'font  color="blue"',
+        "B-ORG": 'font  color="green"',
+        "L-ORG": 'font  color="red"',
+        "U-MISC": 'font  color="orange"',
+    }
+
+    ner_html = ""
+    for sentence in tuples:
+        for token in sentence:
+            text = token[0]
+            ner_type = token[1]
+            if ner_type == 'O':
+                ner_html += " {} ".format(text)
+            else:
+                tag = ner_type_to_html_tag[ner_type]
+                ner_html += " <{0}>{1}</{0}>".format(tag, text)
+
+    return ner_html

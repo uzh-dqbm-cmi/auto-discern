@@ -49,7 +49,8 @@ input_dicts = [{'id': row['entity_id'], 'content': row['content']}
 # select which transformation you want to apply
 transforms = [
     # adt.remove_html,
-    adt.remove_selected_html,
+    adt.remove_html_to_sentences,
+    # adt.remove_selected_html,
 ]
 transformer = adt.Transformer(transforms, num_cores=4)
 
@@ -58,6 +59,16 @@ transformed_data = transformer.apply(input_dicts)
 for item in transformed_data[:5]:
     print(item)
 
+# ===
+# tag Named Entities
+from allennlp.predictors.predictor import Predictor
+from IPython.display import HTML
+ner_predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+ner = []
+# look at the first 50 sentences of the first document
+for sentence in transformed_data[0]['content'][:50]:
+    ner.append(adt.allennlp_ner_tagger(sentence, ner_predictor))
+HTML(adt.ner_tuples_to_html(ner))
+
 ```
 
-This is a test.
