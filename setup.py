@@ -6,6 +6,7 @@ setup(name='autodiscern',
       url='https://github.com/CMI-UZH/auto-discern',
       packages=['autodiscern'],
       install_requires=[
+            'beautifulsoup4',
             'flake8',
             'pandas',
             'spacy',
