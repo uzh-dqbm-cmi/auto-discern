@@ -1,5 +1,5 @@
 import multiprocessing as mp
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from typing import Callable, Dict, List, Tuple
 
 
@@ -35,15 +35,41 @@ class Transformer:
         return results
 
 
+def remove_tags(soup: BeautifulSoup, tags: List[str]) -> BeautifulSoup:
+    """Remove specific tags from the html, including their entire contents."""
+    for tag in soup.find_all(True):
+        if tag.name in tags:
+            # delete tag and its contents
+            tag.decompose()
+    return soup
+
+
+def remove_other_xml(soup: BeautifulSoup) -> BeautifulSoup:
+    for tag in soup.find_all(string=lambda text: isinstance(text, Comment)
+                             or isinstance(text, CData)
+                             or isinstance(text, ProcessingInstruction)
+                             or isinstance(text, Declaration)
+                             or isinstance(text, Doctype)
+                             ):
+        tag.extract()
+    return soup
+
+
 def remove_html(x: str, replacement_char='. ') -> str:
     """Replace all html tags with replacement_char. """
-    return BeautifulSoup(x, features="html.parser").get_text(separator=replacement_char)
+
+    soup = BeautifulSoup(x, features="html.parser")
+    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_other_xml(soup)
+    return soup.get_text(separator=replacement_char)
 
 
 def remove_html_to_sentences(x: str) -> List[str]:
     """Extract non-html strings as list of strings. """
 
     soup = BeautifulSoup(x, features="html.parser")
+    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_other_xml(soup)
     return [text for text in soup.stripped_strings]
 
 
@@ -51,8 +77,11 @@ def remove_selected_html(x: str) -> str:
     """Remove all tags except for tags_to_keep, and replace the contents of link tags with LINK"""
 
     soup = BeautifulSoup(x, features="html.parser")
+    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_other_xml(soup)
+
     tags_to_keep_attr = ['a']
-    tags_to_keep = {'a', 'h1', 'h2', 'h3', 'h4'}
+    tags_to_keep = {'a', 'h1', 'h2', 'h3', 'h4', 'br'}
     tags_to_remove = set([tag.name for tag in soup.find_all()]) - tags_to_keep
 
     for tag in soup.find_all(True):

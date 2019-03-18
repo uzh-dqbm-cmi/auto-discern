@@ -59,6 +59,14 @@ class DataManager:
         return self._articles('cleaned_text')
 
     @property
+    def selected_html_articles(self) -> pd.DataFrame:
+        return self._articles('remove_selected_html')
+
+    @property
+    def no_html_articles(self) -> pd.DataFrame:
+        return self._articles('remove_all_html')
+
+    @property
     def responses(self) -> pd.DataFrame:
         if 'responses' not in self.data:
             self._load_responses()
