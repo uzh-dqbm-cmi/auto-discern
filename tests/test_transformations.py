@@ -10,7 +10,7 @@ class TestTransformations(unittest.TestCase):
         self.assertEqual(adt.remove_html(test_input), expected_output)
 
     def test_remove_selected_html_removes_some_keeps_others(self):
-        test_input = "<div><h1>I am a Header</h1><br></div>"
+        test_input = "<div><h1>I am a Header</h1></div>"
         expected_output = "<h1>I am a Header</h1>"
         self.assertEqual(adt.remove_selected_html(test_input), expected_output)
 
