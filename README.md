@@ -72,6 +72,20 @@ HTML(adt.ner_tuples_to_html(ner))
 
 ```
 
+## Tokenization Notes
+Note that AllenNLP is not installed by default by this package for <TravisReasons>.
+Run `pip install -e .[allennlp]` to add the package.
+If you get a `g++` error during installation, this may be due to a OSX Mojave, see [this StackOverflow answer](https://stackoverflow.com/questions/52509602/cant-compile-c-program-on-a-mac-after-upgrade-to-mojave).
+
+```python
+from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
+
+tok = WordTokenizer()
+result = tok.tokenize(some_text_str)
+result = tok.batch_tokenize([some_text_str, another_text_str])
+```
+
+
 ## MetaMap
 
 ### Setup Instructions for MetaMap
