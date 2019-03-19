@@ -10,6 +10,6 @@ script:
 notifications:
   slack:
     rooms:
-      - cmi-uzh:o2jdwEmDHNt9P2yRGMVneVbD#test-travis-int
+      - cmi-uzh:o2jdwEmDHNt9P2yRGMVneVbD#travis
     on_success: change # default: always
     on_failure: always # default: always
