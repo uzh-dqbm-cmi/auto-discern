@@ -49,11 +49,11 @@ def to_limited_html(x: str) -> str:
     tags_to_keep = {'h1', 'h2', 'h3', 'h4'}
     tags_to_keep_with_attr = {'a'}
     tags_to_replace = {
-        'br': '\n',
-        'p': '\n',
+        'br': ('\n', '\n'),
+        'p': ('\n', '\n'),
     }
-    default_tag_replacement_char = ''
-    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_char)
+    default_tag_replacement_str = ''
+    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_str)
 
     text = replace_chars(text, ['\t', '\xa0'], ' ')
     text = regex_out_periods_and_white_space(text)
@@ -70,15 +70,15 @@ def to_text(x: str) -> str:
     tags_to_keep = set()
     tags_to_keep_with_attr = set()
     tags_to_replace = {
-        'br': '\n',
-        'h1': '. ',
-        'h2': '. ',
-        'h3': '. ',
-        'h4': '. ',
-        'p': '\n',
+        'br': ('\n', '\n'),
+        'h1': ('\n', '. '),
+        'h2': ('\n', '. '),
+        'h3': ('\n', '. '),
+        'h4': ('\n', '. '),
+        'p':  ('\n', '\n'),
     }
-    default_tag_replacement_char = ''
-    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_char)
+    default_tag_replacement_str = ''
+    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_str)
 
     text = replace_chars(text, ['\t', '\xa0'], ' ')
     text = regex_out_periods_and_white_space(text)
@@ -141,7 +141,20 @@ def reformat_html_link_tags(soup: BeautifulSoup) -> BeautifulSoup:
 
 
 def replace_html(soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
-                 tags_to_replace_with_str: Dict[str, str], default_tag_replacement_char: str) -> str:
+                 tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str) -> str:
+    """
+    Finds all tags in an html BeautifulSoup object and replaces/keeps the tags in accordance with args.
+
+    Args:
+        soup: BeautifulSoup object parsing an html
+        tags_to_keep: html tags to leave but remove tag attributes
+        tags_to_keep_with_attr: html tags to leave entact
+        tags_to_replace_with_str: html tags to replace with strings defined in replacement Tuple(start_tag, end_tag)
+        default_tag_replacement_str: string to use if no replacement is defined in tags_to_replace_with_str
+
+    Returns: str
+
+    """
 
     all_tags = set([tag.name for tag in soup.find_all()])
     tags_to_replace = all_tags - tags_to_keep - tags_to_keep_with_attr
@@ -155,9 +168,12 @@ def replace_html(soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_
     text = str(soup)
 
     # all tags to remove have been cleared down to their bare tag form without attributes, and can be found/replaced
+    replacement_tuple = (default_tag_replacement_str, default_tag_replacement_str)
     for tag in tags_to_replace:
-        r = tags_to_replace_with_str.get(tag, default_tag_replacement_char)
-        text = text.replace('<{}>'.format(tag), r).replace('</{}>'.format(tag), r).replace('<{}/>'.format(tag), r)
+        r = tags_to_replace_with_str.get(tag, replacement_tuple)
+        text = text.replace('<{}>'.format(tag), r[0]
+                            ).replace('</{}>'.format(tag), r[1]
+                                      ).replace('<{}/>'.format(tag), r[1])
 
     return text
 
@@ -279,5 +295,3 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
                 ner_html += " <{0}>{1}</{0}>".format(tag, text)
 
     return ner_html
-
-
