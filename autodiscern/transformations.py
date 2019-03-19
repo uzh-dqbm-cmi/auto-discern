@@ -150,7 +150,7 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
     return ner_html
 
 
-def regex_out_periods_and_white_space(text: str) -> str:
+def regex_out_periods_and_white_space(text:str) -> str:
     # replaces multiple spaces wth a single space
     text = re.sub(' +', ' ',  text)
     # replaces occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
