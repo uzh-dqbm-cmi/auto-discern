@@ -18,3 +18,27 @@ class TestTransformations(unittest.TestCase):
         test_input = "words \twords\nwords"
         expected_output = "words  words words"
         self.assertEqual(adt.replace_problem_chars(test_input), expected_output)
+
+    def test_regex_out_periods_and_white_space_replaces_extra_consecutive_chars(self):
+        test_input = "text text..\n."
+        expected_output = "text text."
+        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+
+    def test_regex_out_periods_and_white_space_no_effect_single_period(self):
+        test_input = "text."
+        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), test_input)
+
+    def test_regex_out_periods_and_white_space_removes_double_space_between_words(self):
+        test_input = "text  text."
+        expected_output = "text text."
+        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+
+    def test_regex_out_periods_and_white_space_no_effect_period_between_words(self):
+        test_input = "text. text"
+        expected_output = "text. text"
+        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+
+    def test_regex_out_periods_and_white_space_removes_extra_consecutive_periods(self):
+        test_input = "text text..."
+        expected_output = "text text."
+        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)

@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import re
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from typing import Callable, Dict, List, Tuple
 
@@ -147,3 +148,12 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
                 ner_html += " <{0}>{1}</{0}>".format(tag, text)
 
     return ner_html
+
+
+def regex_out_periods_and_white_space(text:str) -> str:
+    # replaces multiple spaces wth a single space
+    text = re.sub(' +', ' ',  text)
+    # replaces occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
+    #  for handling html -> '.' replacement.
+    text = re.sub("[.][. \n]{2,}", '.', text)
+    return text
