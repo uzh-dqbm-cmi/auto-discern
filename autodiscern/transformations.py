@@ -1,14 +1,14 @@
 import multiprocessing as mp
 import re
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Set
 
 
 TransformType = Callable[[str], str]
 
 
 class Transformer:
-    """Run a set of transforms on any input. """
+    """Run a set of transforms on any input in parallel. """
 
     def __init__(self, transforms: List[TransformType], num_cores=8):
         self.transforms = transforms
@@ -35,8 +35,80 @@ class Transformer:
         pool.join()
         return results
 
+# ============================================================
+# === High Level Transformer functions =======================
+# ============================================================
 
-def remove_tags(soup: BeautifulSoup, tags: List[str]) -> BeautifulSoup:
+
+def to_limited_html(x: str) -> str:
+    soup = BeautifulSoup(x, features="html.parser")
+    soup = remove_tags_and_contents(soup, ['style', 'script'])
+    soup = remove_other_xml(soup)
+    soup = reformat_html_link_tags(soup)
+
+    tags_to_keep = {'h1', 'h2', 'h3', 'h4'}
+    tags_to_keep_with_attr = {'a'}
+    tags_to_replace = {
+        'br': '\n',
+        'p': '\n',
+    }
+    default_tag_replacement_char = ''
+    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_char)
+
+    text = replace_chars(text, ['\t', '\xa0'], ' ')
+    text = regex_out_periods_and_white_space(text)
+    text = condense_line_breaks(text)
+
+    return text
+
+
+def to_text(x: str) -> str:
+    soup = BeautifulSoup(x, features="html.parser")
+    soup = remove_tags_and_contents(soup, ['style', 'script'])
+    soup = remove_other_xml(soup)
+
+    tags_to_keep = set()
+    tags_to_keep_with_attr = set()
+    tags_to_replace = {
+        'br': '\n',
+        'h1': '. ',
+        'h2': '. ',
+        'h3': '. ',
+        'h4': '. ',
+        'p': '\n',
+    }
+    default_tag_replacement_char = ''
+    text = replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace, default_tag_replacement_char)
+
+    text = replace_chars(text, ['\t', '\xa0'], ' ')
+    text = regex_out_periods_and_white_space(text)
+    text = condense_line_breaks(text)
+
+    return text
+
+
+# ============================================================
+# === High Level Segmentation functions ======================
+# ============================================================
+
+def to_words(x: str) -> List[str]:
+    return [x]
+
+
+def to_sentences(x: str) -> List[str]:
+    return [x]
+
+
+def to_paragraphs(x: str) -> List[str]:
+    x = condense_line_breaks(x)
+    return x.split('\n')
+
+
+# ============================================================
+# === BeautifulSoup Helper functions =========================
+# ============================================================
+
+def remove_tags_and_contents(soup: BeautifulSoup, tags: List[str]) -> BeautifulSoup:
     """Remove specific tags from the html, including their entire contents."""
     for tag in soup.find_all(True):
         if tag.name in tags:
@@ -56,11 +128,81 @@ def remove_other_xml(soup: BeautifulSoup) -> BeautifulSoup:
     return soup
 
 
+def reformat_html_link_tags(soup: BeautifulSoup) -> BeautifulSoup:
+    for tag in soup.find_all(True):
+        if tag.name == 'a':
+            attrs = dict(tag.attrs)
+            for attr in attrs:
+                if attr not in ['src', 'href']:
+                    del tag.attrs[attr]
+                else:
+                    tag.attrs[attr] = 'LINK'
+    return soup
+
+
+def replace_html(soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
+                 tags_to_replace_with_str: Dict[str, str], default_tag_replacement_char: str) -> str:
+
+    all_tags = set([tag.name for tag in soup.find_all()])
+    tags_to_replace = all_tags - tags_to_keep - tags_to_keep_with_attr
+    tags_to_replace = tags_to_replace | set(tags_to_replace_with_str.keys())
+
+    for tag in soup.find_all(True):
+        if tag.name not in tags_to_keep_with_attr:
+            # clear all attributes
+            tag.attrs = {}
+
+    text = str(soup)
+
+    # all tags to remove have been cleared down to their bare tag form without attributes, and can be found/replaced
+    for tag in tags_to_replace:
+        r = tags_to_replace_with_str.get(tag, default_tag_replacement_char)
+        text = text.replace('<{}>'.format(tag), r).replace('</{}>'.format(tag), r).replace('<{}/>'.format(tag), r)
+
+    return text
+
+
+# ============================================================
+# === String-Based Helper functions =====-====================
+# ============================================================
+
+def regex_out_periods_and_white_space(text: str) -> str:
+    # replaces multiple spaces wth a single space
+    text = re.sub(' +', ' ',  text)
+    # replace occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
+    #  for handling html -> '.' replacement.
+    text = re.sub("[.][. \n]{2,}", '. ', text)
+    return text
+
+
+def condense_line_breaks(text: str) -> str:
+    # replaces multiple spaces wth a single space
+    text = re.sub(r' +', ' ',  text).strip()
+
+    # replace html line breaks with new line characters
+    text = re.sub(r'<br[/]*>', '\n', text)
+
+    # replace any combination of ' ' and '\n' with single '\n'
+    text = re.sub(r"[ \n]{2,}", '\n', text)
+    return text
+
+
+def replace_chars(x: str, chars_to_replace: List[str], replacement_char: str) -> str:
+    """Replace all chars_to_replace with replacement_char. """
+    for p in chars_to_replace:
+        x = x.replace(p, replacement_char)
+    return x
+
+
+# ============================================================
+# === Other ==================================================
+# ============================================================
+
 def remove_html(x: str, replacement_char='. ') -> str:
     """Replace all html tags with replacement_char. """
 
     soup = BeautifulSoup(x, features="html.parser")
-    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_tags_and_contents(soup, ['style', 'script'])
     soup = remove_other_xml(soup)
     return soup.get_text(separator=replacement_char)
 
@@ -69,7 +211,7 @@ def remove_html_to_sentences(x: str) -> List[str]:
     """Extract non-html strings as list of strings. """
 
     soup = BeautifulSoup(x, features="html.parser")
-    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_tags_and_contents(soup, ['style', 'script'])
     soup = remove_other_xml(soup)
     return [text for text in soup.stripped_strings]
 
@@ -78,7 +220,7 @@ def remove_selected_html(x: str) -> str:
     """Remove all tags except for tags_to_keep, and replace the contents of link tags with LINK"""
 
     soup = BeautifulSoup(x, features="html.parser")
-    soup = remove_tags(soup, ['style', 'script'])
+    soup = remove_tags_and_contents(soup, ['style', 'script'])
     soup = remove_other_xml(soup)
 
     tags_to_keep_attr = ['a']
@@ -104,17 +246,6 @@ def remove_selected_html(x: str) -> str:
         text = text.replace('<{}>'.format(t), '').replace('</{}>'.format(t), '').replace('<{}/>'.format(t), '')
 
     return text
-
-
-def replace_problem_chars(x: str, replacement_char=' ') -> str:
-    """Replace all problem chars with replacement_char. """
-    problem_chars = [
-        "\n",
-        "\t",
-    ]
-    for p in problem_chars:
-        x = x.replace(p, replacement_char)
-    return x
 
 
 def allennlp_ner_tagger(sentence: str, predictor: Callable) -> List[Tuple[str, str]]:
@@ -150,10 +281,3 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
     return ner_html
 
 
-def regex_out_periods_and_white_space(text: str) -> str:
-    # replaces multiple spaces wth a single space
-    text = re.sub(' +', ' ',  text)
-    # replaces occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
-    #  for handling html -> '.' replacement.
-    text = re.sub("[.][. \n]{2,}", '.', text)
-    return text
