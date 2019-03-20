@@ -91,12 +91,14 @@ def to_text(x: str) -> str:
 # === High Level Segmentation functions ======================
 # ============================================================
 
-def to_words(x: str) -> List[str]:
-    return [x]
+def to_words(x: str, tok) -> List[str]:
+    return tok.tokenize(x)
 
 
-def to_sentences(x: str) -> List[str]:
-    return [x]
+def to_sentences(x: str, nlp) -> List[str]:
+    doc = nlp(x)
+    result = [sent for sent in doc.sents]
+    return result
 
 
 def to_paragraphs(x: str) -> List[str]:

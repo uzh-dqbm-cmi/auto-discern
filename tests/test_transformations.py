@@ -77,21 +77,9 @@ class TestTransformations(unittest.TestCase):
 class TestAcceptanceTransformation(unittest.TestCase):
 
     def setUp(self):
-        limited_html_transforms = [
-            adt.to_limited_html,
-        ]
-        self.limited_html_transformer = adt.Transformer(limited_html_transforms, num_cores=4)
-
-        text_transforms = [
-            adt.to_text,
-        ]
-        self.text_transformer = adt.Transformer(text_transforms, num_cores=4)
-
-        self.test_input = {'id': 0}
-        self.expected_output = {'id': 0}
-
-    def test_html_to_text(self):
-        self.test_input['content'] = """
+        self.test_input_1 = {
+            'id': 0,
+            'content': """
             <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
                    <div class="topleader">
                    <div class="vsp"> </div>
@@ -130,7 +118,18 @@ class TestAcceptanceTransformation(unittest.TestCase):
             <div>&nbsp;</div>
             </div></div></div></div>
         """
+        }
 
+        # create starting dict for expected output. add content key in individual tests
+        self.expected_output = {'id': 0}
+
+    def test_html_to_text(self):
+        transforms = [
+            adt.to_text,
+        ]
+        transformer = adt.Transformer(transforms)
+
+        test_input = self.test_input_1
         self.expected_output['content'] = """Antidepressants. 
 Antidepressants are medications primarily used for treating depression. 
 What Are Antidepressants?. 
@@ -139,51 +138,16 @@ Antidepressants are medications used to treat depression. Some of these medicati
 Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
 
-        output = self.text_transformer.apply([self.test_input])
-
+        output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
 
     def test_html_to_limited_html(self):
-        self.test_input['content'] = """
-            <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
-                   <div class="topleader">
-                   <div class="vsp"> </div>
-                    <div class="leader ad"><br></div></div><div class="mainContent">
+        transforms = [
+            adt.to_limited_html,
+        ]
+        transformer = adt.Transformer(transforms)
 
-                        <div class="articleHtml">
-            <div class="toolbar_ns" style="float:right;margin-top:-3px">
-            <table><tbody></tbody></table></div>    
-            <script>
-            <!--//--><![CDATA[// ><!--
-             function createToolbar() {	 
-                if ('Antidepressants') {
-                    var st=readCookie("SAVVYTOPICS");if (!st || st.indexOf("|Antidepressants|")==-1) {
-                        var desc=st?"Click here to add <i>Antidepressants to your list of topics.":"<strong>Stay up-to-date on the health topics that interest you.<br /><br />Click here to sign in or sign up for HealthSavvy, and add <i>Antidepressants to your list of topics.";
-                        addToolbarButton("HealthSavvy", "tb_hsicon tool_sp", "#",  savvyClick, "HealthSavvy","hs_savvy_favorite",desc);}
-                }
-                addToolbarButton( "Send this Page","tb_mail tool_sp", "#", function(event) {emailPage(event);return false;}, "Send Page",null, "<strong>Send Using Facebook or Email.<br /><br />Click here to send this page using Facebook or email. You may add a personal message to the email.");
-                addToolbarButton( "Print","tb_print tool_sp", "#", function(event) {printPage(event);return false;}, "Print Article",null, "Click here to print this page."); 	   
-             }
-             createToolbar();  
-
-            //--><!]]>
-            </script><h1>Antidepressants</h1>
-                        <div id="pageOneHeader"><div>
-            <h3>Antidepressants are medications primarily used for treating depression.</h3></div></div></div></div><div>
-            <a name="chapter_0" href="http://depression.emedtv.com/undefined" id="chapter_0"></a><h2>What Are Antidepressants?</h2></div>
-                            <div>
-            Antidepressants are medications used to treat <a href="http://depression.emedtv.com/depression/depression.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, '/depression/depression.html', 'Depression causes unnecessary suffering for both people who have the illness and their families.', 'Depression')">depression</a>. Some of these medications&nbsp;are blue.</div>
-            <div>&nbsp;</div>
-            <div><em>(Click <a title="Antidepressant Uses" href="http://depression.emedtv.com/antidepressants/antidepressant-uses.html" onmouseover="showDescription(event, '/antidepressants/antidepressant-uses.html', 'Besides depression treatment, antidepressants are also approved for other uses.', 'Antidepressant Uses')" onmouseout="hideDescription(event);">Antidepressant Uses</a> for more information on what&nbsp;they are used for, including possible <a href="http://drugs.emedtv.com/medicine/off-label.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, 'http://drugs.emedtv.com/medicine/off-label.html', 'This eMedTV page defines an off-label use as one where a physician prescribes a medication to treat a condition, even though the FDA has not approved the medicine for that specific use.', 'Off-Label')">off-label</a> uses.)</em></div>
-            <div>&nbsp;</div>
-            <div>
-            <a name="chapter_1" href="http://depression.emedtv.com/undefined" id="chapter_1"></a><h2>Types of Antidepressants</h2></div>
-                            <div>
-            There are several types of antidepressants available to treat depression.</div>
-            <div>&nbsp;</div>
-            </div></div></div></div>
-        """
-
+        test_input = self.test_input_1
         self.expected_output['content'] = """<h1>Antidepressants</h1> 
 <h3>Antidepressants are medications primarily used for treating depression.</h3>
 <a href="LINK"></a><h2>What Are Antidepressants?</h2> 
@@ -191,7 +155,53 @@ Antidepressants are medications used to treat <a href="LINK">depression</a>. Som
 (Click <a href="LINK">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="LINK">off-label</a> uses.) 
 <a href="LINK"></a><h2>Types of Antidepressants</h2> 
 There are several types of antidepressants available to treat depression."""
+        output = transformer.apply([test_input])
+        self.assertEqual(output, [self.expected_output])
 
-        output = self.limited_html_transformer.apply([self.test_input])
+    def test_html_to_text_to_sentences(self):
+        transforms = [
+            adt.to_text,
+            # adt.to_sentences,
+        ]
+        transformer = adt.Transformer(transforms)
 
+        test_input = self.test_input_1
+        self.expected_output['content'] = [
+            "Antidepressants. ",
+            "Antidepressants are medications primarily used for treating depression. ",
+            "What Are Antidepressants?. ",
+            "Antidepressants are medications used to treat depression. ",
+            "Some of these medications are blue. ",
+            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
+            "Types of Antidepressants. ",
+            "There are several types of antidepressants available to treat depression.",
+        ]
+
+        output = transformer.apply([test_input])
+
+        import spacy
+        nlp = spacy.load('en_core_web_sm')
+        output = adt.to_sentences(output, nlp)
+
+        self.assertEqual(output, [self.expected_output])
+
+    def test_html_to_text_to_paragraphs(self):
+        transforms = [
+            adt.to_text,
+            adt.to_paragraphs,
+        ]
+        transformer = adt.Transformer(transforms)
+
+        test_input = self.test_input_1
+        self.expected_output['content'] = [
+            "Antidepressants. ",
+            "Antidepressants are medications primarily used for treating depression. ",
+            "What Are Antidepressants?. ",
+            "Antidepressants are medications used to treat depression. Some of these medications are blue. ",
+            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
+            "Types of Antidepressants. ",
+            "There are several types of antidepressants available to treat depression.",
+        ]
+
+        output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])

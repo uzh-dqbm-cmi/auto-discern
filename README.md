@@ -46,11 +46,13 @@ dm.responses.head()
 input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
               for i, row in dm.html_articles.iterrows()]
 
-# select which transformation you want to apply
+# select which transformations you want to apply
 transforms = [
-    # adt.remove_html,
-    adt.remove_html_to_sentences,
-    # adt.remove_selected_html,
+    # adt.to_text,
+    adt.to_limited_html,
+    # adt.to_words,
+    adt.to_sentences,
+    # adt.to_paragraphs,
 ]
 transformer = adt.Transformer(transforms, num_cores=4)
 
