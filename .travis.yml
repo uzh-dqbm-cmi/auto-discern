@@ -2,7 +2,7 @@ language: python
 python:
   - "3.7-dev"  # 3.7 development branch
 install:
-  - pip install -e .
+  - pip install --progress-bar off -e .
 # command to run tests
 script:
   - flake8 .
