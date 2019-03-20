@@ -71,10 +71,10 @@ def to_text(x: str) -> str:
     tags_to_keep_with_attr = set()
     tags_to_replace = {
         'br': ('\n', '\n'),
-        'h1': ('\n', '. '),
-        'h2': ('\n', '. '),
-        'h3': ('\n', '. '),
-        'h4': ('\n', '. '),
+        'h1': ('\n', '. \n'),
+        'h2': ('\n', '. \n'),
+        'h3': ('\n', '. \n'),
+        'h4': ('\n', '. \n'),
         'p':  ('\n', '\n'),
     }
     default_tag_replacement_str = ''
@@ -187,7 +187,8 @@ def regex_out_periods_and_white_space(text: str) -> str:
     text = re.sub(' +', ' ',  text)
     # replace occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
     #  for handling html -> '.' replacement.
-    text = re.sub("[.][. \n]{2,}", '. ', text)
+    text = re.sub("[.][. ]{2,}", '. ', text)
+    text = re.sub("[.][. \n]{2,}", '. \n', text)
     return text
 
 
@@ -198,8 +199,8 @@ def condense_line_breaks(text: str) -> str:
     # replace html line breaks with new line characters
     text = re.sub(r'<br[/]*>', '\n', text)
 
-    # replace any combination of ' ' and '\n' with single '\n'
-    text = re.sub(r"[ \n]{2,}", '\n', text)
+    # replace any combination of ' ' and '\n' with single ' \n'
+    text = re.sub(r"[ \n]{2,}", ' \n', text)
     return text
 
 
