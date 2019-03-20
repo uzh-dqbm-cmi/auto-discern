@@ -46,15 +46,9 @@ dm.responses.head()
 input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
               for i, row in dm.html_articles.iterrows()]
 
-# select which transformations you want to apply
-transforms = [
-    # adt.to_text,
-    adt.to_limited_html,
-    # adt.to_words,
-    adt.to_sentences,
-    # adt.to_paragraphs,
-]
-transformer = adt.Transformer(transforms, num_cores=4)
+# select which transformations and segmentations you want to apply
+# segment_into: words, sentences, paragraphs
+transformer = adt.Transformer(leave_some_html=False, segment_into='words', parallelism=False)
 
 transformed_data = transformer.apply(input_dicts)
 

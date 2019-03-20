@@ -4,74 +4,64 @@ import autodiscern.transformations as adt
 
 class TestTransformations(unittest.TestCase):
 
-    def test_remove_html_removes_tags(self):
-        test_input = "<h1>I am a Header</h1>"
-        expected_output = "I am a Header"
-        self.assertEqual(adt.remove_html(test_input), expected_output)
-
-    def test_remove_selected_html_removes_some_keeps_others(self):
-        test_input = "<div><h1>I am a Header</h1></div>"
-        expected_output = "<h1>I am a Header</h1>"
-        self.assertEqual(adt.remove_selected_html(test_input), expected_output)
-
     def test_replace_problem_chars(self):
         test_input = "words \twords\twords"
         expected_output = "words  words words"
-        self.assertEqual(adt.replace_chars(test_input, ['\t'], ' '), expected_output)
+        self.assertEqual(adt.Transformer.replace_chars(test_input, ['\t'], ' '), expected_output)
 
     def test_regex_out_periods_and_white_space_replaces_extra_consecutive_chars(self):
         test_input = "text text..\n. text"
         expected_output = "text text. \ntext"
-        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
 
     def test_regex_out_periods_and_white_space_no_effect_single_period(self):
         test_input = "text."
-        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), test_input)
+        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), test_input)
 
     def test_regex_out_periods_and_white_space_removes_double_space_between_words(self):
         test_input = "text  text."
         expected_output = "text text."
-        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
 
     def test_regex_out_periods_and_white_space_no_effect_period_between_words(self):
         test_input = "text. text"
         expected_output = "text. text"
-        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
 
     def test_regex_out_periods_and_white_space_removes_extra_consecutive_periods(self):
         test_input = "text text..."
         expected_output = "text text. "
-        self.assertEqual(adt.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
 
     def test_condense_line_breaks_multiple_newlines(self):
         test_input = "text\n\ntext"
         expected_output = "text \ntext"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_condense_line_breaks_strips(self):
         test_input = "text\n"
         expected_output = "text"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_condense_line_breaks_replaces_single_break_html_tag(self):
         test_input = "text<br>text"
         expected_output = "text\ntext"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_condense_line_breaks_replaces_multiple_break_html_tags(self):
         test_input = "text<br><br>text"
         expected_output = "text \ntext"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_condense_line_breaks_replaces_break_html_tags_with_bs4_slash(self):
         test_input = "text<br/>text"
         expected_output = "text\ntext"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_condense_line_breaks_replaces_combo_break_html_tag_and_newline(self):
         test_input = "text<br>\ntext"
         expected_output = "text \ntext"
-        self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
+        self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
 
 class TestAcceptanceTransformation(unittest.TestCase):
@@ -124,10 +114,7 @@ class TestAcceptanceTransformation(unittest.TestCase):
         self.expected_output = {'id': 0}
 
     def test_html_to_text(self):
-        transforms = [
-            adt.to_text,
-        ]
-        transformer = adt.Transformer(transforms)
+        transformer = adt.Transformer(leave_some_html=False)
 
         test_input = self.test_input_1
         self.expected_output['content'] = """Antidepressants. 
@@ -142,10 +129,7 @@ There are several types of antidepressants available to treat depression."""
         self.assertEqual(output, [self.expected_output])
 
     def test_html_to_limited_html(self):
-        transforms = [
-            adt.to_limited_html,
-        ]
-        transformer = adt.Transformer(transforms)
+        transformer = adt.Transformer(leave_some_html=True)
 
         test_input = self.test_input_1
         self.expected_output['content'] = """<h1>Antidepressants</h1> 
@@ -158,39 +142,45 @@ There are several types of antidepressants available to treat depression."""
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
 
-    def test_html_to_text_to_sentences(self):
-        transforms = [
-            adt.to_text,
-            # adt.to_sentences,
-        ]
-        transformer = adt.Transformer(transforms)
+    def test_html_to_text_to_words(self):
+        transformer = adt.Transformer(leave_some_html=False, segment_into='words')
 
         test_input = self.test_input_1
         self.expected_output['content'] = [
-            "Antidepressants. ",
-            "Antidepressants are medications primarily used for treating depression. ",
-            "What Are Antidepressants?. ",
-            "Antidepressants are medications used to treat depression. ",
-            "Some of these medications are blue. ",
-            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
-            "Types of Antidepressants. ",
+            "Antidepressants", ".",
+            "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
+            "What", "Are", "Antidepressants", "?", ".",
+            "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
+            "Some", "of", "these", "medications", "are", "blue", ".",
+            "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
+            "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")",
+            "Types", "of", "Antidepressants", ".",
+            "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
+        ]
+
+        output = transformer.apply([test_input])
+        self.assertEqual(output, [self.expected_output])
+
+    def test_html_to_text_to_sentences(self):
+        transformer = adt.Transformer(leave_some_html=False, segment_into='sentences')
+
+        test_input = self.test_input_1
+        self.expected_output['content'] = [
+            "Antidepressants.",
+            "Antidepressants are medications primarily used for treating depression.",
+            "What Are Antidepressants?.",
+            "Antidepressants are medications used to treat depression.",
+            "Some of these medications are blue.",
+            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
+            "Types of Antidepressants.",
             "There are several types of antidepressants available to treat depression.",
         ]
 
         output = transformer.apply([test_input])
-
-        import spacy
-        nlp = spacy.load('en_core_web_sm')
-        output = adt.to_sentences(output, nlp)
-
         self.assertEqual(output, [self.expected_output])
 
     def test_html_to_text_to_paragraphs(self):
-        transforms = [
-            adt.to_text,
-            adt.to_paragraphs,
-        ]
-        transformer = adt.Transformer(transforms)
+        transformer = adt.Transformer(leave_some_html=False, segment_into='paragraphs')
 
         test_input = self.test_input_1
         self.expected_output['content'] = [
