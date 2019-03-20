@@ -74,7 +74,7 @@ class TestTransformations(unittest.TestCase):
         self.assertEqual(adt.condense_line_breaks(test_input), expected_output)
 
 
-class TestTransformationIntegrations(unittest.TestCase):
+class TestAcceptanceTransformation(unittest.TestCase):
 
     def setUp(self):
         limited_html_transforms = [
