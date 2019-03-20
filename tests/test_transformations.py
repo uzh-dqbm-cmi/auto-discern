@@ -142,3 +142,56 @@ There are several types of antidepressants available to treat depression."""
         output = self.text_transformer.apply([self.test_input])
 
         self.assertEqual(output, [self.expected_output])
+
+    def test_html_to_limited_html(self):
+        self.test_input['content'] = """
+            <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
+                   <div class="topleader">
+                   <div class="vsp"> </div>
+                    <div class="leader ad"><br></div></div><div class="mainContent">
+
+                        <div class="articleHtml">
+            <div class="toolbar_ns" style="float:right;margin-top:-3px">
+            <table><tbody></tbody></table></div>    
+            <script>
+            <!--//--><![CDATA[// ><!--
+             function createToolbar() {	 
+                if ('Antidepressants') {
+                    var st=readCookie("SAVVYTOPICS");if (!st || st.indexOf("|Antidepressants|")==-1) {
+                        var desc=st?"Click here to add <i>Antidepressants to your list of topics.":"<strong>Stay up-to-date on the health topics that interest you.<br /><br />Click here to sign in or sign up for HealthSavvy, and add <i>Antidepressants to your list of topics.";
+                        addToolbarButton("HealthSavvy", "tb_hsicon tool_sp", "#",  savvyClick, "HealthSavvy","hs_savvy_favorite",desc);}
+                }
+                addToolbarButton( "Send this Page","tb_mail tool_sp", "#", function(event) {emailPage(event);return false;}, "Send Page",null, "<strong>Send Using Facebook or Email.<br /><br />Click here to send this page using Facebook or email. You may add a personal message to the email.");
+                addToolbarButton( "Print","tb_print tool_sp", "#", function(event) {printPage(event);return false;}, "Print Article",null, "Click here to print this page."); 	   
+             }
+             createToolbar();  
+
+            //--><!]]>
+            </script><h1>Antidepressants</h1>
+                        <div id="pageOneHeader"><div>
+            <h3>Antidepressants are medications primarily used for treating depression.</h3></div></div></div></div><div>
+            <a name="chapter_0" href="http://depression.emedtv.com/undefined" id="chapter_0"></a><h2>What Are Antidepressants?</h2></div>
+                            <div>
+            Antidepressants are medications used to treat <a href="http://depression.emedtv.com/depression/depression.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, '/depression/depression.html', 'Depression causes unnecessary suffering for both people who have the illness and their families.', 'Depression')">depression</a>. Some of these medications&nbsp;are blue.</div>
+            <div>&nbsp;</div>
+            <div><em>(Click <a title="Antidepressant Uses" href="http://depression.emedtv.com/antidepressants/antidepressant-uses.html" onmouseover="showDescription(event, '/antidepressants/antidepressant-uses.html', 'Besides depression treatment, antidepressants are also approved for other uses.', 'Antidepressant Uses')" onmouseout="hideDescription(event);">Antidepressant Uses</a> for more information on what&nbsp;they are used for, including possible <a href="http://drugs.emedtv.com/medicine/off-label.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, 'http://drugs.emedtv.com/medicine/off-label.html', 'This eMedTV page defines an off-label use as one where a physician prescribes a medication to treat a condition, even though the FDA has not approved the medicine for that specific use.', 'Off-Label')">off-label</a> uses.)</em></div>
+            <div>&nbsp;</div>
+            <div>
+            <a name="chapter_1" href="http://depression.emedtv.com/undefined" id="chapter_1"></a><h2>Types of Antidepressants</h2></div>
+                            <div>
+            There are several types of antidepressants available to treat depression.</div>
+            <div>&nbsp;</div>
+            </div></div></div></div>
+        """
+
+        self.expected_output['content'] = """<h1>Antidepressants</h1> 
+<h3>Antidepressants are medications primarily used for treating depression.</h3>
+<a href="LINK"></a><h2>What Are Antidepressants?</h2> 
+Antidepressants are medications used to treat <a href="LINK">depression</a>. Some of these medications are blue. 
+(Click <a href="LINK">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="LINK">off-label</a> uses.) 
+<a href="LINK"></a><h2>Types of Antidepressants</h2> 
+There are several types of antidepressants available to treat depression."""
+
+        output = self.limited_html_transformer.apply([self.test_input])
+
+        self.assertEqual(output, [self.expected_output])
