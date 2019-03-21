@@ -1,3 +1,4 @@
+import html
 import multiprocessing as mp
 import re
 import spacy
@@ -191,8 +192,7 @@ class Transformer:
                         tag.attrs[attr] = 'LINK'
         return soup
 
-    @staticmethod
-    def replace_html(soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
+    def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
                      tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str) -> str:
         """
         Finds all tags in an html BeautifulSoup object and replaces/keeps the tags in accordance with args.
@@ -217,7 +217,7 @@ class Transformer:
                 # clear all attributes
                 tag.attrs = {}
 
-        text = str(soup)
+        text = self.soup_to_text_with_tags(soup)
 
         # all tags to remove have been cleared down to their bare tag form without attributes, and can be found/replaced
         replacement_tuple = (default_tag_replacement_str, default_tag_replacement_str)
@@ -227,6 +227,12 @@ class Transformer:
                                 ).replace('</{}>'.format(tag), r[1]
                                           ).replace('<{}/>'.format(tag), r[1])
 
+        return text
+
+    @staticmethod
+    def soup_to_text_with_tags(soup: BeautifulSoup) -> str:
+        text = str(soup)
+        text = html.unescape(text)
         return text
 
     # === String-Based Helper functions =====-====================

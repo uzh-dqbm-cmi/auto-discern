@@ -1,3 +1,4 @@
+from bs4 import BeautifulSoup
 import unittest
 import autodiscern.transformations as adt
 
@@ -63,6 +64,10 @@ class TestTransformations(unittest.TestCase):
         expected_output = "text \ntext"
         self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
+    def test_soup_to_text_with_tags(self):
+        test_input = BeautifulSoup('<html><body><h2 class="selectedHighlight">Staging, grading &amp; treatment</h2></body></html>')
+        expected_output = '<html><body><h2 class="selectedHighlight">Staging, grading & treatment</h2></body></html>'
+        self.assertEqual(adt.Transformer.soup_to_text_with_tags(test_input), expected_output)
 
 class TestAcceptanceTransformation(unittest.TestCase):
 
