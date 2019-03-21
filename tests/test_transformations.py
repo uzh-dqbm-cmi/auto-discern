@@ -10,29 +10,39 @@ class TestTransformations(unittest.TestCase):
         expected_output = "words  words words"
         self.assertEqual(adt.Transformer.replace_chars(test_input, ['\t'], ' '), expected_output)
 
-    def test_regex_out_periods_and_white_space_replaces_extra_consecutive_chars(self):
+    def test_regex_out_punctuation_and_white_space_replaces_extra_consecutive_chars(self):
         test_input = "text text..\n. text"
         expected_output = "text text. \ntext"
-        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
 
-    def test_regex_out_periods_and_white_space_no_effect_single_period(self):
+    def test_regex_out_punctuation_and_white_space_no_effect_single_period(self):
         test_input = "text."
-        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), test_input)
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), test_input)
 
-    def test_regex_out_periods_and_white_space_removes_double_space_between_words(self):
+    def test_regex_out_punctuation_and_white_space_removes_double_space_between_words(self):
         test_input = "text  text."
         expected_output = "text text."
-        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
 
-    def test_regex_out_periods_and_white_space_no_effect_period_between_words(self):
+    def test_regex_out_punctuation_and_white_space_no_effect_period_between_words(self):
         test_input = "text. text"
         expected_output = "text. text"
-        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
 
-    def test_regex_out_periods_and_white_space_removes_extra_consecutive_periods(self):
+    def test_regex_out_punctuation_and_white_space_removes_extra_consecutive_periods(self):
         test_input = "text text..."
         expected_output = "text text. "
-        self.assertEqual(adt.Transformer.regex_out_periods_and_white_space(test_input), expected_output)
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
+
+    def test_regex_out_punctuation_and_white_space_removes_leading_period(self):
+        test_input = "\n. \ntext text. "
+        expected_output = "text text. "
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
+
+    def test_regex_out_punctuation_and_white_space_combines_question_mark_period(self):
+        test_input = "text text?. "
+        expected_output = "text text? "
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
 
     def test_condense_line_breaks_multiple_newlines(self):
         test_input = "text\n\ntext"
@@ -65,7 +75,7 @@ class TestTransformations(unittest.TestCase):
         self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
     def test_soup_to_text_with_tags(self):
-        test_input = BeautifulSoup('<html><body><h2 class="selectedHighlight">Staging, grading &amp; treatment</h2></body></html>')
+        test_input = BeautifulSoup('<html><body><h2 class="selectedHighlight">Staging, grading &amp; treatment</h2></body></html>', features="html.parser")
         expected_output = '<html><body><h2 class="selectedHighlight">Staging, grading & treatment</h2></body></html>'
         self.assertEqual(adt.Transformer.soup_to_text_with_tags(test_input), expected_output)
 
@@ -124,7 +134,7 @@ class TestAcceptanceTransformation(unittest.TestCase):
         test_input = self.test_input_1
         self.expected_output['content'] = """Antidepressants. 
 Antidepressants are medications primarily used for treating depression. 
-What Are Antidepressants?. 
+What Are Antidepressants? 
 Antidepressants are medications used to treat depression. Some of these medications are blue. 
 (Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) 
 Types of Antidepressants. 
@@ -154,7 +164,7 @@ There are several types of antidepressants available to treat depression."""
         self.expected_output['content'] = [
             "Antidepressants", ".",
             "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
-            "What", "Are", "Antidepressants", "?", ".",
+            "What", "Are", "Antidepressants", "?",
             "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
             "Some", "of", "these", "medications", "are", "blue", ".",
             "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
@@ -173,7 +183,7 @@ There are several types of antidepressants available to treat depression."""
         self.expected_output['content'] = [
             "Antidepressants.",
             "Antidepressants are medications primarily used for treating depression.",
-            "What Are Antidepressants?.",
+            "What Are Antidepressants?",
             "Antidepressants are medications used to treat depression.",
             "Some of these medications are blue.",
             "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
@@ -191,7 +201,7 @@ There are several types of antidepressants available to treat depression."""
         self.expected_output['content'] = [
             "Antidepressants. ",
             "Antidepressants are medications primarily used for treating depression. ",
-            "What Are Antidepressants?. ",
+            "What Are Antidepressants? ",
             "Antidepressants are medications used to treat depression. Some of these medications are blue. ",
             "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
             "Types of Antidepressants. ",

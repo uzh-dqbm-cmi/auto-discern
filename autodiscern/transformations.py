@@ -40,18 +40,18 @@ class Transformer:
         # segmentation transform to use
         if segment_into is None:
             pass
-        elif segment_into == 'words':
+        elif segment_into in ['w', 'word', 'words']:
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
             self.segmenter_helper_obj = WordTokenizer()
 
-        elif segment_into == 'sentences':
+        elif segment_into in ['s', 'sent', 'sents', 'sentence', 'sentences']:
             self.transforms.append(self._to_sentences)
             self.segmentation_type = 'sentences'
             nlp = spacy.load('en', disable=['ner'])
             self.segmenter_helper_obj = nlp
 
-        elif segment_into == 'paragraphs':
+        elif segment_into in ['p', 'para', 'paragraph', 'paragraphs']:
             self.transforms.append(self._to_paragraphs)
             self.segmentation_type = 'paragraphs'
             self.segmenter_helper_obj = None
@@ -105,7 +105,7 @@ class Transformer:
         tags_to_keep = {'h1', 'h2', 'h3', 'h4'}
         tags_to_keep_with_attr = {'a'}
         tags_to_replace = {
-            'br': ('\n', '\n'),
+            'br': ('.\n', '.\n'),
             'p': ('\n', '\n'),
         }
         default_tag_replacement_str = ''
@@ -113,7 +113,7 @@ class Transformer:
                                  default_tag_replacement_str)
 
         text = self.replace_chars(text, ['\t', '\xa0'], ' ')
-        text = self.regex_out_periods_and_white_space(text)
+        text = self.regex_out_punctuation_and_white_space(text)
         text = self.condense_line_breaks(text)
 
         return text
@@ -126,7 +126,7 @@ class Transformer:
         tags_to_keep = set()
         tags_to_keep_with_attr = set()
         tags_to_replace = {
-            'br': ('\n', '\n'),
+            'br': ('.\n', '.\n'),
             'h1': ('\n', '. \n'),
             'h2': ('\n', '. \n'),
             'h3': ('\n', '. \n'),
@@ -138,7 +138,7 @@ class Transformer:
                                  default_tag_replacement_str)
 
         text = self.replace_chars(text, ['\t', '\xa0'], ' ')
-        text = self.regex_out_periods_and_white_space(text)
+        text = self.regex_out_punctuation_and_white_space(text)
         text = self.condense_line_breaks(text)
 
         return text
@@ -238,13 +238,20 @@ class Transformer:
     # === String-Based Helper functions =====-====================
 
     @staticmethod
-    def regex_out_periods_and_white_space(text: str) -> str:
+    def regex_out_punctuation_and_white_space(text: str) -> str:
+        text = text.replace('?.', '?')
+
         # replaces multiple spaces wth a single space
         text = re.sub(' +', ' ',  text)
         # replace occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
         #  for handling html -> '.' replacement.
         text = re.sub("[.][. ]{2,}", '. ', text)
         text = re.sub("[.][. \n]{2,}", '. \n', text)
+
+        # if there is a period at the very start of the document, remove it (replace 1 time)
+        if text.lstrip()[0] == '.':
+            text = text.replace('.', '', 1).lstrip()
+
         return text
 
     @staticmethod
