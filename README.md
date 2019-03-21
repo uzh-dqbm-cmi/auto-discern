@@ -5,8 +5,10 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
 ### How to Use this Repo
 * `git clone` the repo and `cd` into it.
 * Run `pip install -e .` to install the repo's python package.
+  * If you get a `g++` error during installation, this may be due to a OSX Mojave, see [this StackOverflow answer](https://stackoverflow.com/questions/52509602/cant-compile-c-program-on-a-mac-after-upgrade-to-mojave).
 * Acquire a copy of this project's data and structure it according to "A Note on Data" below. 
 * Skip on down to Example Usage below.
+
 
 ### A Note on Data
 This repo contains no data. To use this package, you must have a copy of the data locally, in the following file structure:
@@ -67,20 +69,6 @@ for sentence in transformed_data[0]['content'][:50]:
 HTML(adt.ner_tuples_to_html(ner))
 
 ```
-
-## Tokenization Notes
-Note that AllenNLP is not installed by default by this package for <TravisReasons>.
-Run `pip install -e .[allennlp]` to add the package.
-If you get a `g++` error during installation, this may be due to a OSX Mojave, see [this StackOverflow answer](https://stackoverflow.com/questions/52509602/cant-compile-c-program-on-a-mac-after-upgrade-to-mojave).
-
-```python
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
-
-tok = WordTokenizer()
-result = tok.tokenize(some_text_str)
-result = tok.batch_tokenize([some_text_str, another_text_str])
-```
-
 
 ## MetaMap
 
