@@ -106,3 +106,9 @@ venv.bak/
 # Data
 .csv
 .ipynb
+
+# Vs code
+.vscode
+
+# notes
+work_in_progress.txt
