@@ -6,11 +6,11 @@ from pathlib import Path
 
 class DataManager:
     """Data manager that loads DISCERN corpus into different formats.
-    
+
        Args:
            data_pth: string, path/to/data
-                        
-       .. note :: 
+
+       .. note ::
 
            On windows OS, the backslash in the string should be escaped!!
     """
