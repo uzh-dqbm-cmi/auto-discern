@@ -5,9 +5,15 @@ setup(name='autodiscern',
       description='',
       url='https://github.com/CMI-UZH/auto-discern',
       packages=['autodiscern'],
+      python_requires='>3.5.0',
       install_requires=[
+            'allennlp',
+            'beautifulsoup4',
             'flake8',
             'pandas',
             'spacy',
       ],
+      extras_requires={
+            'allennlp': ['allennlp'],
+      },
       zip_safe=False)

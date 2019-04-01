@@ -1,0 +1,18 @@
+language: python
+python:
+  - "3.7-dev"  # 3.7 development branch
+install:
+  - pip install --upgrade pip
+  - pip --version
+  - pip install --progress-bar off -e .
+  - python -m spacy download en
+# command to run tests
+script:
+  - flake8 .
+  - pytest
+notifications:
+  slack:
+    rooms:
+      - cmi-uzh:o2jdwEmDHNt9P2yRGMVneVbD#travis
+    on_success: change # default: always
+    on_failure: always # default: always
