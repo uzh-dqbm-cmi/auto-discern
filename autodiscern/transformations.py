@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaratio
 from typing import Callable, Dict, List, Tuple, Set
 
 
+# mp = mp.get_context('spawn') # setup context
 TransformType = Callable[[str], str]
 
 
@@ -40,18 +41,18 @@ class Transformer:
         # segmentation transform to use
         if segment_into is None:
             pass
-        elif segment_into in ['w', 'word', 'words']:
+        elif segment_into in {'w', 'word', 'words'}:
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
             self.segmenter_helper_obj = WordTokenizer()
 
-        elif segment_into in ['s', 'sent', 'sents', 'sentence', 'sentences']:
+        elif segment_into in {'s', 'sent', 'sents', 'sentence', 'sentences'}:
             self.transforms.append(self._to_sentences)
             self.segmentation_type = 'sentences'
             nlp = spacy.load('en', disable=['ner'])
             self.segmenter_helper_obj = nlp
 
-        elif segment_into in ['p', 'para', 'paragraph', 'paragraphs']:
+        elif segment_into in {'p', 'para', 'paragraph', 'paragraphs'}:
             self.transforms.append(self._to_paragraphs)
             self.segmentation_type = 'paragraphs'
             self.segmenter_helper_obj = None
@@ -72,7 +73,8 @@ class Transformer:
         return transformed_obj
 
     def apply_in_parallel(self, input_list: List[Dict]) -> List:
-        """Run all transforms on input_list in parallel. """
+        # """Run all transforms on input_list in parallel. """
+
         pool = mp.Pool(self.num_cores)
         results = pool.map(self._transform_worker, (i for i in input_list))
         pool.close()

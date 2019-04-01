@@ -69,6 +69,17 @@ for sentence in transformed_data[0]['content'][:50]:
 HTML(adt.ner_tuples_to_html(ner))
 
 ```
+## Known issues
+
+### Installing on Windows OS
+
+- When passing `path` to the data (i.e. `path/to/data` in `autodiscern.Datamanager` class), escape the backslash characters such as `C:\\Users\\Username\\Path\\to\\Data`.
+- There might be permission error while `initializing` `autodiscern.Transformer` class because of `spacy` module. The best way to resolve this issue is to reinstall `spacy` using `conda`. Make sure to run `Anaconda prompt` in `Administrator` mode and run:
+
+    ``` shell
+    conda install spacy
+    python -m spacy download en
+    ```
 
 ## MetaMap
 
