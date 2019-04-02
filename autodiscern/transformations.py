@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaratio
 from typing import Callable, Dict, List, Tuple, Set
 
 
-# mp = mp.get_context('spawn') # setup context
 TransformType = Callable[[str], str]
 
 
@@ -73,8 +72,7 @@ class Transformer:
         return transformed_obj
 
     def apply_in_parallel(self, input_list: List[Dict]) -> List:
-        # """Run all transforms on input_list in parallel. """
-
+        """Run all transforms on input_list in parallel. """
         pool = mp.Pool(self.num_cores)
         results = pool.map(self._transform_worker, (i for i in input_list))
         pool.close()
