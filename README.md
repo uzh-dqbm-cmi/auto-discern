@@ -50,7 +50,13 @@ input_dicts = [{'id': row['entity_id'], 'content': row['content']}
 
 # select which transformations and segmentations you want to apply
 # segment_into: words, sentences, paragraphs
-transformer = adt.Transformer(leave_some_html=False, segment_into='words', parallelism=False)
+transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
+                              html_to_plain_text=True,   # convert html tags to a form that doesnt interrupt segmentation
+                              segment_into='sentences',  # segment documents into sentences
+                              flatten=True,              # after segmentation, flatten list[doc_dict([sentences]] into list[sentences]
+                              annotate_html=True,        # annotate sentences with html tags
+                              parallelism=True           # run in parallel for 2x speedup
+                              )
 
 transformed_data = transformer.apply(input_dicts)
 

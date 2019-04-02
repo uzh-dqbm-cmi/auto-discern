@@ -1,7 +1,6 @@
 import html
 import multiprocessing as mp
 import re
-import spacy
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from nltk.tokenize.punkt import PunktSentenceTokenizer
@@ -257,7 +256,7 @@ class Transformer:
     def _flatten_text_dicts(list_of_dicts: List[Dict]) -> List[Dict]:
         output = []
         for parent_dict in list_of_dicts:
-            for num , i in enumerate(parent_dict['content']):
+            for num, i in enumerate(parent_dict['content']):
                 child_dict = {key: parent_dict[key] for key in parent_dict if key != 'content'}
                 child_dict['content'] = i
                 child_dict['sub_id'] = num
@@ -399,6 +398,7 @@ class Transformer:
                 found_tags.append(tags[plaintexttag])
         d['html_tags'] = found_tags
         return d
+
 
 # ============================================================
 # === Other, not yet integrated into the class yet ===========
