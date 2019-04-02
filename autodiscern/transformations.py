@@ -4,6 +4,7 @@ import re
 import spacy
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
+from nltk.tokenize.punkt import PunktSentenceTokenizer
 from typing import Callable, Dict, List, Tuple, Set
 
 
@@ -12,11 +13,19 @@ TransformType = Callable[[str], str]
 
 
 class Transformer:
-    """Run a set of transforms on any input.
-     NOTE: Can run transforms in parallel, but currently not compatible with sentence level segmentation. """
+    """Run a set of transforms and annotations on any input.
+
+    Transforms are run on the string level. A transform takes a string as input, and returns a modified string.
+
+    Segmentation is run as a special transform that takes a string and returns a List(str). Segmentation is always
+        run after all other transforms.
+
+    Annotations are run on the dict level. An annotator takes a dict with the ['content'] key set to a string, and
+        returns a modified dict with additional keys. The annotation may also modify the string in ['content'].
+    """
 
     def __init__(self, leave_some_html: bool = False, html_to_plain_text: bool = False, segment_into: str = None,
-                 parallelism: bool = False, num_cores=8):
+                 flatten: bool = False, annotate_html: bool = False, parallelism: bool = False, num_cores=8):
         """
         Sets the parameters of the Transformer object.
 
@@ -24,6 +33,8 @@ class Transformer:
             leave_some_html: bool. Whether or not to leave some html in the text.
             html_to_plain_text: bool. Convert html tags into plain text so as not to break text segmentation.
             segment_into: str. segment the text into words, sentences, or paragraphs.
+            flatten: bool. Whether to flatten the segmented texts list(dict(list)) into a single master list(dict).
+            annotate_html: bool. Set annotations on the dict about the presence of html tags. Also removes html tags.
             parallelism: bool. Whether to run the transforms in parallel. Not compatible with sentence segmentation.
             num_cores: int. Number of cores to use when using multiprocessing.
 
@@ -31,8 +42,18 @@ class Transformer:
 
         """
         self.transforms = []
+        self.annotations = []
         self.parallelism = parallelism
         self.num_cores = num_cores
+        self.flatten = flatten
+
+        if leave_some_html and segment_into is not None and html_to_plain_text is False:
+            print("WARNING: segmentation does not work well with html remaining in the sentence. Consider setting "
+                  "html_to_plain_text to True. ")
+
+        if flatten and segment_into is None:
+            print("WARNING: Flattening should only be applied when segmentation is also applied. Make sur you know "
+                  "what you're doing! ")
 
         # text cleaning transform to use
         if leave_some_html:
@@ -50,13 +71,12 @@ class Transformer:
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
             self.segmenter_helper_obj = WordTokenizer()
-
         elif segment_into in {'s', 'sent', 'sents', 'sentence', 'sentences'}:
             self.transforms.append(self._to_sentences)
             self.segmentation_type = 'sentences'
-            nlp = spacy.load('en', disable=['ner'])
-            self.segmenter_helper_obj = nlp
-
+            # nlp = spacy.load('en', disable=['ner'])
+            # self.segmenter_helper_obj = nlp
+            self.segmenter_helper_obj = PunktSentenceTokenizer()
         elif segment_into in {'p', 'para', 'paragraph', 'paragraphs'}:
             self.transforms.append(self._to_paragraphs)
             self.segmentation_type = 'paragraphs'
@@ -64,9 +84,12 @@ class Transformer:
         else:
             raise ValueError("Invalid segment_type: {}".format(segment_into))
 
+        # annotations to use
+        if annotate_html:
+            self.annotations.append(self._annotate_and_clean_html)
+
     def _apply_transforms_to_str(self, content: str) -> str:
         """Apply list all transforms to str. """
-
         for f in self.transforms:
             content = f(content)
         return content
@@ -77,29 +100,61 @@ class Transformer:
         transformed_obj['content'] = self._apply_transforms_to_str(obj['content'])
         return transformed_obj
 
-    def apply_in_parallel(self, input_list: List[Dict]) -> List:
+    def _apply_annotations_to_dict(self, content: Dict) -> Dict:
+        """Apply list all annotations to dict. """
+
+        for f in self.annotations:
+            content = f(content)
+        return content
+
+    def _annotation_worker(self, obj: Dict) -> Dict:
+        """Create a new transformed object. """
+        return self._apply_annotations_to_dict(obj)
+
+    def apply_in_parallel(self, input_list: List[Dict], worker: Callable) -> List:
         # """Run all transforms on input_list in parallel. """
 
         pool = mp.Pool(self.num_cores)
-        results = pool.map(self._transform_worker, (i for i in input_list))
+        results = pool.map(worker, (i for i in input_list))
         pool.close()
         pool.join()
         return results
 
-    def apply_in_series(self, input_list: List[Dict]) -> List:
+    def apply_in_series(self, input_list: List[Dict], worker: Callable) -> List:
         """Run all transforms on input_list in series. """
         results = []
         for i in input_list:
-            results.append(self._transform_worker(i))
+            results.append(worker(i))
         return results
 
-    def apply(self, input_list: List[Dict]) -> List:
-        """Run all transforms on input_list. """
-
+    def _apply_transforms(self, input_list: List[Dict]) -> List:
         if self.parallelism:
-            return self.apply_in_parallel(input_list)
+            result = self.apply_in_parallel(input_list, worker=self._transform_worker)
         else:
-            return self.apply_in_series(input_list)
+            result = self.apply_in_series(input_list, worker=self._transform_worker)
+        return result
+
+    def _apply_annotations(self, input_list: List[Dict]) -> List:
+        if self.parallelism:
+            result = self.apply_in_parallel(input_list, worker=self._annotation_worker)
+        else:
+            result = self.apply_in_series(input_list, worker=self._annotation_worker)
+        return result
+
+    def apply(self, input_list: List[Dict]) -> List:
+        """Run all transforms and annotations on input_list. """
+
+        # run transformations, including segmentation, at the string level
+        result = self._apply_transforms(input_list)
+
+        # if segmentation occurred, flatten list of dicts with now lists in 'content' into one single list of dicts
+        if self.flatten:
+            result = self._flatten_text_dicts(result)
+
+        # run annotations, at the dict level
+        result = self._apply_annotations(result)
+
+        return result
 
     # === High Level Transformer functions =======================
 
@@ -140,6 +195,8 @@ class Transformer:
             'h3': (' thisisah3tag ', '. \n'),
             'h4': (' thisisah4tag ', '. \n'),
             'a':  (' thisisalinktag ', ' '),
+            'li': ('thisisalistitemtag ', '. '),
+            'tr': ('thisisatablerowtag ', '. '),
             'p':  ('\n', '\n'),
         }
         default_tag_replacement_str = ''
@@ -184,14 +241,28 @@ class Transformer:
         return [str(t) for t in tok.tokenize(x)]
 
     def _to_sentences(self, x: str) -> List[str]:
-        nlp = self.segmenter_helper_obj
-        doc = nlp(x)
-        result = [sent.string.strip() for sent in doc.sents]
+        # spacy sentence tokenizer version
+        # nlp = self.segmenter_helper_obj
+        # doc = nlp(x)
+        # result = [sent.string.strip() for sent in doc.sents]
+        tokenizer = self.segmenter_helper_obj
+        result = [sent.strip() for sent in tokenizer.tokenize(x)]
         return result
 
     def _to_paragraphs(self, x: str) -> List[str]:
         x = self.condense_line_breaks(x)
         return x.split('\n')
+
+    @staticmethod
+    def _flatten_text_dicts(list_of_dicts: List[Dict]) -> List[Dict]:
+        output = []
+        for parent_dict in list_of_dicts:
+            for num , i in enumerate(parent_dict['content']):
+                child_dict = {key: parent_dict[key] for key in parent_dict if key != 'content'}
+                child_dict['content'] = i
+                child_dict['sub_id'] = num
+                output.append(child_dict)
+        return output
 
     # === BeautifulSoup Helper functions =========================
     @staticmethod
@@ -269,7 +340,7 @@ class Transformer:
         text = html.unescape(text)
         return text
 
-    # === String-Based Helper functions =====-====================
+    # === String-Based Helper functions ==========================
 
     @staticmethod
     def regex_out_punctuation_and_white_space(text: str) -> str:
@@ -308,6 +379,26 @@ class Transformer:
             x = x.replace(p, replacement_char)
         return x
 
+    # === Annotation Functions ==================================
+
+    @staticmethod
+    def _annotate_and_clean_html(d: Dict) -> Dict:
+        tags = {
+            'thisisah1tag': 'h1',
+            'thisisah2tag': 'h2',
+            'thisisah3tag': 'h3',
+            'thisisah4tag': 'h4',
+            'thisisalinktag': 'a',
+            'thisisalistitemtag': 'li',
+            'thisisatablerowtag': 'tr',
+        }
+        found_tags = []
+        for plaintexttag in tags:
+            if plaintexttag in d['content']:
+                d['content'] = d['content'].replace(plaintexttag, ' ').strip()
+                found_tags.append(tags[plaintexttag])
+        d['html_tags'] = found_tags
+        return d
 
 # ============================================================
 # === Other, not yet integrated into the class yet ===========

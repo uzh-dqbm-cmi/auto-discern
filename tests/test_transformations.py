@@ -74,10 +74,36 @@ class TestTransformations(unittest.TestCase):
         expected_output = "text \ntext"
         self.assertEqual(adt.Transformer.condense_line_breaks(test_input), expected_output)
 
-    def test_soup_to_text_with_tags(self):
+    def test_soup_to_text_with_tags_replaces_amp(self):
         test_input = BeautifulSoup('<html><body><h2 class="selectedHighlight">Staging, grading &amp; treatment</h2></body></html>', features="html.parser")
         expected_output = '<html><body><h2 class="selectedHighlight">Staging, grading & treatment</h2></body></html>'
         self.assertEqual(adt.Transformer.soup_to_text_with_tags(test_input), expected_output)
+
+    def test_flatten_text_dicts(self):
+        test_input = [
+            {'id': 0, 'content': ['word0', 'word1']},
+            {'id': 1, 'content': ['word2', 'word3']},
+        ]
+        expected_output = [
+            {'id': 0, 'sub_id': 0, 'content': 'word0'},
+            {'id': 0, 'sub_id': 1, 'content': 'word1'},
+            {'id': 1, 'sub_id': 0, 'content': 'word2'},
+            {'id': 1, 'sub_id': 1, 'content': 'word3'},
+        ]
+        self.assertEqual(adt.Transformer._flatten_text_dicts(test_input), expected_output)
+
+    def test_annotate_and_clean_html(self):
+        test_input = {
+            'id': 0,
+            'content': 'thisisah1tag I am a Header.'
+        }
+        expected_output = {
+            'id': 0,
+            'content': 'I am a Header.',
+            'html_tags': ['h1']
+        }
+        self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
+
 
 class TestAcceptanceTransformation(unittest.TestCase):
 
@@ -219,6 +245,43 @@ There are several types of antidepressants available to treat depression."""
             "Antidepressants are medications used to treat depression. Some of these medications are blue. ",
             "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
             "Types of Antidepressants. ",
+            "There are several types of antidepressants available to treat depression.",
+        ]
+
+        output = transformer.apply([test_input])
+        self.assertEqual(output, [self.expected_output])
+
+    # to_limited_html_plain_text segmentation tests
+
+    def test_html_to_limited_html_plain_text_to_sentences(self):
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences')
+
+        test_input = self.test_input_1
+        self.expected_output['content'] = [
+            "thisisah1tag Antidepressants.",
+            "thisisah3tag Antidepressants are medications primarily used for treating depression.",
+            "thisisalinktag thisisah2tag What Are Antidepressants?",
+            "Antidepressants are medications used to treat thisisalinktag depression .",
+            "Some of these medications are blue.",
+            "(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.)",
+            "thisisalinktag thisisah2tag Types of Antidepressants.",
+            "There are several types of antidepressants available to treat depression.",
+        ]
+
+        output = transformer.apply([test_input])
+        self.assertEqual(output, [self.expected_output])
+
+    def test_html_to_limited_html_plain_text_to_paragraphs(self):
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='paragraphs')
+
+        test_input = self.test_input_1
+        self.expected_output['content'] = [
+            "thisisah1tag Antidepressants. ",
+            "thisisah3tag Antidepressants are medications primarily used for treating depression. ",
+            "thisisalinktag thisisah2tag What Are Antidepressants? ",
+            "Antidepressants are medications used to treat thisisalinktag depression . Some of these medications are blue. ",
+            "(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.) ",
+            "thisisalinktag thisisah2tag Types of Antidepressants. ",
             "There are several types of antidepressants available to treat depression.",
         ]
 
