@@ -5,7 +5,6 @@ from allennlp.predictors.predictor import Predictor
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from nltk.tokenize.punkt import PunktSentenceTokenizer
-from pymetamap import MetaMapLite
 from typing import Callable, Dict, List, Tuple, Set
 
 
@@ -423,6 +422,8 @@ def convert_list_of_dicts_to_dict_of_dicts(input_list: List[Dict]) -> Dict[str, 
 
 
 def add_metamap_annotations(inputs: Dict[str, Dict], metamap_path: str = None) -> Dict[str, Dict]:
+    from pymetamap import MetaMapLite
+
     if metamap_path is None:
         print("NOTE: no metamap path provided. Using Laura's default")
         metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
