@@ -8,7 +8,7 @@ class DataManager:
     """Data manager that loads DISCERN corpus into different formats.
 
        Args:
-           data_pth: string, path/to/data
+           data_path: string, path/to/data
 
        .. note ::
 
@@ -38,9 +38,7 @@ class DataManager:
             # to enforce encoding -- it generates errors without it!
             with open(file, 'r', encoding='utf-8') as f:
                 # keep what's after the last / and before the .
-                print("file:", file)
                 entity_id = os.path.basename(file).split('.')[0]
-                print("entity_id:", entity_id)
                 content = f.read()
                 articles = articles.append({'entity_id': int(entity_id), 'content': content}, ignore_index=True)
         else:

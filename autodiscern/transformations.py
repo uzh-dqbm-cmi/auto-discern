@@ -7,7 +7,6 @@ from nltk.tokenize.punkt import PunktSentenceTokenizer
 from typing import Callable, Dict, List, Tuple, Set
 
 
-# mp = mp.get_context('spawn') # setup context
 TransformType = Callable[[str], str]
 
 
@@ -111,8 +110,7 @@ class Transformer:
         return self._apply_annotations_to_dict(obj)
 
     def apply_in_parallel(self, input_list: List[Dict], worker: Callable) -> List:
-        # """Run all transforms on input_list in parallel. """
-
+        """Run all transforms on input_list in parallel. """
         pool = mp.Pool(self.num_cores)
         results = pool.map(worker, (i for i in input_list))
         pool.close()
