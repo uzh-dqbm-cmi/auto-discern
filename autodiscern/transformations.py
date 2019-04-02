@@ -15,12 +15,14 @@ class Transformer:
     """Run a set of transforms on any input.
      NOTE: Can run transforms in parallel, but currently not compatible with sentence level segmentation. """
 
-    def __init__(self, leave_some_html: bool = False, segment_into: str = None, parallelism: bool = False, num_cores=8):
+    def __init__(self, leave_some_html: bool = False, html_to_plain_text: bool = False, segment_into: str = None,
+                 parallelism: bool = False, num_cores=8):
         """
         Sets the parameters of the Transformer object.
 
         Args:
             leave_some_html: bool. Whether or not to leave some html in the text.
+            html_to_plain_text: bool. Convert html tags into plain text so as not to break text segmentation.
             segment_into: str. segment the text into words, sentences, or paragraphs.
             parallelism: bool. Whether to run the transforms in parallel. Not compatible with sentence segmentation.
             num_cores: int. Number of cores to use when using multiprocessing.
@@ -34,7 +36,10 @@ class Transformer:
 
         # text cleaning transform to use
         if leave_some_html:
-            self.transforms.append(self._to_limited_html)
+            if html_to_plain_text:
+                self.transforms.append(self._to_limited_html_plain_text)
+            else:
+                self.transforms.append(self._to_limited_html)
         else:
             self.transforms.append(self._to_text)
 
@@ -109,6 +114,33 @@ class Transformer:
         tags_to_replace = {
             'br': ('.\n', '.\n'),
             'p': ('\n', '\n'),
+        }
+        default_tag_replacement_str = ''
+        text = self.replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace,
+                                 default_tag_replacement_str)
+
+        text = self.replace_chars(text, ['\t', '\xa0'], ' ')
+        text = self.regex_out_punctuation_and_white_space(text)
+        text = self.condense_line_breaks(text)
+
+        return text
+
+    def _to_limited_html_plain_text(self, x: str) -> str:
+        soup = BeautifulSoup(x, features="html.parser")
+        soup = self.remove_tags_and_contents(soup, ['style', 'script'])
+        soup = self.remove_other_xml(soup)
+        soup = self.reformat_html_link_tags(soup)
+
+        tags_to_keep = set()
+        tags_to_keep_with_attr = set()
+        tags_to_replace = {
+            'br': ('.\n', '.\n'),
+            'h1': (' thisisah1tag ', '. \n'),
+            'h2': (' thisisah2tag ', '. \n'),
+            'h3': (' thisisah3tag ', '. \n'),
+            'h4': (' thisisah4tag ', '. \n'),
+            'a':  (' thisisalinktag ', ' '),
+            'p':  ('\n', '\n'),
         }
         default_tag_replacement_str = ''
         text = self.replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace,
@@ -251,7 +283,8 @@ class Transformer:
         text = re.sub("[.][. \n]{2,}", '. \n', text)
 
         # if there is a period at the very start of the document, remove it (replace 1 time)
-        if text.lstrip()[0] == '.':
+        text = text.lstrip()
+        if len(text) > 0 and text[0] == '.':
             text = text.replace('.', '', 1).lstrip()
 
         return text

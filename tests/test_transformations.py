@@ -157,6 +157,20 @@ There are several types of antidepressants available to treat depression."""
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
 
+    def test_html_to_limited_html_plain_text(self):
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True)
+
+        test_input = self.test_input_1
+        self.expected_output['content'] = """thisisah1tag Antidepressants. 
+thisisah3tag Antidepressants are medications primarily used for treating depression. 
+thisisalinktag thisisah2tag What Are Antidepressants? 
+Antidepressants are medications used to treat thisisalinktag depression . Some of these medications are blue. 
+(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.) 
+thisisalinktag thisisah2tag Types of Antidepressants. 
+There are several types of antidepressants available to treat depression."""
+        output = transformer.apply([test_input])
+        self.assertEqual(output, [self.expected_output])
+
     def test_html_to_text_to_words(self):
         transformer = adt.Transformer(leave_some_html=False, segment_into='words')
 
