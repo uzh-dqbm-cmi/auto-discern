@@ -14,6 +14,7 @@ setup(name='autodiscern',
             'numpy>=1.15.0',
             'pandas',
             'spacy',
+            'tldextract',
       ],
       extras_requires={
             'allennlp': ['allennlp'],

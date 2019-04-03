@@ -1,6 +1,7 @@
 import html
 import multiprocessing as mp
 import re
+import tldextract
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from nltk.tokenize.punkt import PunktSentenceTokenizer
@@ -284,14 +285,29 @@ class Transformer:
 
     @staticmethod
     def reformat_html_link_tags(soup: BeautifulSoup) -> BeautifulSoup:
+        """
+        Reformat html link tags to have no attributes other than the href or src.
+        Set the href/src to just the domain name of the link.
+
+        Note: we want drugs.rcpsych.co.uk and depression.rcpsych.co.uk to both resolve to rcpsych.
+
+        Args:
+            soup: BeautifulSoup object parsing an html
+
+        Returns: BeautifulSoup
+
+        """
         for tag in soup.find_all(True):
             if tag.name == 'a':
                 attrs = dict(tag.attrs)
                 for attr in attrs:
-                    if attr not in ['src', 'href']:
-                        del tag.attrs[attr]
+                    if attr in ['src', 'href']:
+                        url = tag.attrs[attr]
+                        domain = tldextract.extract(url).domain
+                        # hostname = urlparse(url).hostname
+                        tag.attrs[attr] = domain
                     else:
-                        tag.attrs[attr] = 'LINK'
+                        del tag.attrs[attr]
         return soup
 
     def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],

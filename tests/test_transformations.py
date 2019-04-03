@@ -79,6 +79,11 @@ class TestTransformations(unittest.TestCase):
         expected_output = '<html><body><h2 class="selectedHighlight">Staging, grading & treatment</h2></body></html>'
         self.assertEqual(adt.Transformer.soup_to_text_with_tags(test_input), expected_output)
 
+    def test_reformat_html_link_tags_replaces_link_with_domain(self):
+        test_input = BeautifulSoup('<html><body>There is more information on medication on the <a title="Royal College of Psychiatrists information on medications" href="http://www.rcpsych.ac.uk/mentalhealthinformation/therapies.aspx ">website of the Royal College of Psychiatrists</a></body></html>', features="html.parser")
+        expected_output = BeautifulSoup('<html><body>There is more information on medication on the <a href="rcpsych">website of the Royal College of Psychiatrists</a></body></html>', features="html.parser")
+        self.assertEqual(adt.Transformer.reformat_html_link_tags(test_input), expected_output)
+
     def test_flatten_text_dicts(self):
         test_input = [
             {'id': 0, 'content': ['word0', 'word1']},
@@ -175,10 +180,10 @@ There are several types of antidepressants available to treat depression."""
         test_input = self.test_input_1
         self.expected_output['content'] = """<h1>Antidepressants</h1> 
 <h3>Antidepressants are medications primarily used for treating depression.</h3>
-<a href="LINK"></a><h2>What Are Antidepressants?</h2> 
-Antidepressants are medications used to treat <a href="LINK">depression</a>. Some of these medications are blue. 
-(Click <a href="LINK">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="LINK">off-label</a> uses.) 
-<a href="LINK"></a><h2>Types of Antidepressants</h2> 
+<a href="emedtv"></a><h2>What Are Antidepressants?</h2> 
+Antidepressants are medications used to treat <a href="emedtv">depression</a>. Some of these medications are blue. 
+(Click <a href="emedtv">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="emedtv">off-label</a> uses.) 
+<a href="emedtv"></a><h2>Types of Antidepressants</h2> 
 There are several types of antidepressants available to treat depression."""
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
