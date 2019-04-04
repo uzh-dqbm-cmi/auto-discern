@@ -4,6 +4,7 @@ import re
 import tldextract
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
+from bs4.element import Tag
 from nltk.tokenize.punkt import PunktSentenceTokenizer
 from typing import Callable, Dict, List, Tuple, Set
 
@@ -182,24 +183,23 @@ class Transformer:
         soup = BeautifulSoup(x, features="html.parser")
         soup = self.remove_tags_and_contents(soup, ['style', 'script'])
         soup = self.remove_other_xml(soup)
-        soup = self.reformat_html_link_tags(soup)
 
         tags_to_keep = set()
         tags_to_keep_with_attr = set()
         tags_to_replace = {
             'br': ('.\n', '.\n'),
-            'h1': (' thisisah1tag ', '. \n'),
-            'h2': (' thisisah2tag ', '. \n'),
-            'h3': (' thisisah3tag ', '. \n'),
-            'h4': (' thisisah4tag ', '. \n'),
-            'a':  (' thisisalinktag ', ' '),
-            'li': ('thisisalistitemtag ', '. '),
-            'tr': ('thisisatablerowtag ', '. '),
+            'h1': (' thisisah1tag', '. \n'),
+            'h2': (' thisisah2tag', '. \n'),
+            'h3': (' thisisah3tag', '. \n'),
+            'h4': (' thisisah4tag', '. \n'),
+            'a':  (' thisisalinktag', ' '),
+            'li': ('thisisalistitemtag', '. '),
+            'tr': ('thisisatablerowtag', '. '),
             'p':  ('\n', '\n'),
         }
         default_tag_replacement_str = ''
         text = self.replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace,
-                                 default_tag_replacement_str)
+                                 default_tag_replacement_str, include_link_domains=True)
 
         text = self.replace_chars(text, ['\t', '\xa0'], ' ')
         text = self.regex_out_punctuation_and_white_space(text)
@@ -304,14 +304,22 @@ class Transformer:
                     if attr in ['src', 'href']:
                         url = tag.attrs[attr]
                         domain = tldextract.extract(url).domain
-                        # hostname = urlparse(url).hostname
                         tag.attrs[attr] = domain
                     else:
                         del tag.attrs[attr]
         return soup
 
+    @staticmethod
+    def get_domain_from_link_tag(tag: Tag) -> str:
+        attrs = dict(tag.attrs)
+        for attr in attrs:
+            if attr in ['src', 'href']:
+                url = tag.attrs[attr]
+                return tldextract.extract(url).domain
+
     def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
-                     tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str) -> str:
+                     tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str,
+                     include_link_domains=False) -> str:
         """
         Finds all tags in an html BeautifulSoup object and replaces/keeps the tags in accordance with args.
 
@@ -330,21 +338,35 @@ class Transformer:
         tags_to_replace = all_tags - tags_to_keep - tags_to_keep_with_attr
         tags_to_replace = tags_to_replace | set(tags_to_replace_with_str.keys())
 
+        default_replacement_tuple = (default_tag_replacement_str, default_tag_replacement_str)
+
         for tag in soup.find_all(True):
-            if tag.name not in tags_to_keep_with_attr:
-                # clear all attributes
+            print(soup)
+            if tag.name in tags_to_keep_with_attr:
+                # keep tag, including attributes
+                print("Keeping {}".format(tag.name))
+                pass
+            elif tag.name in tags_to_keep:
+                # keep tag but clear all attributes
                 tag.attrs = {}
+                print("Clearing {}".format(tag.name))
+            elif tag.name in tags_to_replace:
+                print("Replacing {}".format(tag.name))
+                # if tag replacement is not specified, use the default
+                r = tags_to_replace_with_str.get(tag, default_replacement_tuple)
+                start_tag_replacement = r[0]
+                end_tag_replacement = r[1]
+
+                if tag.name == 'a' and include_link_domains:
+                    domain = self.get_domain_from_link_tag(tag)
+                    replacement = "{}{} {}{}".format(start_tag_replacement, domain, tag.text, end_tag_replacement)
+                else:
+                    replacement = "{} {}{}".format(start_tag_replacement, tag.text, end_tag_replacement)
+                tag.replace_with(replacement)
+
+        print(soup)
 
         text = self.soup_to_text_with_tags(soup)
-
-        # all tags to remove have been cleared down to their bare tag form without attributes, and can be found/replaced
-        replacement_tuple = (default_tag_replacement_str, default_tag_replacement_str)
-        for tag in tags_to_replace:
-            r = tags_to_replace_with_str.get(tag, replacement_tuple)
-            text = text.replace('<{}>'.format(tag), r[0]
-                                ).replace('</{}>'.format(tag), r[1]
-                                          ).replace('<{}/>'.format(tag), r[1])
-
         return text
 
     @staticmethod
@@ -395,7 +417,7 @@ class Transformer:
     # === Annotation Functions ==================================
 
     @staticmethod
-    def _annotate_and_clean_html(d: Dict) -> Dict:
+    def _annotate_and_clean_html(d: Dict, extract_domains=True) -> Dict:
         tags = {
             'thisisah1tag': 'h1',
             'thisisah2tag': 'h2',
@@ -406,11 +428,26 @@ class Transformer:
             'thisisatablerowtag': 'tr',
         }
         found_tags = []
+        domains = []
         for plaintexttag in tags:
             if plaintexttag in d['content']:
-                d['content'] = d['content'].replace(plaintexttag, ' ').strip()
-                found_tags.append(tags[plaintexttag])
+                if plaintexttag == 'thisisalinktag' and extract_domains:
+                    # TODO: this space splitting is not robust
+                    tokens = d['content'].split(' ')
+                    text_without_tags = ''
+                    for i, token in enumerate(tokens):
+                        if plaintexttag in token:
+                            domains.append(token.replace(plaintexttag, ''))
+                            tokens[i] = ' '
+                        else:
+                            text_without_tags += token + ' '
+                    d['content'] = text_without_tags.strip()
+                    found_tags.append(tags[plaintexttag])
+                else:
+                    d['content'] = d['content'].replace(plaintexttag, ' ').strip()
+                    found_tags.append(tags[plaintexttag])
         d['html_tags'] = found_tags
+        d['domains'] = domains
         return d
 
 

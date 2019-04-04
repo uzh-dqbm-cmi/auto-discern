@@ -84,6 +84,21 @@ class TestTransformations(unittest.TestCase):
         expected_output = BeautifulSoup('<html><body>There is more information on medication on the <a href="rcpsych">website of the Royal College of Psychiatrists</a></body></html>', features="html.parser")
         self.assertEqual(adt.Transformer.reformat_html_link_tags(test_input), expected_output)
 
+    def test_replace_html(self):
+        test_input = BeautifulSoup('<html><body><h1 font="Blue">Heading1</h1><h2><i>Heading2</i></h2><a href="google.com">link here</a></p></body></html>', features="html.parser")
+        expected_output = BeautifulSoup('<html><body><h1>Heading1</h1>thisisanh2tag Heading2.<a href="google.com">link here</a></body></html>', features="html.parser")
+        tags_to_keep = {'h1'}
+        tags_to_keep_with_attr = {'a'}
+        tags_to_replace_with_str = {
+            'h2': ('thisisanh2tag', '.'),
+        }
+        default_tag_replacement_str = ''
+        transformer = adt.Transformer()
+        test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
+                                               tags_to_replace_with_str, default_tag_replacement_str,
+                                               include_link_domains=True)
+        self.assertEqual(test_output, expected_output)
+
     def test_flatten_text_dicts(self):
         test_input = [
             {'id': 0, 'content': ['word0', 'word1']},
@@ -97,7 +112,7 @@ class TestTransformations(unittest.TestCase):
         ]
         self.assertEqual(adt.Transformer._flatten_text_dicts(test_input), expected_output)
 
-    def test_annotate_and_clean_html(self):
+    def test_annotate_and_clean_html_finds_and_cleans_tag(self):
         test_input = {
             'id': 0,
             'content': 'thisisah1tag I am a Header.'
@@ -105,7 +120,34 @@ class TestTransformations(unittest.TestCase):
         expected_output = {
             'id': 0,
             'content': 'I am a Header.',
-            'html_tags': ['h1']
+            'html_tags': ['h1'],
+            'domains': [],
+        }
+        self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
+
+    def test_annotate_and_clean_html_for_links_with_domain(self):
+        test_input = {
+            'id': 0,
+            'content': 'thisisalinktaggoogle I am a Header.'
+        }
+        expected_output = {
+            'id': 0,
+            'content': 'I am a Header.',
+            'html_tags': ['a'],
+            'domains': ['google'],
+        }
+        self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
+
+    def test_annotate_and_clean_html_for_multiple_links_with_domain(self):
+        test_input = {
+            'id': 0,
+            'content': 'thisisalinktaggoogle I am a thisisalinktagmaps Header.'
+        }
+        expected_output = {
+            'id': 0,
+            'content': 'I am a Header.',
+            'html_tags': ['a'],
+            'domains': ['google', 'maps'],
         }
         self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
 
