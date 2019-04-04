@@ -392,7 +392,7 @@ There are several types of antidepressants available to treat depression."""
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
 
-    def test_html_to_limited_html_plain_text_to_sentences_flattened_annotated(self):
+    def test_html_to_limited_html_plain_text_to_sentences_flattened(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
                                       flatten=True, annotate_html=True)
 
