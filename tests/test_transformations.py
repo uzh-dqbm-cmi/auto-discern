@@ -391,3 +391,127 @@ There are several types of antidepressants available to treat depression."""
 
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
+
+    def test_html_to_limited_html_plain_text_to_sentences_flattened_annotated(self):
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
+                                      flatten=True, annotate_html=True)
+
+        test_input = self.test_input_1
+        expected_output = [
+            {
+                'id': 0,
+                'sub_id': 0,
+                'content': "Antidepressants.",
+            },
+            {
+                'id': 0,
+                'sub_id': 1,
+                'content': "Antidepressants are medications primarily used for treating depression.",
+            },
+            {
+                'id': 0,
+                'sub_id': 2,
+                'content': "What Are Antidepressants?",
+            },
+            {
+                'id': 0,
+                'sub_id': 3,
+                'content': "Antidepressants are medications used to treat depression .",
+            },
+            {
+                'id': 0,
+                'sub_id': 4,
+                'content': "Some of these medications are blue.",
+            },
+            {
+                'id': 0,
+                'sub_id': 5,
+                'content': "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
+            },
+            {
+                'id': 0,
+                'sub_id': 6,
+                'content': "Types of Antidepressants.",
+            },
+            {
+                'id': 0,
+                'sub_id': 7,
+                'content': "There are several types of antidepressants available to treat depression.",
+            },
+        ]
+
+        output = transformer.apply([test_input])
+        for i in range(len(expected_output)):
+            print(output[i])
+            print(expected_output[i])
+            self.assertDictEqual(output[i], expected_output[i])
+
+    def test_html_to_limited_html_plain_text_to_sentences_flattened_annotated(self):
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
+                                      flatten=True, annotate_html=True)
+
+        test_input = self.test_input_1
+        expected_output = [
+            {
+                'id': 0,
+                'sub_id': 0,
+                'content': "Antidepressants.",
+                'html_tags': ['h1'],
+                'domains': [],
+            },
+            {
+                'id': 0,
+                'sub_id': 1,
+                'content': "Antidepressants are medications primarily used for treating depression.",
+                'html_tags': ['h3'],
+                'domains': [],
+            },
+            {
+                'id': 0,
+                'sub_id': 2,
+                'content': "What Are Antidepressants?",
+                'html_tags': ['h2', 'a'],
+                'domains': ['emedtv'],
+            },
+            {
+                'id': 0,
+                'sub_id': 3,
+                'content': "Antidepressants are medications used to treat depression .",
+                'html_tags': ['a'],
+                'domains': ['emedtv'],
+            },
+            {
+                'id': 0,
+                'sub_id': 4,
+                'content': "Some of these medications are blue.",
+                'html_tags': [],
+                'domains': [],
+            },
+            {
+                'id': 0,
+                'sub_id': 5,
+                'content': "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
+                'html_tags': ['a'],
+                'domains': ['emedtv', 'emedtv'],
+            },
+            {
+                'id': 0,
+                'sub_id': 6,
+                'content': "Types of Antidepressants.",
+                'html_tags': ['h2', 'a'],
+                'domains': ['emedtv'],
+            },
+            {
+                'id': 0,
+                'sub_id': 7,
+                'content': "There are several types of antidepressants available to treat depression.",
+                'html_tags': [],
+                'domains': [],
+            },
+        ]
+
+        output = transformer.apply([test_input])
+        for i in range(len(expected_output)):
+            print(output[i])
+            print(expected_output[i])
+            self.assertDictEqual(output[i], expected_output[i])
