@@ -27,7 +27,6 @@ class DataManager:
         """Loads all files located in self.data_path/data/<version_id> into a pd.df at self.data dict[version_id]"""
 
         print("Loading articles...")
-        target_ids = pd.read_csv(Path(self.data_path, "data/target_ids.csv"))
 
         articles = pd.DataFrame(columns=['entity_id', 'content'])
         articles_path = Path(self.data_path, "data/{}/*".format(version_id))
@@ -43,8 +42,13 @@ class DataManager:
                 articles = articles.append({'entity_id': int(entity_id), 'content': content}, ignore_index=True)
         else:
             print("WARNING: no files found at {}".format(articles_path))
+
+        target_ids = pd.read_csv(Path(self.data_path, "data/target_ids.csv"))
         articles['entity_id'] = articles['entity_id'].astype(int)
         articles = pd.merge(articles, target_ids, on='entity_id')
+
+        article_urls = pd.read_csv(Path(self.data_path, "data/urls.csv"))
+        articles = pd.merge(articles, article_urls, on='entity_id')
 
         print("{} articles loaded".format(articles.shape[0]))
         self.data[version_id] = articles
