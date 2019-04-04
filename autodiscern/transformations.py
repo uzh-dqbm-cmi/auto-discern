@@ -188,13 +188,13 @@ class Transformer:
         tags_to_keep_with_attr = set()
         tags_to_replace = {
             'br': ('.\n', '.\n'),
-            'h1': (' thisisah1tag', '. \n'),
-            'h2': (' thisisah2tag', '. \n'),
-            'h3': (' thisisah3tag', '. \n'),
-            'h4': (' thisisah4tag', '. \n'),
-            'a':  (' thisisalinktag', ' '),
-            'li': ('thisisalistitemtag', '. '),
-            'tr': ('thisisatablerowtag', '. '),
+            'h1': (' thisisah1tag ', '. \n'),
+            'h2': (' thisisah2tag ', '. \n'),
+            'h3': (' thisisah3tag ', '. \n'),
+            'h4': (' thisisah4tag ', '. \n'),
+            'a':  (' thisisalinktag ', ' '),
+            'li': ('thisisalistitemtag ', '. '),
+            'tr': ('thisisatablerowtag ', '. '),
             'p':  ('\n', '\n'),
         }
         default_tag_replacement_str = ''
@@ -326,9 +326,10 @@ class Transformer:
         Args:
             soup: BeautifulSoup object parsing an html
             tags_to_keep: html tags to leave but remove tag attributes
-            tags_to_keep_with_attr: html tags to leave entact
+            tags_to_keep_with_attr: html tags to leave intact
             tags_to_replace_with_str: html tags to replace with strings defined in replacement Tuple(start_tag, end_tag)
             default_tag_replacement_str: string to use if no replacement is defined in tags_to_replace_with_str
+            include_link_domains: bool. Append the domain of the linked url to the replacement tag
 
         Returns: str
 
@@ -341,30 +342,25 @@ class Transformer:
         default_replacement_tuple = (default_tag_replacement_str, default_tag_replacement_str)
 
         for tag in soup.find_all(True):
-            print(soup)
             if tag.name in tags_to_keep_with_attr:
                 # keep tag, including attributes
-                print("Keeping {}".format(tag.name))
                 pass
             elif tag.name in tags_to_keep:
                 # keep tag but clear all attributes
                 tag.attrs = {}
-                print("Clearing {}".format(tag.name))
             elif tag.name in tags_to_replace:
-                print("Replacing {}".format(tag.name))
                 # if tag replacement is not specified, use the default
-                r = tags_to_replace_with_str.get(tag, default_replacement_tuple)
+                r = tags_to_replace_with_str.get(tag.name, default_replacement_tuple)
                 start_tag_replacement = r[0]
                 end_tag_replacement = r[1]
 
                 if tag.name == 'a' and include_link_domains:
                     domain = self.get_domain_from_link_tag(tag)
-                    replacement = "{}{} {}{}".format(start_tag_replacement, domain, tag.text, end_tag_replacement)
-                else:
-                    replacement = "{} {}{}".format(start_tag_replacement, tag.text, end_tag_replacement)
-                tag.replace_with(replacement)
-
-        print(soup)
+                    start_tag_replacement = start_tag_replacement.strip() + domain + ' '
+                tag.insert_before(start_tag_replacement)
+                tag.insert_after(end_tag_replacement)
+                # remove the tag without removing the tag's contents (text and children tags)
+                tag.unwrap()
 
         text = self.soup_to_text_with_tags(soup)
         return text

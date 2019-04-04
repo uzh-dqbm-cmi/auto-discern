@@ -86,12 +86,69 @@ class TestTransformations(unittest.TestCase):
 
     def test_replace_html(self):
         test_input = BeautifulSoup('<html><body><h1 font="Blue">Heading1</h1><h2><i>Heading2</i></h2><a href="google.com">link here</a></p></body></html>', features="html.parser")
-        expected_output = BeautifulSoup('<html><body><h1>Heading1</h1>thisisanh2tag Heading2.<a href="google.com">link here</a></body></html>', features="html.parser")
+        expected_output = '<h1>Heading1</h1>thisisanh2tag Heading2.<a href="google.com">link here</a>'
+
         tags_to_keep = {'h1'}
         tags_to_keep_with_attr = {'a'}
         tags_to_replace_with_str = {
-            'h2': ('thisisanh2tag', '.'),
+            'h2': ('thisisanh2tag ', '.'),
         }
+        default_tag_replacement_str = ''
+        transformer = adt.Transformer()
+        test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
+                                               tags_to_replace_with_str, default_tag_replacement_str,
+                                               include_link_domains=True)
+        self.assertEqual(test_output, expected_output)
+
+    def test_replace_html_keeps_tag(self):
+        test_input = BeautifulSoup('<html><body><h1>Heading1</h1></body></html>', features="html.parser")
+        expected_output = '<h1>Heading1</h1>'
+
+        tags_to_keep = {'h1'}
+        tags_to_keep_with_attr = set()
+        tags_to_replace_with_str = {}
+        default_tag_replacement_str = ''
+        transformer = adt.Transformer()
+        test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
+                                               tags_to_replace_with_str, default_tag_replacement_str,
+                                               include_link_domains=True)
+        self.assertEqual(test_output, expected_output)
+
+    def test_replace_html_replaces_tag(self):
+        test_input = BeautifulSoup('<html><body><h1>Heading1</h1></body></html>', features="html.parser")
+        expected_output = 'thisisah1tag Heading1. '
+
+        tags_to_keep = set()
+        tags_to_keep_with_attr = set()
+        tags_to_replace_with_str = {'h1': ('thisisah1tag ', '. ')}
+        default_tag_replacement_str = ''
+        transformer = adt.Transformer()
+        test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
+                                               tags_to_replace_with_str, default_tag_replacement_str,
+                                               include_link_domains=True)
+        self.assertEqual(test_output, expected_output)
+
+    def test_replace_html_replaces_link_no_domain(self):
+        test_input = BeautifulSoup('<html><body>There is a <a href="google.com">link here</a>.</body></html>', features="html.parser")
+        expected_output = 'There is a thisisalinktag link here.'
+
+        tags_to_keep = set()
+        tags_to_keep_with_attr = set()
+        tags_to_replace_with_str = {'a': ('thisisalinktag ', '')}
+        default_tag_replacement_str = ''
+        transformer = adt.Transformer()
+        test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
+                                               tags_to_replace_with_str, default_tag_replacement_str,
+                                               include_link_domains=False)
+        self.assertEqual(test_output, expected_output)
+
+    def test_replace_html_replaces_link_with_domain(self):
+        test_input = BeautifulSoup('<html><body>There is a <a href="google.com">link here</a>.</body></html>', features="html.parser")
+        expected_output = 'There is a thisisalinktaggoogle link here.'
+
+        tags_to_keep = set()
+        tags_to_keep_with_attr = set()
+        tags_to_replace_with_str = {'a': ('thisisalinktag ', '')}
         default_tag_replacement_str = ''
         transformer = adt.Transformer()
         test_output = transformer.replace_html(test_input, tags_to_keep, tags_to_keep_with_attr,
@@ -236,10 +293,10 @@ There are several types of antidepressants available to treat depression."""
         test_input = self.test_input_1
         self.expected_output['content'] = """thisisah1tag Antidepressants. 
 thisisah3tag Antidepressants are medications primarily used for treating depression. 
-thisisalinktag thisisah2tag What Are Antidepressants? 
-Antidepressants are medications used to treat thisisalinktag depression . Some of these medications are blue. 
-(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.) 
-thisisalinktag thisisah2tag Types of Antidepressants. 
+thisisalinktagemedtv thisisah2tag What Are Antidepressants? 
+Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. 
+(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.) 
+thisisalinktagemedtv thisisah2tag Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
         output = transformer.apply([test_input])
         self.assertEqual(output, [self.expected_output])
@@ -307,11 +364,11 @@ There are several types of antidepressants available to treat depression."""
         self.expected_output['content'] = [
             "thisisah1tag Antidepressants.",
             "thisisah3tag Antidepressants are medications primarily used for treating depression.",
-            "thisisalinktag thisisah2tag What Are Antidepressants?",
-            "Antidepressants are medications used to treat thisisalinktag depression .",
+            "thisisalinktagemedtv thisisah2tag What Are Antidepressants?",
+            "Antidepressants are medications used to treat thisisalinktagemedtv depression .",
             "Some of these medications are blue.",
-            "(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.)",
-            "thisisalinktag thisisah2tag Types of Antidepressants.",
+            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.)",
+            "thisisalinktagemedtv thisisah2tag Types of Antidepressants.",
             "There are several types of antidepressants available to treat depression.",
         ]
 
@@ -325,10 +382,10 @@ There are several types of antidepressants available to treat depression."""
         self.expected_output['content'] = [
             "thisisah1tag Antidepressants. ",
             "thisisah3tag Antidepressants are medications primarily used for treating depression. ",
-            "thisisalinktag thisisah2tag What Are Antidepressants? ",
-            "Antidepressants are medications used to treat thisisalinktag depression . Some of these medications are blue. ",
-            "(Click thisisalinktag Antidepressant Uses for more information on what they are used for, including possible thisisalinktag off-label uses.) ",
-            "thisisalinktag thisisah2tag Types of Antidepressants. ",
+            "thisisalinktagemedtv thisisah2tag What Are Antidepressants? ",
+            "Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. ",
+            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.) ",
+            "thisisalinktagemedtv thisisah2tag Types of Antidepressants. ",
             "There are several types of antidepressants available to treat depression.",
         ]
 
