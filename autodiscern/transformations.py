@@ -2,6 +2,7 @@ import html
 import multiprocessing as mp
 import re
 import tldextract
+from allennlp.predictors.predictor import Predictor
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from bs4.element import Tag
@@ -32,9 +33,12 @@ class Transformer:
         Args:
             leave_some_html: bool. Whether or not to leave some html in the text.
             html_to_plain_text: bool. Convert html tags into plain text so as not to break text segmentation.
+
             segment_into: str. segment the text into words, sentences, or paragraphs.
             flatten: bool. Whether to flatten the segmented texts list(dict(list)) into a single master list(dict).
+
             annotate_html: bool. Set annotations on the dict about the presence of html tags. Also removes html tags.
+
             parallelism: bool. Whether to run the transforms in parallel. Not compatible with sentence segmentation.
             num_cores: int. Number of cores to use when using multiprocessing.
 
@@ -465,15 +469,81 @@ class Transformer:
 
 
 # ============================================================
-# === Other, not yet integrated into the class yet ===========
+# === Other non-class functions ==============================
 # ============================================================
+
+def get_id(d: Dict) -> str:
+    identifier = d['id']
+    if 'sub_id' in d:
+        identifier = "{}-{}".format(d['id'], d['sub_id'])
+    return identifier
+
+
+def convert_list_of_dicts_to_dict_of_dicts(input_list: List[Dict]) -> Dict[str, Dict]:
+    output_dict = {}
+    for d in input_list:
+        id = get_id(d)
+        output_dict[id] = d
+    return output_dict
+
+
+def add_metamap_annotations(inputs: Dict[str, Dict], metamap_path: str = None) -> Dict[str, Dict]:
+    from pymetamap import MetaMapLite
+
+    if metamap_path is None:
+        print("NOTE: no metamap path provided. Using Laura's default")
+        metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
+
+    # create list of ids, and list of sentences in matching order
+    ids = inputs.keys()
+    sentences = []
+    for id in ids:
+        sentences.append(inputs[id]['content'])
+
+    # run metamap
+    mm = MetaMapLite.get_instance(metamap_path)
+    concepts, error = mm.extract_concepts(sentences, ids)
+
+    # add concepts with score above 1 to input sentences
+    for concept in concepts:
+        concept_dict = {}
+        if float(concept.score) > 1:
+            for fld in concept._fields:
+                concept_dict[fld] = getattr(concept, fld)
+
+            # attach concept to input_dict
+            id = concept_dict['index']
+            id = id.replace('"', '').replace("'", '')
+            if 'metamap' not in inputs[id]:
+                inputs[id]['metamap'] = []
+            inputs[id]['metamap'].append(concept_dict)
+
+    return inputs
+
+
+def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    # is there a batch predictor?
+    # https://allenai.github.io/allennlp-docs/api/allennlp.predictors.html#sentence-tagger
+
+    predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+
+    for id in inputs:
+        sentence = inputs[id]['content']
+        ner_output = allennlp_ner_tagger(sentence, predictor)
+        ner_output = [x for x in ner_output if x[1] != 'O']
+        inputs[id]['ner'] = ner_output
+    return inputs
+
 
 def allennlp_ner_tagger(sentence: str, predictor: Callable) -> List[Tuple[str, str]]:
     # pass this function the predictor of
     # predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
-    prediction = predictor.predict(sentence)
-    # the predictor also gives logits. For now we just want to look at the tags
-    return [(w, prediction['tags'][i]) for i, w in enumerate(prediction['words'])]
+    if len(sentence) > 1:
+        prediction = predictor.predict(sentence)
+        # the predictor also gives logits. For now we just want to look at the tags
+        return [(w, prediction['tags'][i]) for i, w in enumerate(prediction['words'])]
+    else:
+        return []
 
 
 def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:

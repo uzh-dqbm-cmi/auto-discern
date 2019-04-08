@@ -60,8 +60,24 @@ transformer = adt.Transformer(leave_some_html=True,      # leave important html 
 
 transformed_data = transformer.apply(input_dicts)
 
-for item in transformed_data[:5]:
-    print(item)
+# convert to dict for easier annotation adding
+transformed_data_dict = adt.convert_list_of_dicts_to_dict_of_dicts(transformed_data)
+
+# more details on applying metamap below
+transformed_data_dict = adt.add_metamap_annotations(transformed_data_dict)
+# WARNING: ner annotations are *very* slow
+transformed_data_dict = adt.add_ner_annotations(transformed_data_dict)
+
+# view results
+counter = 5
+for i in transformed_data_dict:
+    counter -= 1
+    if counter < 0:
+        break
+    print("==={}===".format(i))
+    for key in transformed_data_dict[i]:
+        print("{}: {}".format(key, transformed_data_dict[i][key]))
+    print()
 
 # ===
 # tag Named Entities
