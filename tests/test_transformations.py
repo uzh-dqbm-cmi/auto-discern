@@ -211,13 +211,13 @@ class TestTransformations(unittest.TestCase):
     def test_annotate_internal_external_links_internal_link(self):
         test_input = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['cat'],
         }
         expected_output = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['cat'],
             'link_type': ['internal'],
@@ -227,13 +227,13 @@ class TestTransformations(unittest.TestCase):
     def test_annotate_internal_external_links_external_link(self):
         test_input = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['dog'],
         }
         expected_output = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['dog'],
             'link_type': ['external'],
@@ -243,13 +243,13 @@ class TestTransformations(unittest.TestCase):
     def test_annotate_internal_external_links_no_links(self):
         test_input = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': [],
         }
         expected_output = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': [],
             'link_type': [],
@@ -259,13 +259,13 @@ class TestTransformations(unittest.TestCase):
     def test_annotate_internal_external_links_mixed_links(self):
         test_input = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['cat', 'dog'],
         }
         expected_output = {
             'id': 0,
-            'url': 'cat',
+            'url': 'cat.com',
             'content': 'texty text',
             'domains': ['cat', 'dog'],
             'link_type': ['internal', 'external'],
