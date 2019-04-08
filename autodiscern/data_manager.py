@@ -1,9 +1,19 @@
+import os
 import glob
 import pandas as pd
 from pathlib import Path
 
 
 class DataManager:
+    """Data manager that loads DISCERN corpus into different formats.
+
+       Args:
+           data_path: string, path/to/data
+
+       .. note ::
+
+           On windows OS, the backslash in the string should be escaped!!
+    """
 
     def __init__(self, data_path):
         expanded_path = Path(data_path).expanduser()
@@ -11,7 +21,6 @@ class DataManager:
             self.data_path = expanded_path
         else:
             raise ValueError("Path does not exist: {}".format(data_path))
-
         self.data = {}
 
     def _load_articles(self, version_id: str) -> None:
@@ -24,15 +33,16 @@ class DataManager:
         articles_path = Path(self.data_path, "data/{}/*".format(version_id))
 
         files = glob.glob(articles_path.__str__())
-        if len(files) == 0:
-            print("WARNING: no files found at {}".format(articles_path))
+
         for file in files:
-            with open(file, 'r') as f:
+            # to enforce encoding -- it generates errors without it!
+            with open(file, 'r', encoding='utf-8') as f:
                 # keep what's after the last / and before the .
-                entity_id = int(file.split('/')[-1].split('.')[0])
+                entity_id = os.path.basename(file).split('.')[0]
                 content = f.read()
                 articles = articles.append({'entity_id': int(entity_id), 'content': content}, ignore_index=True)
-
+        else:
+            print("WARNING: no files found at {}".format(articles_path))
         articles['entity_id'] = articles['entity_id'].astype(int)
         articles = pd.merge(articles, target_ids, on='entity_id')
 
