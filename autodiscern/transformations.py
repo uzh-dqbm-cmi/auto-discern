@@ -367,6 +367,7 @@ class Transformer:
 
     @staticmethod
     def soup_to_text_with_tags(soup: BeautifulSoup) -> str:
+        """Convert a BeautifulSoup object to a string while leaving the html tags in place."""
         text = str(soup)
         text = html.unescape(text)
         return text
@@ -375,6 +376,7 @@ class Transformer:
 
     @staticmethod
     def regex_out_punctuation_and_white_space(text: str) -> str:
+        """Clean up excess whitespace and punctuation."""
         text = text.replace('?.', '?')
 
         # replaces multiple spaces wth a single space
@@ -444,6 +446,20 @@ class Transformer:
                     found_tags.append(tags[plaintexttag])
         d['html_tags'] = found_tags
         d['domains'] = domains
+        return d
+
+    @staticmethod
+    def _annotate_internal_external_links(d: Dict) -> Dict:
+        if 'url' not in d.keys():
+            print("WARNING: text url is not available for linked domain comparison")
+            return d
+        source_domain = d['url']
+        d['link_type'] = []
+        for link in d['domains']:
+            if link == source_domain:
+                d['link_type'].append('internal')
+            else:
+                d['link_type'].append('external')
         return d
 
 

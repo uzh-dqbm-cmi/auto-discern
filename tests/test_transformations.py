@@ -208,6 +208,69 @@ class TestTransformations(unittest.TestCase):
         }
         self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
 
+    def test_annotate_internal_external_links_internal_link(self):
+        test_input = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['cat'],
+        }
+        expected_output = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['cat'],
+            'link_type': ['internal'],
+        }
+        self.assertEqual(adt.Transformer._annotate_internal_external_links(test_input), expected_output)
+
+    def test_annotate_internal_external_links_external_link(self):
+        test_input = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['dog'],
+        }
+        expected_output = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['dog'],
+            'link_type': ['external'],
+        }
+        self.assertEqual(adt.Transformer._annotate_internal_external_links(test_input), expected_output)
+
+    def test_annotate_internal_external_links_no_links(self):
+        test_input = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': [],
+        }
+        expected_output = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': [],
+            'link_type': [],
+        }
+        self.assertEqual(adt.Transformer._annotate_internal_external_links(test_input), expected_output)
+
+    def test_annotate_internal_external_links_mixed_links(self):
+        test_input = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['cat', 'dog'],
+        }
+        expected_output = {
+            'id': 0,
+            'url': 'cat',
+            'content': 'texty text',
+            'domains': ['cat', 'dog'],
+            'link_type': ['internal', 'external'],
+        }
+        self.assertEqual(adt.Transformer._annotate_internal_external_links(test_input), expected_output)
 
 class TestAcceptanceTransformation(unittest.TestCase):
 
