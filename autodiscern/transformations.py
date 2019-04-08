@@ -87,6 +87,7 @@ class Transformer:
         # annotations to use
         if annotate_html:
             self.annotations.append(self._annotate_and_clean_html)
+            self.annotations.append(self._annotate_internal_external_links)
 
     def _apply_transforms_to_str(self, content: str) -> str:
         """Apply list all transforms to str. """
@@ -453,7 +454,7 @@ class Transformer:
         if 'url' not in d.keys():
             print("WARNING: text url is not available for linked domain comparison")
             return d
-        source_domain = d['url']
+        source_domain = tldextract.extract(d['url']).domain
         d['link_type'] = []
         for link in d['domains']:
             if link == source_domain:

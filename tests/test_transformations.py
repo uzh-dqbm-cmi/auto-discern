@@ -277,6 +277,7 @@ class TestAcceptanceTransformation(unittest.TestCase):
     def setUp(self):
         self.test_input_1 = {
             'id': 0,
+            'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
             'content': """
             <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
                    <div class="topleader">
@@ -319,7 +320,10 @@ class TestAcceptanceTransformation(unittest.TestCase):
         }
 
         # create starting dict for expected output. add content key in individual tests
-        self.expected_output = {'id': 0}
+        self.expected_output = {
+            'id': 0,
+            'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html'
+        }
 
     def test_html_to_text(self):
         transformer = adt.Transformer(leave_some_html=False)
@@ -464,41 +468,49 @@ There are several types of antidepressants available to treat depression."""
             {
                 'id': 0,
                 'sub_id': 0,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisah1tag Antidepressants.",
             },
             {
                 'id': 0,
                 'sub_id': 1,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisah3tag Antidepressants are medications primarily used for treating depression.",
             },
             {
                 'id': 0,
                 'sub_id': 2,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisalinktagemedtv thisisah2tag What Are Antidepressants?",
             },
             {
                 'id': 0,
                 'sub_id': 3,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Antidepressants are medications used to treat thisisalinktagemedtv depression .",
             },
             {
                 'id': 0,
                 'sub_id': 4,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Some of these medications are blue.",
             },
             {
                 'id': 0,
                 'sub_id': 5,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.)",
             },
             {
                 'id': 0,
                 'sub_id': 6,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisalinktagemedtv thisisah2tag Types of Antidepressants.",
             },
             {
                 'id': 0,
                 'sub_id': 7,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "There are several types of antidepressants available to treat depression.",
             },
         ]
@@ -518,58 +530,74 @@ There are several types of antidepressants available to treat depression."""
             {
                 'id': 0,
                 'sub_id': 0,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Antidepressants.",
                 'html_tags': ['h1'],
                 'domains': [],
+                'link_type': [],
             },
             {
                 'id': 0,
                 'sub_id': 1,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Antidepressants are medications primarily used for treating depression.",
                 'html_tags': ['h3'],
                 'domains': [],
+                'link_type': [],
             },
             {
                 'id': 0,
                 'sub_id': 2,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "What Are Antidepressants?",
                 'html_tags': ['h2', 'a'],
                 'domains': ['emedtv'],
+                'link_type': ['internal'],
             },
             {
                 'id': 0,
                 'sub_id': 3,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Antidepressants are medications used to treat depression .",
                 'html_tags': ['a'],
                 'domains': ['emedtv'],
+                'link_type': ['internal'],
             },
             {
                 'id': 0,
                 'sub_id': 4,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Some of these medications are blue.",
                 'html_tags': [],
                 'domains': [],
+                'link_type': [],
             },
             {
                 'id': 0,
                 'sub_id': 5,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
                 'html_tags': ['a'],
                 'domains': ['emedtv', 'emedtv'],
+                'link_type': ['internal', 'internal'],
             },
             {
                 'id': 0,
                 'sub_id': 6,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Types of Antidepressants.",
                 'html_tags': ['h2', 'a'],
                 'domains': ['emedtv'],
+                'link_type': ['internal'],
             },
             {
                 'id': 0,
                 'sub_id': 7,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "There are several types of antidepressants available to treat depression.",
                 'html_tags': [],
                 'domains': [],
+                'link_type': [],
             },
         ]
 
