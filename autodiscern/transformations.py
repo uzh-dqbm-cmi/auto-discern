@@ -569,3 +569,19 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
                 ner_html += " <{0}>{1}</{0}>".format(tag, text)
 
     return ner_html
+
+
+def extract_potential_references(text: str) -> List[str]:
+    soup = BeautifulSoup(text, features="html.parser")
+
+    reference_keywords = ['references', 'citations', 'bibliography']
+
+    # iterate backwards through all headers
+    header_tags = soup.find_all(['h1', 'h2', 'h3', 'h4'])
+    for tag in header_tags[-1:]:
+        # if any single word in header matches a ref keyword
+        if any(h in tag.string.lower().split(' ') for h in reference_keywords):
+            # return the remainder of the document
+            remainder_of_doc = tag.find_all_next()
+            return remainder_of_doc.stripped_strings()
+    return []
