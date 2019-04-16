@@ -629,18 +629,18 @@ There are several types of antidepressants available to treat depression."""
             "Rimer J, Dwan K, Lawlor DA, et al; Exercise for depression. Cochrane Database Syst Rev. 2012 Jul 117:CD004366.",
             "Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.",
         ]
-        # self.assertEqual(adt.extract_potential_references(example_input), expected_output)
-        return True
+        output = adt.extract_potential_references(example_input)
+        self.assertEqual(output, expected_output)
 
     def test_evaluate_potential_references(self):
-        example_input = {
-            "This is not a citation.": [],
-            "You can do this online at www.mhra.gov.uk/yellowcard.": [],
-            "The national guideline published in 2009 by the National Institute for Health and Care Excellence (NICE) and updated in 2016 advises regular exercise as a possible treatment.": [],
-            "Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.": [],
-        }
+        example_input = [
+            ("This is not a citation.", [('This', 'title'), ('is', 'title'), gss]),
+            ("You can do this online at www.mhra.gov.uk/yellowcard.", []),
+            ("The national guideline published in 2009 by the National Institute for Health and Care Excellence (NICE) and updated in 2016 advises regular exercise as a possible treatment.", []),
+            ("Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.", []),
+        ]
         expected_output = [
-            "Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.",
+            ("Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.", []),
         ]
         # self.assertEqual(adt.evaluate_potential_references(example_input), expected_output)
         return True

@@ -582,6 +582,28 @@ def extract_potential_references(text: str) -> List[str]:
         # if any single word in header matches a ref keyword
         if any(h in tag.string.lower().split(' ') for h in reference_keywords):
             # return the remainder of the document
-            remainder_of_doc = tag.find_all_next()
-            return remainder_of_doc.stripped_strings()
+            potential_citations = []
+            for sibling_tag in tag.next_siblings:
+                if type(sibling_tag) == Tag:
+                    sibling_text = sibling_tag.get_text()
+                    text_split = [line for line in sibling_text.split('\n') if line.strip() != '']
+                    potential_citations.extend(text_split)
+            return potential_citations
     return []
+
+
+def annotate_potential_references(potential_references: List[str]) -> List[str]:
+    return potential_references
+
+
+def evaluate_potential_references(potential_references: List[str]) -> List[str]:
+    return potential_references
+
+
+def add_reference_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for entity_id in inputs:
+        potential_references = extract_potential_references(inputs[entity_id]['content'])
+        potential_references = annotate_potential_references(potential_references)
+        definite_references = evaluate_potential_references(potential_references)
+        inputs[entity_id]['references'] = definite_references
+    return {}
