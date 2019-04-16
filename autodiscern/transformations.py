@@ -473,7 +473,10 @@ class Transformer:
 # ============================================================
 
 def get_id(d: Dict) -> str:
-    identifier = d['id']
+    id_key = 'id'
+    if id_key not in d.keys() and 'entity_id' in d.keys():
+        id_key = 'entity_id'
+    identifier = d[id_key]
     if 'sub_id' in d:
         identifier = "{}-{}".format(d['id'], d['sub_id'])
     return identifier
@@ -572,6 +575,14 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
 
 
 def extract_potential_references(text: str) -> List[str]:
+    """
+    Find the last-most instance of a reference keywords in an html heading, and retrieve all text following the heading.
+    Args:
+        text: str. HTML of webpage.
+
+    Returns: List[str]. List of potential citations found under the heading, split into a list based on line breaks.
+
+    """
     soup = BeautifulSoup(text, features="html.parser")
 
     reference_keywords = ['references', 'citations', 'bibliography']
@@ -580,7 +591,7 @@ def extract_potential_references(text: str) -> List[str]:
     header_tags = soup.find_all(['h1', 'h2', 'h3', 'h4'])
     for tag in header_tags[-1:]:
         # if any single word in header matches a ref keyword
-        if any(h in tag.string.lower().split(' ') for h in reference_keywords):
+        if tag.string is not None and any(h in tag.string.lower().split(' ') for h in reference_keywords):
             # return the remainder of the document
             potential_citations = []
             for sibling_tag in tag.next_siblings:
@@ -592,18 +603,57 @@ def extract_potential_references(text: str) -> List[str]:
     return []
 
 
-def annotate_potential_references(potential_references: List[str]) -> List[str]:
-    return potential_references
+def annotate_potential_references(potential_references: List[str]) -> List[Tuple[str, List[str]]]:
+    """Placeholder function for annotating candidate reference strings.
+    TODO: use NeuralParsCit here
+    """
+    annotated_references = []
+    for item in potential_references:
+        annotated_references.append((item, ['token', 'fake_annotation']))
+    return annotated_references
 
 
-def evaluate_potential_references(potential_references: List[str]) -> List[str]:
-    return potential_references
+def evaluate_potential_references(potential_references: List[Tuple[str, List[str]]]) -> List[Tuple[str, List[str]]]:
+    """Select references which meet requirements based on the reference's token-based annotations.
+    Only keep references that have at least one of all (author, title).
+
+    Args:
+            potential_references: List of references and their annotations represented by tuples, like so:
+                [
+                    ('original_reference_string', [('token1', 'annotation1'), ('token2', 'annotation2'), ...],
+                    ...
+                ]
+
+    Returns: A subset of potential_references with the same data structure.
+    """
+    selected_references = []
+    for orig_ref_string, ref_annotations in potential_references:
+        annotation_types = set([annotation for token, annotation in ref_annotations])
+        if 'title' in annotation_types and 'author' in annotation_types:
+            selected_references.append((orig_ref_string, ref_annotations))
+    return selected_references
 
 
 def add_reference_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    """
+    NOTE: this functionality is not robust, and quite frankly doesn't really work. Use at your own risk.
+
+    Add reference annotations to the document dictionary. This function takes raw html as input. In other words, this
+    function must be called before any transformation on the raw html occurs.
+
+    Args:
+        inputs: Dict with a 'content' key containing raw html.
+
+    Returns: Dict with an additional 'references' key with list of string references.
+
+    """
     for entity_id in inputs:
         potential_references = extract_potential_references(inputs[entity_id]['content'])
-        potential_references = annotate_potential_references(potential_references)
-        definite_references = evaluate_potential_references(potential_references)
-        inputs[entity_id]['references'] = definite_references
-    return {}
+        annotated_potential_references = annotate_potential_references(potential_references)
+
+        # TODO: switch to actually evaluating potential reference candidates
+        # selected_references = evaluate_potential_references(annotated_potential_references)
+        selected_references = annotated_potential_references
+
+        inputs[entity_id]['references'] = selected_references
+    return inputs
