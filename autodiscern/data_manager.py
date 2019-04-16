@@ -112,3 +112,12 @@ class DataManager:
         if 'responses' not in self.data:
             self._load_responses()
         return self.data['responses']
+
+    def _load_metamap_semantics(self):
+        self.data['metamap_semantics'] = pd.read_csv(Path(self.data_path, "data/metamap/metamap_semantics.csv"))
+
+    @property
+    def metamap_semantics(self) -> pd.DataFrame:
+        if 'metamap_semantics' not in self.data:
+            self._load_metamap_semantics()
+        return self.data['metamap_semantics']

@@ -1,9 +1,9 @@
-
 from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from allennlp.predictors.predictor import Predictor
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from typing import Callable, Dict, List, Tuple
+from autodiscern.data_manager import DataManager
 
 
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
@@ -13,12 +13,34 @@ def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     return inputs
 
 
-def add_metamap_annotations(inputs: Dict[str, Dict], metamap_path: str = None) -> Dict[str, Dict]:
+def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None) -> Dict[str, Dict]:
     from pymetamap import MetaMapLite
 
     if metamap_path is None:
         print("NOTE: no metamap path provided. Using Laura's default")
         metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
+
+    metamap_semantics = dm.metamap_semantics
+    groups_to_keep = [
+        'Anatomy',
+        'Devices',
+        'Disorders',
+        'Physiology',
+        'Procedures',
+    ]
+    types_to_keep = [
+        # Chemicals & Drugs
+        'Antibiotic',
+        'Clincal Drug',
+        'Enzyme',
+        'Hormone',
+        'Pharmacologic Substance',
+        'Receptor',
+    ]
+    semantic_type_filter_df = metamap_semantics[metamap_semantics['group_name'].isin(groups_to_keep) |
+                                                metamap_semantics['name'].isin(types_to_keep)
+                                                ].sort_values(['group_name', 'name'])
+    semantic_type_filter = list(semantic_type_filter_df['abbreviation'])
 
     # create list of ids, and list of sentences in matching order
     ids = inputs.keys()
@@ -30,12 +52,16 @@ def add_metamap_annotations(inputs: Dict[str, Dict], metamap_path: str = None) -
     mm = MetaMapLite.get_instance(metamap_path)
     concepts, error = mm.extract_concepts(sentences, ids)
 
-    # add concepts with score above 1 to input sentences
+    # add concepts with score above 1 and matching the semantics filter to input sentences
     for concept in concepts:
         concept_dict = {}
         if float(concept.score) > 1:
-            for fld in concept._fields:
-                concept_dict[fld] = getattr(concept, fld)
+            semtypes = concept.semtypes.replace('[', '').replace(']', '').split(',')
+            for semtype in semtypes:
+                if semtype in semantic_type_filter:
+                    for fld in concept._fields:
+                        concept_dict[fld] = getattr(concept, fld)
+                        break
 
             # attach concept to input_dict
             id = concept_dict['index']
