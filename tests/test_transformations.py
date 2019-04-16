@@ -272,64 +272,69 @@ class TestTransformations(unittest.TestCase):
         }
         self.assertEqual(adt.Transformer._annotate_internal_external_links(test_input), expected_output)
 
+
 class TestAcceptanceTransformation(unittest.TestCase):
 
     def setUp(self):
         self.test_input_1 = {
-            'id': 0,
-            'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
-            'content': """
-            <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
-                   <div class="topleader">
-                   <div class="vsp"> </div>
-                    <div class="leader ad"><br></div></div><div class="mainContent">
-                        
-                        <div class="articleHtml">
-            <div class="toolbar_ns" style="float:right;margin-top:-3px">
-            <table><tbody></tbody></table></div>    
-            <script>
-            <!--//--><![CDATA[// ><!--
-             function createToolbar() {	 
-                if ('Antidepressants') {
-                    var st=readCookie("SAVVYTOPICS");if (!st || st.indexOf("|Antidepressants|")==-1) {
-                        var desc=st?"Click here to add <i>Antidepressants to your list of topics.":"<strong>Stay up-to-date on the health topics that interest you.<br /><br />Click here to sign in or sign up for HealthSavvy, and add <i>Antidepressants to your list of topics.";
-                        addToolbarButton("HealthSavvy", "tb_hsicon tool_sp", "#",  savvyClick, "HealthSavvy","hs_savvy_favorite",desc);}
-                }
-                addToolbarButton( "Send this Page","tb_mail tool_sp", "#", function(event) {emailPage(event);return false;}, "Send Page",null, "<strong>Send Using Facebook or Email.<br /><br />Click here to send this page using Facebook or email. You may add a personal message to the email.");
-                addToolbarButton( "Print","tb_print tool_sp", "#", function(event) {printPage(event);return false;}, "Print Article",null, "Click here to print this page."); 	   
-             }
-             createToolbar();  
-            
-            //--><!]]>
-            </script><h1>Antidepressants</h1>
-                        <div id="pageOneHeader"><div>
-            <h3>Antidepressants are medications primarily used for treating depression.</h3></div></div></div></div><div>
-            <a name="chapter_0" href="http://depression.emedtv.com/undefined" id="chapter_0"></a><h2>What Are Antidepressants?</h2></div>
-                            <div>
-            Antidepressants are medications used to treat <a href="http://depression.emedtv.com/depression/depression.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, '/depression/depression.html', 'Depression causes unnecessary suffering for both people who have the illness and their families.', 'Depression')">depression</a>. Some of these medications&nbsp;are blue.</div>
-            <div>&nbsp;</div>
-            <div><em>(Click <a title="Antidepressant Uses" href="http://depression.emedtv.com/antidepressants/antidepressant-uses.html" onmouseover="showDescription(event, '/antidepressants/antidepressant-uses.html', 'Besides depression treatment, antidepressants are also approved for other uses.', 'Antidepressant Uses')" onmouseout="hideDescription(event);">Antidepressant Uses</a> for more information on what&nbsp;they are used for, including possible <a href="http://drugs.emedtv.com/medicine/off-label.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, 'http://drugs.emedtv.com/medicine/off-label.html', 'This eMedTV page defines an off-label use as one where a physician prescribes a medication to treat a condition, even though the FDA has not approved the medicine for that specific use.', 'Off-Label')">off-label</a> uses.)</em></div>
-            <div>&nbsp;</div>
-            <div>
-            <a name="chapter_1" href="http://depression.emedtv.com/undefined" id="chapter_1"></a><h2>Types of Antidepressants</h2></div>
-                            <div>
-            There are several types of antidepressants available to treat depression.</div>
-            <div>&nbsp;</div>
-            </div></div></div></div>
-        """
+            0: {
+                'id': 0,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
+                'content': """
+                    <div class="field-item even" property="content:encoded"><div id="selectedWebpagePart" contenteditable="false"><div id="selectedWebpagePart" contenteditable="false"><div class="mainCol2Col selectedHighlight">
+                           <div class="topleader">
+                           <div class="vsp"> </div>
+                            <div class="leader ad"><br></div></div><div class="mainContent">
+                                
+                                <div class="articleHtml">
+                    <div class="toolbar_ns" style="float:right;margin-top:-3px">
+                    <table><tbody></tbody></table></div>    
+                    <script>
+                    <!--//--><![CDATA[// ><!--
+                     function createToolbar() {	 
+                        if ('Antidepressants') {
+                            var st=readCookie("SAVVYTOPICS");if (!st || st.indexOf("|Antidepressants|")==-1) {
+                                var desc=st?"Click here to add <i>Antidepressants to your list of topics.":"<strong>Stay up-to-date on the health topics that interest you.<br /><br />Click here to sign in or sign up for HealthSavvy, and add <i>Antidepressants to your list of topics.";
+                                addToolbarButton("HealthSavvy", "tb_hsicon tool_sp", "#",  savvyClick, "HealthSavvy","hs_savvy_favorite",desc);}
+                        }
+                        addToolbarButton( "Send this Page","tb_mail tool_sp", "#", function(event) {emailPage(event);return false;}, "Send Page",null, "<strong>Send Using Facebook or Email.<br /><br />Click here to send this page using Facebook or email. You may add a personal message to the email.");
+                        addToolbarButton( "Print","tb_print tool_sp", "#", function(event) {printPage(event);return false;}, "Print Article",null, "Click here to print this page."); 	   
+                     }
+                     createToolbar();  
+                    
+                    //--><!]]>
+                    </script><h1>Antidepressants</h1>
+                                <div id="pageOneHeader"><div>
+                    <h3>Antidepressants are medications primarily used for treating depression.</h3></div></div></div></div><div>
+                    <a name="chapter_0" href="http://depression.emedtv.com/undefined" id="chapter_0"></a><h2>What Are Antidepressants?</h2></div>
+                                    <div>
+                    Antidepressants are medications used to treat <a href="http://depression.emedtv.com/depression/depression.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, '/depression/depression.html', 'Depression causes unnecessary suffering for both people who have the illness and their families.', 'Depression')">depression</a>. Some of these medications&nbsp;are blue.</div>
+                    <div>&nbsp;</div>
+                    <div><em>(Click <a title="Antidepressant Uses" href="http://depression.emedtv.com/antidepressants/antidepressant-uses.html" onmouseover="showDescription(event, '/antidepressants/antidepressant-uses.html', 'Besides depression treatment, antidepressants are also approved for other uses.', 'Antidepressant Uses')" onmouseout="hideDescription(event);">Antidepressant Uses</a> for more information on what&nbsp;they are used for, including possible <a href="http://drugs.emedtv.com/medicine/off-label.html" onmouseout="hideDescription(event);" onmouseover="showDescription(event, 'http://drugs.emedtv.com/medicine/off-label.html', 'This eMedTV page defines an off-label use as one where a physician prescribes a medication to treat a condition, even though the FDA has not approved the medicine for that specific use.', 'Off-Label')">off-label</a> uses.)</em></div>
+                    <div>&nbsp;</div>
+                    <div>
+                    <a name="chapter_1" href="http://depression.emedtv.com/undefined" id="chapter_1"></a><h2>Types of Antidepressants</h2></div>
+                                    <div>
+                    There are several types of antidepressants available to treat depression.</div>
+                    <div>&nbsp;</div>
+                    </div></div></div></div>
+                """
+            }
         }
 
         # create starting dict for expected output. add content key in individual tests
         self.expected_output = {
-            'id': 0,
-            'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html'
+            0: {
+                'id': 0,
+                'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html'
+            }
         }
 
     def test_html_to_text(self):
         transformer = adt.Transformer(leave_some_html=False)
 
         test_input = self.test_input_1
-        self.expected_output['content'] = """Antidepressants. 
+        self.expected_output[0]['content'] = """Antidepressants. 
 Antidepressants are medications primarily used for treating depression. 
 What Are Antidepressants? 
 Antidepressants are medications used to treat depression. Some of these medications are blue. 
@@ -337,42 +342,42 @@ Antidepressants are medications used to treat depression. Some of these medicati
 Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_limited_html(self):
         transformer = adt.Transformer(leave_some_html=True)
 
         test_input = self.test_input_1
-        self.expected_output['content'] = """<h1>Antidepressants</h1> 
+        self.expected_output[0]['content'] = """<h1>Antidepressants</h1> 
 <h3>Antidepressants are medications primarily used for treating depression.</h3>
 <a href="emedtv"></a><h2>What Are Antidepressants?</h2> 
 Antidepressants are medications used to treat <a href="emedtv">depression</a>. Some of these medications are blue. 
 (Click <a href="emedtv">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="emedtv">off-label</a> uses.) 
 <a href="emedtv"></a><h2>Types of Antidepressants</h2> 
 There are several types of antidepressants available to treat depression."""
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_limited_html_plain_text(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True)
 
         test_input = self.test_input_1
-        self.expected_output['content'] = """thisisah1tag Antidepressants. 
+        self.expected_output[0]['content'] = """thisisah1tag Antidepressants. 
 thisisah3tag Antidepressants are medications primarily used for treating depression. 
 thisisalinktagemedtv thisisah2tag What Are Antidepressants? 
 Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. 
 (Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.) 
 thisisalinktagemedtv thisisah2tag Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_words(self):
         transformer = adt.Transformer(leave_some_html=False, segment_into='words')
 
         test_input = self.test_input_1
-        self.expected_output['content'] = [
+        self.expected_output[0]['content'] = [
             "Antidepressants", ".",
             "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
             "What", "Are", "Antidepressants", "?",
@@ -384,14 +389,14 @@ There are several types of antidepressants available to treat depression."""
             "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
         ]
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_sentences(self):
         transformer = adt.Transformer(leave_some_html=False, segment_into='sentences')
 
         test_input = self.test_input_1
-        self.expected_output['content'] = [
+        self.expected_output[0]['content'] = [
             "Antidepressants.",
             "Antidepressants are medications primarily used for treating depression.",
             "What Are Antidepressants?",
@@ -402,14 +407,14 @@ There are several types of antidepressants available to treat depression."""
             "There are several types of antidepressants available to treat depression.",
         ]
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_paragraphs(self):
         transformer = adt.Transformer(leave_some_html=False, segment_into='paragraphs')
 
         test_input = self.test_input_1
-        self.expected_output['content'] = [
+        self.expected_output[0]['content'] = [
             "Antidepressants. ",
             "Antidepressants are medications primarily used for treating depression. ",
             "What Are Antidepressants? ",
@@ -419,8 +424,8 @@ There are several types of antidepressants available to treat depression."""
             "There are several types of antidepressants available to treat depression.",
         ]
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     # to_limited_html_plain_text segmentation tests
 
@@ -428,7 +433,7 @@ There are several types of antidepressants available to treat depression."""
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences')
 
         test_input = self.test_input_1
-        self.expected_output['content'] = [
+        self.expected_output[0]['content'] = [
             "thisisah1tag Antidepressants.",
             "thisisah3tag Antidepressants are medications primarily used for treating depression.",
             "thisisalinktagemedtv thisisah2tag What Are Antidepressants?",
@@ -439,14 +444,14 @@ There are several types of antidepressants available to treat depression."""
             "There are several types of antidepressants available to treat depression.",
         ]
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_limited_html_plain_text_to_paragraphs(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='paragraphs')
 
         test_input = self.test_input_1
-        self.expected_output['content'] = [
+        self.expected_output[0]['content'] = [
             "thisisah1tag Antidepressants. ",
             "thisisah3tag Antidepressants are medications primarily used for treating depression. ",
             "thisisalinktagemedtv thisisah2tag What Are Antidepressants? ",
@@ -456,78 +461,76 @@ There are several types of antidepressants available to treat depression."""
             "There are several types of antidepressants available to treat depression.",
         ]
 
-        output = transformer.apply([test_input])
-        self.assertEqual(output, [self.expected_output])
+        output = transformer.apply(test_input)
+        self.assertEqual(output, self.expected_output)
 
     def test_html_to_limited_html_plain_text_to_sentences_flattened(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
                                       flatten=True, annotate_html=False)
 
         test_input = self.test_input_1
-        expected_output = [
-            {
+        expected_output = {
+                '0-0': {
                 'id': 0,
                 'sub_id': 0,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisah1tag Antidepressants.",
             },
-            {
+            '0-1': {
                 'id': 0,
                 'sub_id': 1,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisah3tag Antidepressants are medications primarily used for treating depression.",
             },
-            {
+            '0-2': {
                 'id': 0,
                 'sub_id': 2,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisalinktagemedtv thisisah2tag What Are Antidepressants?",
             },
-            {
+            '0-3': {
                 'id': 0,
                 'sub_id': 3,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Antidepressants are medications used to treat thisisalinktagemedtv depression .",
             },
-            {
+            '0-4': {
                 'id': 0,
                 'sub_id': 4,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "Some of these medications are blue.",
             },
-            {
+            '0-5': {
                 'id': 0,
                 'sub_id': 5,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.)",
             },
-            {
+            '0-6': {
                 'id': 0,
                 'sub_id': 6,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "thisisalinktagemedtv thisisah2tag Types of Antidepressants.",
             },
-            {
+            '0-7': {
                 'id': 0,
                 'sub_id': 7,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
                 'content': "There are several types of antidepressants available to treat depression.",
             },
-        ]
+        }
 
-        output = transformer.apply([test_input])
-        for i in range(len(expected_output)):
-            print(output[i])
-            print(expected_output[i])
-            self.assertDictEqual(output[i], expected_output[i])
+        output = transformer.apply(test_input)
+        for id in list(expected_output.keys()):
+            self.assertDictEqual(output[id], expected_output[id])
 
     def test_html_to_limited_html_plain_text_to_sentences_flattened_annotated(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
                                       flatten=True, annotate_html=True)
 
         test_input = self.test_input_1
-        expected_output = [
-            {
+        expected_output = {
+            '0-0': {
                 'id': 0,
                 'sub_id': 0,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -536,7 +539,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': [],
                 'link_type': [],
             },
-            {
+            '0-1': {
                 'id': 0,
                 'sub_id': 1,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -545,7 +548,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': [],
                 'link_type': [],
             },
-            {
+            '0-2': {
                 'id': 0,
                 'sub_id': 2,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -554,7 +557,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': ['emedtv'],
                 'link_type': ['internal'],
             },
-            {
+            '0-3': {
                 'id': 0,
                 'sub_id': 3,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -563,7 +566,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': ['emedtv'],
                 'link_type': ['internal'],
             },
-            {
+            '0-4': {
                 'id': 0,
                 'sub_id': 4,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -572,7 +575,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': [],
                 'link_type': [],
             },
-            {
+            '0-5': {
                 'id': 0,
                 'sub_id': 5,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -581,7 +584,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': ['emedtv', 'emedtv'],
                 'link_type': ['internal', 'internal'],
             },
-            {
+            '0-6': {
                 'id': 0,
                 'sub_id': 6,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -590,7 +593,7 @@ There are several types of antidepressants available to treat depression."""
                 'domains': ['emedtv'],
                 'link_type': ['internal'],
             },
-            {
+            '0-7': {
                 'id': 0,
                 'sub_id': 7,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
@@ -599,144 +602,8 @@ There are several types of antidepressants available to treat depression."""
                 'domains': [],
                 'link_type': [],
             },
-        ]
+        }
 
-        output = transformer.apply([test_input])
-        for i in range(len(expected_output)):
-            print(output[i])
-            print(expected_output[i])
-            self.assertDictEqual(output[i], expected_output[i])
-
-    def test_extract_potential_references(self):
-        example_input = """
-        <p>Thank you, we just sent a survey email to confirm your preferences. </p>
-        <h4 class=references__title>Further reading and references</h4>
-        <i class="icon references__toggle"> 
-            <svg role=presentation><use xlink:href=#chevron-down></use></svg>
-        </i>
-        <div class=references__content>
-            <ul class="list references__list u-mb">
-                <li><p><cite><a href=http://www.nice.org.uk/guidance/cg90/chapter/introduction target=_blank rel=noopener>Depression in adults: recognition and management</a></cite>; NICE Clinical Guideline (April 2016)</p></li>
-                <li><p><cite><a href=http://cks.nice.org.uk/depression target=_blank rel=noopener>Depression</a></cite>; NICE CKS, October 2015 (UK access only)</p></li>
-                <li><p><cite><a href="http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&amp;db=PubMed&amp;dopt=Abstract&amp;list_uids=22786489" target=_blank rel=noopener>Rimer J, Dwan K, Lawlor DA, et al</a></cite>; Exercise for depression. Cochrane Database Syst Rev. 2012 Jul 117:CD004366.</p></li>
-                <li><p><cite><a href="http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&amp;db=PubMed&amp;dopt=Abstract&amp;list_uids=22674921" target=_blank rel=noopener>Chalder M, Wiles NJ, Campbell J, et al</a></cite>; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.</p></li>
-            </ul>
-        </div>
-        """
-        expected_output = [
-            "Depression in adults: recognition and management; NICE Clinical Guideline (April 2016)",
-            "Depression; NICE CKS, October 2015 (UK access only)",
-            "Rimer J, Dwan K, Lawlor DA, et al; Exercise for depression. Cochrane Database Syst Rev. 2012 Jul 117:CD004366.",
-            "Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.",
-        ]
-        output = adt.extract_potential_references(example_input)
-        self.assertEqual(output, expected_output)
-
-    def test_evaluate_potential_references(self):
-        example_input = [
-            ('This is not a citation.',
-                [
-                    ('This', 'note'),
-                    ('is', 'note'),
-                    ('not', 'note'),
-                    ('a', 'note'),
-                    ('citation.', 'note'),
-                ]),
-            ("You can do this online at www.mhra.gov.uk/yellowcard.",
-                [
-                   ('You', 'title'),
-                   ('can', 'title'),
-                   ('do', 'title'),
-                   ('this', 'note'),
-                   ('online', 'note'),
-                   ('at', 'note'),
-                   ('www.mhra.gov.uk/yellowcard.', 'note'),
-                ]),
-            ("The national guideline published in 2009 by the National Institute for Health and Care Excellence (NICE) and updated in 2016 advises regular exercise as a possible treatment.",
-                [
-                    ('The', 'title'),
-                    ('national', 'title'),
-                    ('guideline', 'title'),
-                    ('published', 'title'),
-                    ('in', 'title'),
-                    ('2009', 'date'),
-                    ('by', 'note'),
-                    ('the', 'note'),
-                    ('National', 'institution'),
-                    ('Institute', 'institution'),
-                    ('for', 'institution'),
-                    ('Health', 'institution'),
-                    ('and', 'institution'),
-                    ('Care', 'title'),
-                    ('Excellence', 'title'),
-                    ('(NICE)',  'title'),
-                    ('and', 'title'),
-                    ('updated', 'title'),
-                    ('in', 'title'),
-                    ('2016', 'date'),
-                    ('advises', 'title'),
-                    ('regular', 'title'),
-                    ('exercise', 'title'),
-                    ('as', 'title'),
-                    ('a', 'title'),
-                    ('possible', 'title'),
-                    ('treatment.', 'title'),
-                ]),
-            ("Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.",
-                [
-                    ('Chalder', 'author'),
-                    ('M,', 'author'),
-                    ('Wiles', 'author'),
-                    ('NJ,', 'author'),
-                    ('Campbell', 'author'),
-                    ('J,', 'author'),
-                    ('et', 'author'),
-                    ('al;', 'author'),
-                    ('Facilitated', 'title'),
-                    ('physical', 'title'),
-                    ('activity', 'title'),
-                    ('as', 'title'),
-                    ('a', 'title'),
-                    ('treatment', 'title'),
-                    ('for', 'title'),
-                    ('depressed', 'title'),
-                    ('adults:', 'title'),
-                    ('randomised', 'title'),
-                    ('BMJ.', 'title'),
-                    ('2012', 'date'),
-                    ('Jun', 'date'),
-                    ('6344:e2758.', 'date'),
-                    ('doi:', 'date'),
-                    ('10.1136/bmj.e2758.', 'pages'),
-                ]),
-        ]
-        expected_output = [
-            ("Chalder M, Wiles NJ, Campbell J, et al; Facilitated physical activity as a treatment for depressed adults: randomised BMJ. 2012 Jun 6344:e2758. doi: 10.1136/bmj.e2758.",
-                [
-                    ('Chalder', 'author'),
-                    ('M,', 'author'),
-                    ('Wiles', 'author'),
-                    ('NJ,', 'author'),
-                    ('Campbell', 'author'),
-                    ('J,', 'author'),
-                    ('et', 'author'),
-                    ('al;', 'author'),
-                    ('Facilitated', 'title'),
-                    ('physical', 'title'),
-                    ('activity', 'title'),
-                    ('as', 'title'),
-                    ('a', 'title'),
-                    ('treatment', 'title'),
-                    ('for', 'title'),
-                    ('depressed', 'title'),
-                    ('adults:', 'title'),
-                    ('randomised', 'title'),
-                    ('BMJ.', 'title'),
-                    ('2012', 'date'),
-                    ('Jun', 'date'),
-                    ('6344:e2758.', 'date'),
-                    ('doi:', 'date'),
-                    ('10.1136/bmj.e2758.', 'pages'),
-                ]),
-        ]
-        self.assertEqual(adt.evaluate_potential_references(example_input), expected_output)
+        output = transformer.apply(test_input)
+        for id in list(expected_output.keys()):
+            self.assertDictEqual(output[id], expected_output[id])

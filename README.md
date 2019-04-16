@@ -36,47 +36,47 @@ Please follow this notebook naming convention for exploratory notebooks in the s
 %autoreload 2
 
 import autodiscern as ad
+import autodiscern.annotations as ada
 import autodiscern.transformations as adt
 
 # see "Note on Data" above for what to pass here
 dm = ad.DataManager("path/to/discern/data")
 
-# data is loaded in automatically
+# View the raw data like this (data is loaded in automatically):
 dm.html_articles.head()
 dm.responses.head()
 
-input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
-              for i, row in dm.html_articles.iterrows()]
+# Build data dictionaries for processing. This builds a dict of dicts, each data dict keyed on its entity_id. 
+data_dict = dm.build_dicts()
 
 # select which transformations and segmentations you want to apply
 # segment_into: words, sentences, paragraphs
-transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
+html_transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
                               html_to_plain_text=True,   # convert html tags to a form that doesnt interrupt segmentation
                               segment_into='sentences',  # segment documents into sentences
                               flatten=True,              # after segmentation, flatten list[doc_dict([sentences]] into list[sentences]
                               annotate_html=True,        # annotate sentences with html tags
                               parallelism=True           # run in parallel for 2x speedup
                               )
+transformed_data = html_transformer.apply(data_dict)
 
-transformed_data = transformer.apply(input_dicts)
-
-# convert to dict for easier annotation adding
-transformed_data_dict = adt.convert_list_of_dicts_to_dict_of_dicts(transformed_data)
+# apply annotations, which add new keys to each data dict
+transformed_data = ada.add_word_token_annotations(transformed_data)
 
 # more details on applying metamap below
-transformed_data_dict = adt.add_metamap_annotations(transformed_data_dict)
+transformed_data = ada.add_metamap_annotations(transformed_data)
 # WARNING: ner annotations are *very* slow
-transformed_data_dict = adt.add_ner_annotations(transformed_data_dict)
+transformed_data = ada.add_ner_annotations(transformed_data)
 
 # view results
 counter = 5
-for i in transformed_data_dict:
+for i in transformed_data:
     counter -= 1
     if counter < 0:
         break
     print("==={}===".format(i))
-    for key in transformed_data_dict[i]:
-        print("{}: {}".format(key, transformed_data_dict[i][key]))
+    for key in transformed_data[i]:
+        print("{}: {}".format(key, transformed_data[i][key]))
     print()
 
 # ===
