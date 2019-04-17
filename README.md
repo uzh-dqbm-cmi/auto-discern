@@ -39,17 +39,25 @@ import autodiscern as ad
 import autodiscern.annotations as ada
 import autodiscern.transformations as adt
 
-# see "Note on Data" above for what to pass here
+# ============================================
+# STEP 1: Load the raw data 
+# ============================================
+
+# See "Note on Data" above for what to pass here
 dm = ad.DataManager("path/to/discern/data")
 
-# View the raw data like this (data is loaded in automatically):
+# (Optional) View the raw data like this (data is loaded in automatically):
 dm.html_articles.head()
 dm.responses.head()
 
 # Build data dictionaries for processing. This builds a dict of dicts, each data dict keyed on its entity_id. 
 data_dict = dm.build_dicts()
 
-# select which transformations and segmentations you want to apply
+# ============================================
+# STEP 2: Clean and transform the data
+# ============================================
+
+# Select which transformations and segmentations you want to apply
 # segment_into: words, sentences, paragraphs
 html_transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
                               html_to_plain_text=True,   # convert html tags to a form that doesnt interrupt segmentation
@@ -60,15 +68,37 @@ html_transformer = adt.Transformer(leave_some_html=True,      # leave important 
                               )
 transformed_data = html_transformer.apply(data_dict)
 
-# apply annotations, which add new keys to each data dict
+# ============================================
+# STEP 3: Add annotations
+# ============================================
+
+# Apply annotations, which add new keys to each data dict
 transformed_data = ada.add_word_token_annotations(transformed_data)
 
-# more details on applying metamap below
-transformed_data = ada.add_metamap_annotations(transformed_data)
+# Applying MetaMap annotations takes about half an hour for the full dataset
+# This requires a independent installation of MetaMapLite.
+# See more details below on using the MetaMapLite and the pymetamap package
+transformed_data = ada.add_metamap_annotations(transformed_data, dm)
+
 # WARNING: ner annotations are *very* slow
 transformed_data = ada.add_ner_annotations(transformed_data)
 
-# view results
+# ============================================
+# STEP 4: Save and reload data for future use
+# ============================================
+
+# Save the data with pickle. The filename is assigned automatically.
+# You may add a descriptor to the filename via
+#   dm.save_transformed_data(transformed_data, tag='note')
+dm.save_transformed_data(transformed_data)
+
+# Load up a pickled data dictionary.
+# automatically loads the file with the most recent timestamp
+# To load a specific file, use
+#   dm.load_transformed_data('filename')
+transformed_data = dm.load_most_recent_transformed_data()
+
+# View results
 counter = 5
 for i in transformed_data:
     counter -= 1
@@ -79,7 +109,10 @@ for i in transformed_data:
         print("{}: {}".format(key, transformed_data[i][key]))
     print()
 
-# ===
+# =====================================
+# MISC
+# =====================================
+
 # tag Named Entities
 from allennlp.predictors.predictor import Predictor
 from IPython.display import HTML

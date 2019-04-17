@@ -1,6 +1,8 @@
-import os
+import datetime
 import glob
+import os
 import pandas as pd
+import pickle
 from pathlib import Path
 
 import autodiscern.transformations as adt
@@ -87,6 +89,45 @@ class DataManager:
         if version_id not in self.data:
             self._load_articles(version_id)
         return self.data[version_id]
+
+    def save_transformed_data(self, data, tag=None):
+        """Save a data dictionary to data/transformed directory with a filename created from the current timestamp and
+        an optional tag. """
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        if tag:
+            filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, tag))
+        else:
+            filepath = Path(self.data_path, "data/transformed_data/{}.pkl".format(timestamp))
+        with open(filepath, "wb+") as f:
+            pickle.dump(data, f)
+
+    def load_transformed_data(self, filename):
+        """Load a pickled data dictionary from the data/transformed directory.
+        filename can be provided with or without the .pkl extension"""
+
+        if '.pkl' in filename:
+            filepath = Path(self.data_path, "data/transformed_data/{}".format(filename))
+        else:
+            filepath = Path(self.data_path, "data/transformed_data/{}.pkl".format(filename))
+        with open(filepath, "rb+") as f:
+            return pickle.load(f)
+
+    def load_most_recent_transformed_data(self):
+        """Load the most recent pickled data dictionary from the data/transformed directory,
+        as determined by the timestamp in the filename. """
+
+        filepath = Path(self.data_path, "data/transformed_data/*")
+        files = glob.glob(filepath.__str__())
+
+        if len(files) == 0:
+            print("ERROR: no files found at {}".format(filepath))
+            return
+
+        filenames = [os.path.basename(file) for file in files]
+        filenames.sort()
+        chosen_one = filenames[-1]
+        print("Loading {}".format(chosen_one))
+        return self.load_transformed_data(chosen_one)
 
     @property
     def html_articles(self) -> pd.DataFrame:

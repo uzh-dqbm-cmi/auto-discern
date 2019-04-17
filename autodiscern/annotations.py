@@ -9,7 +9,8 @@ from autodiscern.data_manager import DataManager
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     tok = WordTokenizer()
     for id in inputs:
-        inputs[id]['tokens'] = tok.tokenize(inputs[id]['content'])
+        # have to convert tokens to text because spacy tokens are not pickleable
+        inputs[id]['tokens'] = [t.text for t in tok.tokenize(inputs[id]['content'])]
     return inputs
 
 
@@ -17,7 +18,7 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
     from pymetamap import MetaMapLite
 
     if metamap_path is None:
-        print("NOTE: no metamap path provided. Using Laura's default")
+        print("NOTE: no Metamap path provided. Using Laura's default")
         metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
 
     metamap_semantics = dm.metamap_semantics
@@ -49,9 +50,11 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
         sentences.append(inputs[id]['content'])
 
     # run metamap
+    print("Extracing MetaMap concepts...")
     mm = MetaMapLite.get_instance(metamap_path)
     concepts, error = mm.extract_concepts(sentences, ids)
 
+    print("Attaching Metamap concepts...")
     # add concepts with score above 1 and matching the semantics filter to input sentences
     for concept in concepts:
         concept_dict = {}
@@ -61,15 +64,16 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
                 if semtype in semantic_type_filter:
                     for fld in concept._fields:
                         concept_dict[fld] = getattr(concept, fld)
-                        break
 
-            # attach concept to input_dict
-            id = concept_dict['index']
-            id = id.replace('"', '').replace("'", '')
-            if 'metamap' not in inputs[id]:
-                inputs[id]['metamap'] = []
-            inputs[id]['metamap'].append(concept_dict)
+                    # attach concept to input_dict
+                    id = concept_dict['index']
+                    id = id.replace('"', '').replace("'", '')
+                    if 'metamap' not in inputs[id]:
+                        inputs[id]['metamap'] = []
+                    inputs[id]['metamap'].append(concept_dict)
+                    break
 
+    print("Done annotating MetaMap concepts")
     return inputs
 
 
