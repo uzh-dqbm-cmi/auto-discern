@@ -79,6 +79,30 @@ class TestTransformations(unittest.TestCase):
         expected_output = '<html><body><h2 class="selectedHighlight">Staging, grading & treatment</h2></body></html>'
         self.assertEqual(adt.Transformer.soup_to_text_with_tags(test_input), expected_output)
 
+    def test_get_domain_from_link_tag_href_link_returns_domain(self):
+        soup = BeautifulSoup(
+            '<html><body><a href="http://www.cat.com/health">text</a></body></html>',
+            features="html.parser")
+        test_input = soup.a
+        expected_output = 'cat'
+        self.assertEqual(adt.Transformer.get_domain_from_link_tag(test_input), expected_output)
+
+    def test_get_domain_from_link_tag_src_link_returns_domain(self):
+        soup = BeautifulSoup(
+            '<html><body><a src="http://www.cat.com/health">text</a></body></html>',
+            features="html.parser")
+        test_input = soup.a
+        expected_output = 'cat'
+        self.assertEqual(adt.Transformer.get_domain_from_link_tag(test_input), expected_output)
+
+    def test_get_domain_from_link_tag_file_path_returns_NA(self):
+        soup = BeautifulSoup(
+            '<html><body><a href="/health/deep-brain-stimulation/MY00184">text</a></body></html>',
+            features="html.parser")
+        test_input = soup.a
+        expected_output = 'NA'
+        self.assertEqual(adt.Transformer.get_domain_from_link_tag(test_input), expected_output)
+
     def test_reformat_html_link_tags_replaces_link_with_domain(self):
         test_input = BeautifulSoup('<html><body>There is more information on medication on the <a title="Royal College of Psychiatrists information on medications" href="http://www.rcpsych.ac.uk/mentalhealthinformation/therapies.aspx ">website of the Royal College of Psychiatrists</a></body></html>', features="html.parser")
         expected_output = BeautifulSoup('<html><body>There is more information on medication on the <a href="rcpsych">website of the Royal College of Psychiatrists</a></body></html>', features="html.parser")

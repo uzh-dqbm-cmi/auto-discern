@@ -321,11 +321,16 @@ class Transformer:
 
     @staticmethod
     def get_domain_from_link_tag(tag: Tag) -> str:
+        """Extract the domain from a url. If no domain is found, assume link is a filepath, and return NA"""
         attrs = dict(tag.attrs)
         for attr in attrs:
             if attr in ['src', 'href']:
                 url = tag.attrs[attr]
-                return tldextract.extract(url).domain
+                domain = tldextract.extract(url).domain
+                if domain != '':
+                    return domain
+                else:
+                    return 'NA'
 
     def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
                      tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str,
@@ -366,7 +371,7 @@ class Transformer:
 
                 if tag.name == 'a' and include_link_domains:
                     domain = self.get_domain_from_link_tag(tag)
-                    start_tag_replacement = start_tag_replacement.strip() + domain + ' '
+                    start_tag_replacement = start_tag_replacement.rstrip() + domain + ' '
                 tag.insert_before(start_tag_replacement)
                 tag.insert_after(end_tag_replacement)
                 # remove the tag without removing the tag's contents (text and children tags)
@@ -466,7 +471,10 @@ class Transformer:
         source_domain = tldextract.extract(d['url']).domain
         d['link_type'] = []
         for link in d['domains']:
-            if link == source_domain:
+            if link == 'NA':
+                # assume links that are not valid urls are internal filepaths
+                d['link_type'].append('internal')
+            elif link == source_domain:
                 d['link_type'].append('internal')
             else:
                 d['link_type'].append('external')
