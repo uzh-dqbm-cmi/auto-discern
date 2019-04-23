@@ -2,6 +2,7 @@ from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from allennlp.predictors.predictor import Predictor
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+import re
 from typing import Callable, Dict, List, Tuple
 from autodiscern.data_manager import DataManager
 
@@ -125,6 +126,26 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
                 ner_html += " <{0}>{1}</{0}>".format(tag, text)
 
     return ner_html
+
+
+def add_inline_citations_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        sentence = inputs[id]['content']
+        in_line_citations = apply_inline_citation_regex(sentence)
+        inputs[id]['citations'] = in_line_citations
+    return inputs
+
+
+def apply_inline_citation_regex(text):
+    year_num = r"(?:19|20)[0-9][0-9]"
+    author_with_year = r"[^()\d]*" + year_num
+    multiple_authors = author_with_year + r"(?:;\s*" + author_with_year + r")*"
+    author_either_bracket_type = r"\(" + multiple_authors + r"\)|\[" + multiple_authors + r"\]"
+    citation_number_in_square_brackets = r"\[\d+(?:[-,\s]+\d+)*\]"
+    regex = author_either_bracket_type + r"|" + citation_number_in_square_brackets
+
+    matches = re.findall(regex, text)
+    return matches
 
 
 def extract_potential_references(text: str) -> List[str]:
