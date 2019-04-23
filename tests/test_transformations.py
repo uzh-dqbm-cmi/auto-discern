@@ -44,6 +44,11 @@ class TestTransformations(unittest.TestCase):
         expected_output = "text text? "
         self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
 
+    def test_regex_out_punctuation_and_white_space_combines_question_mark_space_period(self):
+        test_input = "text text? . "
+        expected_output = "text text? "
+        self.assertEqual(adt.Transformer.regex_out_punctuation_and_white_space(test_input), expected_output)
+
     def test_condense_line_breaks_multiple_newlines(self):
         test_input = "text\n\ntext"
         expected_output = "text \ntext"
@@ -362,7 +367,7 @@ class TestAcceptanceTransformation(unittest.TestCase):
 Antidepressants are medications primarily used for treating depression. 
 What Are Antidepressants? 
 Antidepressants are medications used to treat depression. Some of these medications are blue. 
-(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) 
+(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.). 
 Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
 
@@ -391,7 +396,7 @@ There are several types of antidepressants available to treat depression."""
 thisisah3tag Antidepressants are medications primarily used for treating depression. 
 thisisalinktagemedtv thisisah2tag What Are Antidepressants? 
 Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. 
-(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.) 
+(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.). 
 thisisalinktagemedtv thisisah2tag Types of Antidepressants. 
 There are several types of antidepressants available to treat depression."""
         output = transformer.apply(test_input)
@@ -408,7 +413,7 @@ There are several types of antidepressants available to treat depression."""
             "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
             "Some", "of", "these", "medications", "are", "blue", ".",
             "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
-            "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")",
+            "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")", ".",
             "Types", "of", "Antidepressants", ".",
             "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
         ]
@@ -426,7 +431,7 @@ There are several types of antidepressants available to treat depression."""
             "What Are Antidepressants?",
             "Antidepressants are medications used to treat depression.",
             "Some of these medications are blue.",
-            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
+            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.).",
             "Types of Antidepressants.",
             "There are several types of antidepressants available to treat depression.",
         ]
@@ -443,7 +448,7 @@ There are several types of antidepressants available to treat depression."""
             "Antidepressants are medications primarily used for treating depression. ",
             "What Are Antidepressants? ",
             "Antidepressants are medications used to treat depression. Some of these medications are blue. ",
-            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.) ",
+            "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.). ",
             "Types of Antidepressants. ",
             "There are several types of antidepressants available to treat depression.",
         ]
@@ -463,7 +468,7 @@ There are several types of antidepressants available to treat depression."""
             "thisisalinktagemedtv thisisah2tag What Are Antidepressants?",
             "Antidepressants are medications used to treat thisisalinktagemedtv depression .",
             "Some of these medications are blue.",
-            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.)",
+            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.).",
             "thisisalinktagemedtv thisisah2tag Types of Antidepressants.",
             "There are several types of antidepressants available to treat depression.",
         ]
@@ -480,7 +485,7 @@ There are several types of antidepressants available to treat depression."""
             "thisisah3tag Antidepressants are medications primarily used for treating depression. ",
             "thisisalinktagemedtv thisisah2tag What Are Antidepressants? ",
             "Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. ",
-            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.) ",
+            "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.). ",
             "thisisalinktagemedtv thisisah2tag Types of Antidepressants. ",
             "There are several types of antidepressants available to treat depression.",
         ]
@@ -528,7 +533,7 @@ There are several types of antidepressants available to treat depression."""
                 'id': 0,
                 'sub_id': 5,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
-                'content': "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.)",
+                'content': "(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.).",
             },
             '0-6': {
                 'id': 0,
@@ -603,7 +608,7 @@ There are several types of antidepressants available to treat depression."""
                 'id': 0,
                 'sub_id': 5,
                 'url': 'http://depression.emedtv.com/antidepressants/antidepressants.html',
-                'content': "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.)",
+                'content': "(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.).",
                 'html_tags': ['a'],
                 'domains': ['emedtv', 'emedtv'],
                 'link_type': ['internal', 'internal'],

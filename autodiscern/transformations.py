@@ -190,7 +190,8 @@ class Transformer:
         return text
 
     def _to_limited_html_plain_text(self, x: str) -> str:
-        soup = BeautifulSoup(x, features="html.parser")
+        clean_x = self.clear_non_rendered_html(x)
+        soup = BeautifulSoup(clean_x, features="html.parser")
         soup = self.remove_tags_and_contents(soup, ['style', 'script'])
         soup = self.remove_other_xml(soup)
 
@@ -205,7 +206,8 @@ class Transformer:
             'a':  (' thisisalinktag ', ' '),
             'li': ('thisisalistitemtag ', '. '),
             'tr': ('thisisatablerowtag ', '. '),
-            'p':  ('\n', '\n'),
+            'p':  ('\n', '. \n'),
+            'div': ('. \n', '. \n'),
         }
         default_tag_replacement_str = ''
         text = self.replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace,
@@ -218,7 +220,8 @@ class Transformer:
         return text
 
     def _to_text(self, x: str) -> str:
-        soup = BeautifulSoup(x, features="html.parser")
+        clean_x = self.clear_non_rendered_html(x)
+        soup = BeautifulSoup(clean_x, features="html.parser")
         soup = self.remove_tags_and_contents(soup, ['style', 'script'])
         soup = self.remove_other_xml(soup)
 
@@ -230,7 +233,8 @@ class Transformer:
             'h2': ('\n', '. \n'),
             'h3': ('\n', '. \n'),
             'h4': ('\n', '. \n'),
-            'p':  ('\n', '\n'),
+            'p':  ('\n', '. \n'),
+            'div': ('\n', '. \n'),
         }
         default_tag_replacement_str = ''
         text = self.replace_html(soup, tags_to_keep, tags_to_keep_with_attr, tags_to_replace,
@@ -390,16 +394,24 @@ class Transformer:
     # === String-Based Helper functions ==========================
 
     @staticmethod
+    def clear_non_rendered_html(text: str) -> str:
+        return text.replace('\n', ' ')
+
+    @staticmethod
     def regex_out_punctuation_and_white_space(text: str) -> str:
         """Clean up excess whitespace and punctuation."""
         text = text.replace('?.', '?')
 
         # replaces multiple spaces wth a single space
-        text = re.sub(' +', ' ',  text)
+        text = re.sub(r' +', ' ',  text)
         # replace occurences of '.' followed by any combination of '.', ' ', or '\n' with single '.'
         #  for handling html -> '.' replacement.
-        text = re.sub("[.][. ]{2,}", '. ', text)
-        text = re.sub("[.][. \n]{2,}", '. \n', text)
+        text = re.sub(r"[.][. ]{2,}", '. ', text)
+        text = re.sub(r"[?][. ]{2,}", '? ', text)
+        text = re.sub(r"[!][. ]{2,}", '! ', text)
+        text = re.sub(r"[.][. \n]{2,}", '. \n', text)
+        text = re.sub(r"[?][. \n]{2,}", '? \n', text)
+        text = re.sub(r"[!][. \n]{2,}", '! \n', text)
 
         # if there is a period at the very start of the document, remove it (replace 1 time)
         text = text.lstrip()
@@ -450,8 +462,10 @@ class Transformer:
                     text_without_tags = ''
                     for i, token in enumerate(tokens):
                         if plaintexttag in token:
-                            domains.append(token.replace(plaintexttag, ''))
-                            tokens[i] = ' '
+                            tag_pos = token.find(plaintexttag)
+                            tag_and_domain = token[tag_pos:]
+                            domains.append(tag_and_domain.replace(plaintexttag, ''))
+                            tokens[i] = token.replace(tag_and_domain, '')
                         else:
                             text_without_tags += token + ' '
                     d['content'] = text_without_tags.strip()
