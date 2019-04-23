@@ -442,7 +442,16 @@ class Transformer:
     # === Annotation Functions ==================================
 
     @staticmethod
-    def _annotate_and_clean_html(d: Dict, extract_domains=True) -> Dict:
+    def _retrieve_domain_from_plaintexttag(token: str) -> (str, str):
+        plaintexttag = "thisisalinktag"
+        tag_pos = token.find(plaintexttag)
+        tag_and_domain = token[tag_pos:]
+        domain = tag_and_domain.replace(plaintexttag, '')
+        cleaned_token = token.replace(tag_and_domain, '')
+        return cleaned_token, domain
+
+    @classmethod
+    def _annotate_and_clean_html(cls, d: Dict, extract_domains=True) -> Dict:
         tags = {
             'thisisah1tag': 'h1',
             'thisisah2tag': 'h2',
@@ -462,13 +471,14 @@ class Transformer:
                     text_without_tags = ''
                     for i, token in enumerate(tokens):
                         if plaintexttag in token:
-                            tag_pos = token.find(plaintexttag)
-                            tag_and_domain = token[tag_pos:]
-                            domains.append(tag_and_domain.replace(plaintexttag, ''))
-                            tokens[i] = token.replace(tag_and_domain, '')
+                            cleaned_token, domain = cls._retrieve_domain_from_plaintexttag(token)
+                            domains.append(domain)
+                            if cleaned_token != '':
+                                text_without_tags += cleaned_token + ' '
                         else:
-                            text_without_tags += token + ' '
-                    d['content'] = text_without_tags.strip()
+                            if token != '':
+                                text_without_tags += token + ' '
+                    d['content'] = text_without_tags.rstrip()
                     found_tags.append(tags[plaintexttag])
                 else:
                     d['content'] = d['content'].replace(plaintexttag, ' ').strip()

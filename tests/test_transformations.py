@@ -198,6 +198,11 @@ class TestTransformations(unittest.TestCase):
         ]
         self.assertEqual(adt.Transformer._flatten_text_dicts(test_input), expected_output)
 
+    def test_retrieve_domain_from_plaintexttag(self):
+        test_input = "\nthisisalinktaggoogle"
+        expected_output = ('\n', 'google')
+        self.assertEqual(adt.Transformer._retrieve_domain_from_plaintexttag(test_input), expected_output)
+
     def test_annotate_and_clean_html_finds_and_cleans_tag(self):
         test_input = {
             'id': 0,
@@ -219,6 +224,19 @@ class TestTransformations(unittest.TestCase):
         expected_output = {
             'id': 0,
             'content': 'I am a Header.',
+            'html_tags': ['a'],
+            'domains': ['google'],
+        }
+        self.assertEqual(adt.Transformer._annotate_and_clean_html(test_input), expected_output)
+
+    def test_annotate_and_clean_html_for_links_with_domain_with_attached_new_line(self):
+        test_input = {
+            'id': 0,
+            'content': '\nthisisalinktaggoogle I am a Header.'
+        }
+        expected_output = {
+            'id': 0,
+            'content': '\n I am a Header.',
             'html_tags': ['a'],
             'domains': ['google'],
         }
