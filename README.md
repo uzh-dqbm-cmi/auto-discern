@@ -63,7 +63,8 @@ transformed_data = dm.load_most_recent_transformed_data()
         'html_tags': ['h2', 'a'],
         'domains': ['nih'],
         'link_type': ['external'],
-        'metamap': [{
+        'metamap': ['Procedures', 'Anatomy'],
+        'metamap_detail': [{
                 'index': "'205-3'",
                 'mm': 'MMI',
                 'score': '2.57',

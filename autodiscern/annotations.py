@@ -71,7 +71,11 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
                     id = id.replace('"', '').replace("'", '')
                     if 'metamap' not in inputs[id]:
                         inputs[id]['metamap'] = []
-                    inputs[id]['metamap'].append(concept_dict)
+                        inputs[id]['metamap_detail'] = []
+                    metamap_category = metamap_semantics[metamap_semantics['abbreviation'] == semtype
+                                                         ]['group_name'].iloc[0]
+                    inputs[id]['metamap'].append(metamap_category)
+                    inputs[id]['metamap_detail'].append(concept_dict)
                     break
 
     print("Done annotating MetaMap concepts")
