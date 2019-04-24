@@ -204,8 +204,8 @@ class Transformer:
             'h3': (' thisisah3tag ', '. \n'),
             'h4': (' thisisah4tag ', '. \n'),
             'a':  (' thisisalinktag ', ' '),
-            'li': ('thisisalistitemtag ', '. '),
-            'tr': ('thisisatablerowtag ', '. '),
+            'li': ('\n thisisalistitemtag ', '. \n'),
+            'tr': ('\n thisisatablerowtag ', '. \n'),
             'p':  ('\n', '. \n'),
             'div': ('. \n', '. \n'),
         }

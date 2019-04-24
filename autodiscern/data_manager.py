@@ -108,7 +108,6 @@ class DataManager:
 
         """
         repo_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-        print("repo_path: {}".format(repo_path))
         git_hash = self._get_git_hash(repo_path)
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         if tag:
@@ -117,6 +116,7 @@ class DataManager:
             filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, git_hash))
         with open(filepath, "wb+") as f:
             pickle.dump(data, f)
+            print("Saved data to {}".format(filepath))
 
     def load_transformed_data(self, filename: str) -> Dict:
         """Load a pickled data dictionary from the data/transformed directory.
