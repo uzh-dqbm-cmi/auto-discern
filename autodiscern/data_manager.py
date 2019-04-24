@@ -149,13 +149,15 @@ class DataManager:
     @classmethod
     def _get_git_hash(cls, path: str) -> str:
         """
-        Gets git hash of latest commit, first checking that all changes have been committed
+        Get the short hash of latest git commit, first checking that all changes have been committed.
+        If there are uncommitted changes, raise an error.
+        This ensures that the git hash returned captures the true state of the code.
 
         Arguments:
-            path (str): path to git repo
+            path (str): Path to git repo.
 
         Returns:
-            git_hash (str): has of latest commit on git repo
+            git_hash (str): Short hash of latest commit on the active branch of the git repo.
         """
         cls._check_for_uncommitted_git_changes(path)
         git_hash_raw = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
@@ -166,11 +168,12 @@ class DataManager:
     @classmethod
     def _check_for_uncommitted_git_changes(cls, repopath: str) -> bool:
         """
+        Check if there are uncommitted changes in the git repo, and raise an error if there are.
 
         Args:
-            repopath:
+            repopath: str. Path to the repo to check.
 
-        Returns: bool. False: no uncommtted changes found, Repo is valid.
+        Returns: bool. False: no uncommitted changes found, Repo is valid.
             True: uncommitted changes found. Repo is not valid.
         """
         repo = Repo(repopath, search_parent_directories=True)
