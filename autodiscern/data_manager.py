@@ -158,7 +158,7 @@ class DataManager:
             git_hash (str): has of latest commit on git repo
         """
         cls._check_for_uncommitted_git_changes(path)
-        git_hash_raw = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+        git_hash_raw = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
                                                cwd=path)
         git_hash = git_hash_raw.strip().decode("utf-8")
         return git_hash
@@ -174,7 +174,6 @@ class DataManager:
             True: uncommitted changes found. Repo is not valid.
         """
         repo = Repo(repopath, search_parent_directories=True)
-        print('Checking uncommitted changes in: ', repo.working_tree_dir)
 
         try:
             # get list of gitignore filenames and extensions as these wouldn't have been code synced over
