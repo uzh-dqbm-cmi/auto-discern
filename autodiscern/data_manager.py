@@ -1,9 +1,13 @@
 import datetime
+from git import Repo
 import glob
+import inspect
 import os
 import pandas as pd
 import pickle
 from pathlib import Path
+import subprocess
+from typing import Dict
 
 import autodiscern.transformations as adt
 
@@ -90,18 +94,31 @@ class DataManager:
             self._load_articles(version_id)
         return self.data[version_id]
 
-    def save_transformed_data(self, data, tag=None):
+    def save_transformed_data(self, data: Dict, tag: str = None) -> None:
         """Save a data dictionary to data/transformed directory with a filename created from the current timestamp and
-        an optional tag. """
+        an optional tag.
+        Getting the path based on:
+        https://stackoverflow.com/questions/50499/how-do-i-get-the-path-and-name-of-the-file-that-is-currently-executing
+
+        Args:
+            data: dict. Can contain anything that's pickle-able.
+            tag: str. A small description of the data for easy recognition in the file system.
+
+        Returns: None
+
+        """
+        repo_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        print("repo_path: {}".format(repo_path))
+        git_hash = self._get_git_hash(repo_path)
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         if tag:
-            filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, tag))
+            filepath = Path(self.data_path, "data/transformed_data/{}_{}_{}.pkl".format(timestamp, git_hash, tag))
         else:
-            filepath = Path(self.data_path, "data/transformed_data/{}.pkl".format(timestamp))
+            filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, git_hash))
         with open(filepath, "wb+") as f:
             pickle.dump(data, f)
 
-    def load_transformed_data(self, filename):
+    def load_transformed_data(self, filename: str) -> Dict:
         """Load a pickled data dictionary from the data/transformed directory.
         filename can be provided with or without the .pkl extension"""
 
@@ -128,6 +145,59 @@ class DataManager:
         chosen_one = filenames[-1]
         print("Loading {}".format(chosen_one))
         return self.load_transformed_data(chosen_one)
+
+    @classmethod
+    def _get_git_hash(cls, path: str) -> str:
+        """
+        Gets git hash of latest commit, first checking that all changes have been committed
+
+        Arguments:
+            path (str): path to git repo
+
+        Returns:
+            git_hash (str): has of latest commit on git repo
+        """
+        cls._check_for_uncommitted_git_changes(path)
+        git_hash_raw = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                               cwd=path)
+        git_hash = git_hash_raw.strip().decode("utf-8")
+        return git_hash
+
+    @classmethod
+    def _check_for_uncommitted_git_changes(cls, repopath: str) -> bool:
+        """
+
+        Args:
+            repopath:
+
+        Returns: bool. False: no uncommtted changes found, Repo is valid.
+            True: uncommitted changes found. Repo is not valid.
+        """
+        repo = Repo(repopath, search_parent_directories=True)
+        print('Checking uncommitted changes in: ', repo.working_tree_dir)
+
+        try:
+            # get list of gitignore filenames and extensions as these wouldn't have been code synced over
+            # and therefore would appears as if they were uncommitted changes
+            with open(os.path.join(repo.working_tree_dir, '.gitignore'), 'r') as f:
+                gitignore = [line.strip() for line in f.readlines() if not line.startswith('#') and line != '\n']
+        except FileNotFoundError:
+            gitignore = []
+
+        gitignore_files = [item for item in gitignore if not item.startswith('*')]
+        gitignore_ext = [item.strip('*') for item in gitignore if item.startswith('*')]
+
+        # get list of changed files, but ignore ones in gitignore (either by filename match or extension match)
+        changed_files = [item.a_path for item in repo.index.diff(None)
+                         if os.path.basename(item.a_path) not in gitignore_files]
+        changed_files = [item for item in changed_files
+                         if not any([item.endswith(ext) for ext in gitignore_ext])]
+
+        if len(changed_files) > 0:
+            raise RuntimeError('There are uncommitted changes in files: {}'
+                               '\nCommit them before proceeding. '.format(', '.join(changed_files)))
+
+        return False
 
     @property
     def html_articles(self) -> pd.DataFrame:
