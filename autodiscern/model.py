@@ -1,4 +1,3 @@
-from IPython.display import display
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -81,7 +80,7 @@ def compile_multiple_density_scatter_plots(data_dict):
     split_types = list(data_dict.keys())
     submodel_ids = list(data_dict[split_types[0]].keys())
 
-    fig, ax = plt.subplots(len(split_types), len(submodel_ids), sharex='col', sharey='row', figsize=(16,8))
+    fig, ax = plt.subplots(len(split_types), len(submodel_ids), sharex='col', sharey='row', figsize=(16, 8))
     for i, split_type in enumerate(split_types):
         for j, submodel_id in enumerate(submodel_ids):
             model_data = data_dict[split_type][submodel_id]
