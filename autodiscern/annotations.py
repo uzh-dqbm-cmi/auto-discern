@@ -69,6 +69,12 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
                     # attach concept to input_dict
                     id = concept_dict['index']
                     id = id.replace('"', '').replace("'", '')
+                    if id not in inputs.keys():
+                        if int(id) in inputs.keys():
+                            id = int(id)
+                        else:
+                            raise ValueError("ERROR: MetaMap index {} not found in input keys")
+
                     if 'metamap' not in inputs[id]:
                         inputs[id]['metamap'] = []
                         inputs[id]['metamap_detail'] = []
