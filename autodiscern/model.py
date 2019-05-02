@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -51,15 +50,6 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
 
     """
 
-    def build_remaining_feature_vector(data_dict):
-        return np.concatenate([
-            vectorize_html(data_dict['html_tags']),
-            vectorize_link_type(data_dict['link_type']),
-            vectorize_citations(data_dict['citations']),
-            compute_polarity(data_dict['content']),
-            vectorize_metamap((data_dict.get('metamap', []))),
-        ])
-
     # build dataset
     data_key_order = list(data.keys())
     corpus = [(data[key]['content'], build_remaining_feature_vector(data[key])) for key in data_key_order]
@@ -92,62 +82,72 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
 def tfidf_data(data_dict, min_df=0.1, max_df=0.95):
     print("Initial data length: {:,.0f}".format(len(data_dict['corpus_train'])))
     data_dict['vectorizer'] = TfidfVectorizer(max_df=max_df, min_df=min_df)
-    data_dict['X_train_tfidf'] = data_dict['vectorizer'].fit_transform(data_dict['corpus_train'])
-    data_dict['X_test_tfidf'] = data_dict['vectorizer'].transform(data_dict['corpus_test'])
+    data_dict['X_train_tfidf'] = pd.DataFrame(data_dict['vectorizer'].fit_transform(data_dict['corpus_train']),
+                                              columns=data_dict['vectorizer'].get_feature_names())
+    data_dict['X_test_tfidf'] = pd.DataFrame(data_dict['vectorizer'].transform(data_dict['corpus_test']),
+                                             columns=data_dict['vectorizer'].get_feature_names())
     print("X_train_tfidf dims: {}".format(data_dict['X_train_tfidf'].shape))
     print("X_test_tfidf dims: {}".format(data_dict['X_test_tfidf'].shape))
     return data_dict
 
 
-def vectorize_html(input: List[str]) -> np.array:
-    return np.array([
-        1 if 'h1' in input else 0,
-        1 if 'h2' in input else 0,
-        1 if 'h3' in input else 0,
-        1 if 'h4' in input else 0,
-        1 if 'a' in input else 0,
-        1 if 'li' in input else 0,
-        1 if 'tr' in input else 0,
-    ])
+def build_remaining_feature_vector(data_dict):
+    return pd.concat([
+        vectorize_html(data_dict['html_tags']),
+        vectorize_link_type(data_dict['link_type']),
+        vectorize_citations(data_dict['citations']),
+        compute_polarity(data_dict['content']),
+        vectorize_metamap((data_dict.get('metamap', []))),
+    ], axis=1)
 
 
-def vectorize_metamap(input: List[str]) -> np.array:
+def vectorize_html(input: List[str]) -> pd.DataFrame:
+    return pd.DataFrame({
+        'h1': 1 if 'h1' in input else 0,
+        'h2': 1 if 'h2' in input else 0,
+        'h3': 1 if 'h3' in input else 0,
+        'h4': 1 if 'h4' in input else 0,
+        'a': 1 if 'a' in input else 0,
+        'li': 1 if 'li' in input else 0,
+        'tr': 1 if 'tr' in input else 0,
+    }, index=[0])
+
+
+def vectorize_metamap(input: List[str]) -> pd.DataFrame:
     metamap_concept_groups = ['Chemicals & Drugs', 'Disorders', 'Activities & Behaviors', 'Living Beings',
                               'Genes & Molecular Sequences', 'Anatomy', 'Phenomena', 'Occupations', 'Physiology',
                               'Concepts & Ideas', 'Procedures', 'Devices', 'Objects', 'Geographic Areas',
                               'Organizations']
-    metamap_vec = []
+    metamap_vec = {}
     for group_name in metamap_concept_groups:
-        metamap_vec.append(sum([1 for entry in input if entry == group_name]))
+        metamap_vec[group_name] = sum([1 for entry in input if entry == group_name])
 
-    return np.array(metamap_vec)
-
-
-def vectorize_link_type(input: List[str]) -> np.array:
-    internal_link_no = sum([1 for link_type in input if link_type == 'internal'])
-    external_link_no = sum([1 for link_type in input if link_type == 'external'])
-    return np.array([internal_link_no, external_link_no])
+    return pd.DataFrame(metamap_vec, index=[0])
 
 
-def vectorize_citations(input: List[str]) -> np.array:
-    return np.array([len(input)])
+def vectorize_link_type(input: List[str]) -> pd.DataFrame:
+    return pd.DataFrame({
+        'internal_link_cnt': sum([1 for link_type in input if link_type == 'internal']),
+        'external_link_cnt': sum([1 for link_type in input if link_type == 'external']),
+    }, index=[0])
+
+
+def vectorize_citations(input: List[str]) -> pd.DataFrame:
+    return pd.DataFrame({'inline_citation_cnt': len(input)}, index=[0])
 
 
 def compute_polarity(input: str) -> np.array:
     from nltk.sentiment.vader import SentimentIntensityAnalyzer
     sid = SentimentIntensityAnalyzer()
     polarity_score_dict = sid.polarity_scores(input)
-    sub_scores = ['neg', 'neu', 'pos', 'compound']
-    polarity_vector = [polarity_score_dict[score] for score in sub_scores]
-    return np.array(polarity_vector)
+    return pd.DataFrame(polarity_score_dict, index=[0])
 
 
 def combine_features(data_dict):
-    from scipy.sparse import hstack, coo_matrix
     print("X_train_tfidf dims: {}".format(data_dict['X_train_tfidf'].shape))
     print("vec_train dims: ({}, {})".format(len(data_dict['vec_train']), len(data_dict['vec_train'][0])))
-    data_dict['X_train'] = hstack([data_dict['X_train_tfidf'], coo_matrix(data_dict['vec_train'])])
-    data_dict['X_test'] = hstack([data_dict['X_test_tfidf'], coo_matrix(data_dict['vec_test'])])
+    data_dict['X_train'] = pd.concat([data_dict['X_train_tfidf'], data_dict['vec_train']], axis=1)
+    data_dict['X_test'] = pd.concat([data_dict['X_test_tfidf'], data_dict['vec_test']], axis=1)
     print("X_train dims: {}".format(data_dict['X_train'].shape))
     print("X_test dims: {}".format(data_dict['X_test'].shape))
     return data_dict
@@ -162,6 +162,7 @@ def make_error_df(actual, predicted):
 
 
 def density_scatter_plot(x, y, s=''):
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots(nrows=1, ncols=1)
     ax.set_facecolor('#06007A')
     plt.hist2d(x, y, (25, 25), cmap=plt.cm.jet)
@@ -247,6 +248,8 @@ def compare_base_to_random_cv(data_dict):
 
 
 def compile_multiple_density_scatter_plots(data_dict):
+    import matplotlib.pyplot as plt
+
     split_types = list(data_dict.keys())
     submodel_ids = list(data_dict[split_types[0]].keys())
 
@@ -270,11 +273,13 @@ def compile_multiple_density_scatter_plots(data_dict):
     plt.show()
 
 
-def plot_confusion_matrix(y_true, y_pred, classes, normalize=False, title=None, cmap=plt.cm.Blues):
+def plot_confusion_matrix(y_true, y_pred, classes, normalize=False, title=None):
     """
     This function prints and plots the confusion matrix. Normalization can be applied by setting `normalize=True`.
     From https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
     """
+    import matplotlib.pyplot as plt
+
     if not title:
         if normalize:
             title = 'Normalized confusion matrix'
@@ -294,7 +299,7 @@ def plot_confusion_matrix(y_true, y_pred, classes, normalize=False, title=None, 
     # print(cm)
 
     fig, ax = plt.subplots()
-    im = ax.imshow(cm_p, interpolation='nearest', cmap=cmap)
+    im = ax.imshow(cm_p, interpolation='nearest', cmap=plt.cm.Blues)
     ax.figure.colorbar(im, ax=ax)
     # We want to show all ticks...
     ax.set(xticks=np.arange(cm_p.shape[1]),
@@ -376,6 +381,8 @@ def tile_images_into_rectangle_of_width(image_list, width=3):
 
 
 def compile_multiple_confusion_matrices(data_dict):
+    import matplotlib.pyplot as plt
+
     split_types = [key for key in ['doc', 'para', 'sent'] if key in data_dict.keys()]
     submodel_ids = list(data_dict[split_types[0]].keys())
 
