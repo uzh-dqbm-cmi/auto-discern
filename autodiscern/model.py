@@ -56,6 +56,7 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
             vectorize_html(data_dict['html_tags']),
             vectorize_link_type(data_dict['link_type']),
             vectorize_citations(data_dict['citations']),
+            compute_polarity(data_dict['corpus']),
         ])
 
     # build dataset
@@ -121,6 +122,12 @@ def vectorize_link_type(input: List[str]) -> np.array:
 
 def vectorize_citations(input: List[str]) -> np.array:
     return np.array([len(input)])
+
+
+def compute_polarity(input: str) -> np.array:
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
+    sid = SentimentIntensityAnalyzer()
+    return np.array([sid.polarity_scores(input)])
 
 
 def combine_features(data_dict):
