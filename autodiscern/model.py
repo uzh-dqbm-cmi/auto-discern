@@ -56,7 +56,8 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
             vectorize_html(data_dict['html_tags']),
             vectorize_link_type(data_dict['link_type']),
             vectorize_citations(data_dict['citations']),
-            compute_polarity(data_dict['corpus']),
+            compute_polarity(data_dict['content']),
+            vectorize_metamap((data_dict.get('metamap', []))),
         ])
 
     # build dataset
@@ -110,8 +111,16 @@ def vectorize_html(input: List[str]) -> np.array:
     ])
 
 
-def vectorize_metamap():
-    return []
+def vectorize_metamap(input: List[str]) -> np.array:
+    metamap_concept_groups = ['Chemicals & Drugs', 'Disorders', 'Activities & Behaviors', 'Living Beings',
+                              'Genes & Molecular Sequences', 'Anatomy', 'Phenomena', 'Occupations', 'Physiology',
+                              'Concepts & Ideas', 'Procedures', 'Devices', 'Objects', 'Geographic Areas',
+                              'Organizations']
+    metamap_vec = []
+    for group_name in metamap_concept_groups:
+        metamap_vec.append(sum([1 for entry in input if entry == group_name]))
+
+    return np.array(metamap_vec)
 
 
 def vectorize_link_type(input: List[str]) -> np.array:
@@ -127,7 +136,10 @@ def vectorize_citations(input: List[str]) -> np.array:
 def compute_polarity(input: str) -> np.array:
     from nltk.sentiment.vader import SentimentIntensityAnalyzer
     sid = SentimentIntensityAnalyzer()
-    return np.array([sid.polarity_scores(input)])
+    polarity_score_dict = sid.polarity_scores(input)
+    sub_scores = ['neg', 'neu', 'pos', 'compound']
+    polarity_vector = [polarity_score_dict[score] for score in sub_scores]
+    return np.array(polarity_vector)
 
 
 def combine_features(data_dict):
@@ -163,11 +175,11 @@ def density_scatter_plot(x, y, s=''):
 def test_model(data: Dict, model, type='regression'):
     """Fit the model and calc error metrics"""
 
-    model.fit(data['X_train_tfidf'], data['y_train'])
+    model.fit(data['X_train'], data['y_train'])
     data['model'] = model
-    data['y_train_predict'] = model.predict(data['X_train_tfidf'])
-    data['y_test_predict'] = model.predict(data['X_test_tfidf'])
-    data['score'] = model.score(data['X_test_tfidf'], data['y_test'])
+    data['y_train_predict'] = model.predict(data['X_train'])
+    data['y_test_predict'] = model.predict(data['X_test'])
+    data['score'] = model.score(data['X_test'], data['y_test'])
 
     if type == 'regression':
         results_train = make_error_df(data['y_train'], data['y_train_predict'])
