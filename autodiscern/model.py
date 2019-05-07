@@ -7,6 +7,27 @@ from typing import Callable, Dict, List
 from copy import deepcopy
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+
+questions = {
+    1: "Are the aims clear?",
+    2: "Does it achieve its aims?",
+    3: "Is it relevant?",
+    4: "Is it clear what sources of information were used to compile the publication (other than the author or "
+       "producer)?",
+    5: "Is it clear when the information used or reported in the publication was produced?",
+    6: "Is it balanced and unbiased?",
+    7: "Does it provide details of additional sources of support and information?",
+    8: "Does it refer to areas of uncertainty?",
+    9: "Does it describe how each treatment works?",
+    10: "Does it describe the benefits of each treatment?",
+    11: "Does it describe the risks of each treatment?",
+    12: "Does it describe what would happen if no treatment is used?",
+    13: "Does it describe how the treatment choices affect overall quality of life?",
+    14: "Is it clear that there may be more than one possible treatment choice?",
+    15: "Does it provide support for shared decision-making?",
+}
 
 
 def get_score_for_question(data_dict: Dict, question_no: int) -> float:
@@ -49,24 +70,45 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
         }
 
     """
+    import datetime
+    start_timestamp = datetime.datetime.now()
+    print("Starting function: {}".format(start_timestamp))
 
     # build dataset
     data_key_order = list(data.keys())
-    corpus = [(data[key]['content'], build_remaining_feature_vector(data[key])) for key in data_key_order]
+    sid = SentimentIntensityAnalyzer()
+    corpus = [(data[key]['content'], build_remaining_feature_vector(data[key], sid)) for key in data_key_order]
+
+    timestamp = datetime.datetime.now()
+    print("Built corpus: {}".format(timestamp - start_timestamp))
+    start_timestamp = timestamp
 
     # build labels
     labels = {q: [label_func(get_score_for_question(data[key], q)) for key in data_key_order]
               for q in important_questions}
     labels['overall'] = [label_func(data[key]['responses'].median().median()) for key in data_key_order]
 
+    timestamp = datetime.datetime.now()
+    print("Built labels: {}".format(timestamp - start_timestamp))
+    start_timestamp = timestamp
+
     modeling_data = {}
     for submodel_id in list(labels.keys()):
         X_train, X_test, y_train, y_test = train_test_split(corpus, labels[submodel_id], test_size=0.33,
                                                             random_state=42)
+
+        timestamp = datetime.datetime.now()
+        print("Completed train test split: {}".format(timestamp - start_timestamp))
+        start_timestamp = timestamp
+
         corpus_train = [t[0] for t in X_train]
         corpus_test = [t[0] for t in X_test]
-        vec_train = np.vstack([t[1] for t in X_train])
-        vec_test = np.vstack([t[1] for t in X_test])
+        vec_train = pd.concat([t[1] for t in X_train], axis=0)
+        vec_test = pd.concat([t[1] for t in X_test], axis=0)
+
+        timestamp = datetime.datetime.now()
+        print("Split out corpus and vec_train: {}".format(timestamp - start_timestamp))
+        start_timestamp = timestamp
 
         modeling_data[submodel_id] = {
             'corpus_train': corpus_train,
@@ -76,27 +118,30 @@ def build_data_for_question_submodels(data: Dict, label_func: Callable = continu
             'y_train': y_train,
             'y_test': y_test,
         }
+
+        timestamp = datetime.datetime.now()
+        print("Completed loop: {}".format(timestamp - start_timestamp))
+        start_timestamp = timestamp
+
     return modeling_data
 
 
 def tfidf_data(data_dict, min_df=0.1, max_df=0.95):
     print("Initial data length: {:,.0f}".format(len(data_dict['corpus_train'])))
     data_dict['vectorizer'] = TfidfVectorizer(max_df=max_df, min_df=min_df)
-    data_dict['X_train_tfidf'] = pd.DataFrame(data_dict['vectorizer'].fit_transform(data_dict['corpus_train']),
-                                              columns=data_dict['vectorizer'].get_feature_names())
-    data_dict['X_test_tfidf'] = pd.DataFrame(data_dict['vectorizer'].transform(data_dict['corpus_test']),
-                                             columns=data_dict['vectorizer'].get_feature_names())
+    data_dict['X_train_tfidf'] = data_dict['vectorizer'].fit_transform(data_dict['corpus_train'])
+    data_dict['X_test_tfidf'] = data_dict['vectorizer'].transform(data_dict['corpus_test'])
     print("X_train_tfidf dims: {}".format(data_dict['X_train_tfidf'].shape))
     print("X_test_tfidf dims: {}".format(data_dict['X_test_tfidf'].shape))
     return data_dict
 
 
-def build_remaining_feature_vector(data_dict):
+def build_remaining_feature_vector(data_dict, sid):
     return pd.concat([
         vectorize_html(data_dict['html_tags']),
         vectorize_link_type(data_dict['link_type']),
         vectorize_citations(data_dict['citations']),
-        compute_polarity(data_dict['content']),
+        compute_polarity(data_dict['content'], sid),
         vectorize_metamap((data_dict.get('metamap', []))),
     ], axis=1)
 
@@ -136,18 +181,20 @@ def vectorize_citations(input: List[str]) -> pd.DataFrame:
     return pd.DataFrame({'inline_citation_cnt': len(input)}, index=[0])
 
 
-def compute_polarity(input: str) -> np.array:
-    from nltk.sentiment.vader import SentimentIntensityAnalyzer
-    sid = SentimentIntensityAnalyzer()
+def compute_polarity(input: str, sid: SentimentIntensityAnalyzer) -> np.array:
     polarity_score_dict = sid.polarity_scores(input)
     return pd.DataFrame(polarity_score_dict, index=[0])
 
 
 def combine_features(data_dict):
+    from scipy.sparse import hstack, coo_matrix
+
     print("X_train_tfidf dims: {}".format(data_dict['X_train_tfidf'].shape))
-    print("vec_train dims: ({}, {})".format(len(data_dict['vec_train']), len(data_dict['vec_train'][0])))
-    data_dict['X_train'] = pd.concat([data_dict['X_train_tfidf'], data_dict['vec_train']], axis=1)
-    data_dict['X_test'] = pd.concat([data_dict['X_test_tfidf'], data_dict['vec_test']], axis=1)
+    print("vec_train dims: {}".format(data_dict['vec_train'].shape))
+    data_dict['X_train'] = hstack([data_dict['X_train_tfidf'], coo_matrix(data_dict['vec_train'])])
+    data_dict['X_test'] = hstack([data_dict['X_test_tfidf'], coo_matrix(data_dict['vec_test'])])
+    data_dict['feature_cols'] = data_dict['vectorizer'].get_feature_names()
+    data_dict['feature_cols'].extend(data_dict['vec_train'].columns)
     print("X_train dims: {}".format(data_dict['X_train'].shape))
     print("X_test dims: {}".format(data_dict['X_test'].shape))
     return data_dict
@@ -195,27 +242,26 @@ def test_model(data: Dict, model, type='regression'):
     return data
 
 
-def run_random_cv(data_dict):
+def run_random_cv(data_dict, n_iter=5, cv=3):
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start=20, stop=2000, num=10)]
+    n_estimators = [100, 500]
     # Number of features to consider at every split
-    max_features = ['auto', 'sqrt']
+    max_features = ['sqrt']
     # Maximum number of levels in tree
-    max_depth = [int(x) for x in np.linspace(10, 110, num=11)]
-    max_depth.append(None)
+    max_depth = [10, 100, None]
     # Minimum number of samples required to split a node
-    min_samples_split = [2, 5, 10]
+    min_samples_split = [5, 50, 500]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [1, 2, 4]
+    min_samples_leaf = [1, 10, 100]
     # Method of selecting samples for training each tree
-    bootstrap = [True, False]
+    # bootstrap = [True, False]
     # Create the random grid
     random_grid = {'n_estimators': n_estimators,
                    'max_features': max_features,
                    'max_depth': max_depth,
                    'min_samples_split': min_samples_split,
                    'min_samples_leaf': min_samples_leaf,
-                   'bootstrap': bootstrap,
+                   # 'bootstrap': bootstrap,
                    'class_weight': ['balanced_subsample'],
                    }
     print(random_grid)
@@ -225,18 +271,18 @@ def run_random_cv(data_dict):
     rf = RandomForestClassifier()
     # Random search of parameters, using 3 fold cross validation,
     # search across 100 different combinations, and use all available cores
-    rf_random = RandomizedSearchCV(estimator=rf, param_distributions=random_grid, n_iter=100, cv=3, verbose=2,
+    rf_random = RandomizedSearchCV(estimator=rf, param_distributions=random_grid, n_iter=n_iter, cv=cv, verbose=2,
                                    random_state=42, n_jobs=-1)
     # Fit the random search model
     rf_random.fit(data_dict['X_train'], data_dict['y_train'])
     return rf_random
 
 
-def compare_base_to_random_cv(data_dict):
+def compare_base_to_random_cv(data_dict, n_iter=5, cv=3):
     base_model = RandomForestClassifier(n_estimators=10, class_weight='balanced_subsample', random_state=42)
     data_dict_base = test_model(deepcopy(data_dict), base_model, type='classification')
 
-    rf_random = run_random_cv(deepcopy(data_dict))
+    rf_random = run_random_cv(deepcopy(data_dict), n_iter=n_iter, cv=cv)
     print(rf_random.best_params_)
     best_random_model = rf_random.best_estimator_
     data_dict_random = test_model(data_dict, best_random_model, type='classification')
@@ -410,3 +456,71 @@ def compile_multiple_confusion_matrices(data_dict):
     #
     # plt.show()
     return tile_images_into_rectangle_of_width(image_filenames, 3)
+
+
+def get_feature_importances(data_dict: Dict) -> pd.DataFrame:
+    fi = pd.DataFrame(data_dict['model'].feature_importances_, index=data_dict['feature_cols'])
+    fi = fi.sort_values(0, ascending=False)
+    return fi
+
+
+def show_top_features_importances(modeling_data: Dict, n=10) -> None:
+    """Print the top n features for each model, organized by question and then split type"""
+    top_level_keys = list(modeling_data.keys())
+    for submodel_id in modeling_data[top_level_keys[0]]:
+        print("q{}: {}".format(submodel_id, questions[submodel_id]))
+        for split_type in modeling_data:
+            data_dict = modeling_data[split_type][submodel_id]
+            fi = get_feature_importances(data_dict)
+            print('  {}: {}'.format(split_type, ", ".join(list(fi.head(n).index))))
+        print()
+
+
+def calc_base_rate_accuracy(modeling_data: Dict) -> pd.DataFrame:
+    """Calculate the Base Rate accuracy (if we made a model to always choose majority class). """
+    scores = []
+    for split_type in modeling_data:
+        for submodel_id in modeling_data[split_type]:
+            labels = modeling_data[split_type][submodel_id]['y_test']
+            base_rate_neg = sum([1 for lab in labels if lab == 'negative']) / len(labels)
+            base_rate_pos = sum([1 for lab in labels if lab == 'positive']) / len(labels)
+            if base_rate_neg > base_rate_pos:
+                base_rate = base_rate_neg
+            else:
+                base_rate = base_rate_pos
+            scores.append({'split': split_type,
+                           'question': submodel_id,
+                           'base_rate': base_rate})
+    scores_df = pd.DataFrame(scores)
+    base_rate_pivot = pd.pivot_table(scores_df, index='split', columns='question', values='base_rate', aggfunc='median')
+    return base_rate_pivot
+
+
+def calc_accuracy(modeling_data: Dict) -> pd.DataFrame:
+    scores = []
+    for split_type in modeling_data:
+        for submodel_id in modeling_data[split_type]:
+            scores.append({'split': split_type, 'question': submodel_id,
+                           'score': modeling_data[split_type][submodel_id]['score']})
+    scores_df = pd.DataFrame(scores)
+    accuracy_pivot = pd.pivot_table(scores_df, index='split', columns='question', values='score', aggfunc='median')
+    return accuracy_pivot
+
+
+def calc_in_sample_accuracy(modeling_data: Dict) -> pd.DataFrame:
+    """Calculate the in-sample score on the training sets and return a dataframe by question and split type"""
+    in_sample_scores = []
+    for split_type in modeling_data:
+        for submodel_id in modeling_data[split_type]:
+            d = modeling_data[split_type][submodel_id]
+            in_sample_score = d['model'].score(d['X_train'], d['y_train'])
+
+            in_sample_scores.append({
+                'split': split_type,
+                'question': submodel_id,
+                'in_sample_score': in_sample_score
+            })
+    in_sample_scores_df = pd.DataFrame(in_sample_scores)
+    pivot = pd.pivot_table(in_sample_scores_df, index='split', columns='question', values='in_sample_score',
+                           aggfunc='median')
+    return pivot
