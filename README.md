@@ -53,9 +53,9 @@ transformed_data = dm.load_most_recent_transformed_data()
 # Each data dict represents a snippet of text, and contains keys with information about that text.
 # Here is an example of the data structure:
 {
-    '205-3': {
-        'entity_id': 205,
-        'sub_id': 3,
+    '123-4': {
+        'entity_id': 123,
+        'sub_id': 4,
         'content': "Deep brain stimulation involves implanting electrodes within certain areas of your brain.",
         'tokens': ['Deep', 'brain', 'stimulation', 'involves', 'implanting', 'electrodes', 'within', 'certain', 'areas', 'of', 'your', 'brain', '.'],
         'categoryName': 5,
