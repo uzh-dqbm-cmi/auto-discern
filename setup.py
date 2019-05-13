@@ -14,7 +14,7 @@ setup(name='autodiscern',
             'jsonnet==0.10.0',
             'numpy>=1.15.0',
             'pandas==0.24.1',
-            'spacy',
+            'spacy==2.0.18',
             'tldextract',
       ],
       extras_requires={
