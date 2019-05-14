@@ -2,7 +2,9 @@
 
 Automating the application of the [DISCERN](http://www.discern.org.uk/index.php) instrument to rate the quality of health information on the web. 
 
-### How to Use this Repo
+## How to Use this Repo
+
+### Installation
 * `git clone` the repo and `cd` into it.
 * Run `pip install -e .` to install the repo's python package.
   * If you get a `g++` error during installation, this may be due to a OSX Mojave, see [this StackOverflow answer](https://stackoverflow.com/questions/52509602/cant-compile-c-program-on-a-mac-after-upgrade-to-mojave).
@@ -28,7 +30,98 @@ path/to/discern/data/
 Please follow this notebook naming convention for exploratory notebooks in the shared Switchdrive folder: 
 `<number>_<initials>_<short_description>.ipynb`. 
 
-### Example Usage
+## Example Usage
+
+### If all you care about is loading clean data to be on your merry way...
+```python
+# IPython magics for auto-reloading code changes to the library
+%load_ext autoreload
+%autoreload 2
+
+import autodiscern as ad
+
+# See "Note on Data" above for what to pass here
+dm = ad.DataManager("path/to/discern/data")
+
+# Load up a pickled data dictionary.
+# automatically loads the file with the most recent timestamp
+# To load a specific file, use
+#   dm.load_transformed_data('filename')
+transformed_data = dm.load_most_recent_transformed_data()
+
+# transformed data is a dictionary in the format {id: data_dict}.
+# Each data dict represents a snippet of text, and contains keys with information about that text.
+# Here is an example of the data structure:
+{
+    '123-4': {
+        'entity_id': 123,
+        'sub_id': 4,
+        'content': "Deep brain stimulation involves implanting electrodes within certain areas of your brain.",
+        'tokens': ['Deep', 'brain', 'stimulation', 'involves', 'implanting', 'electrodes', 'within', 'certain', 'areas', 'of', 'your', 'brain', '.'],
+        'categoryName': 5,
+        'url': 'http://www.mayoclinic.com/health/deep-brain-stimulation/MY00184/METHOD=print',
+        'html_tags': ['h2', 'a'],
+        'domains': ['nih'],
+        'link_type': ['external'],
+        'metamap': ['Procedures', 'Anatomy'],
+        'metamap_detail': [{
+                'index': "'123-4'",
+                'mm': 'MMI',
+                'score': '2.57',
+                'preferred_name': 'Deep Brain Stimulation',
+                'cui': 'C0394162',
+                'semtypes': '[topp]',
+                'trigger': '"Deep Brain Stimulation"-text-0-"Deep brain stimulation"-NNP-0',
+                'pos_info': '1/22',
+                'tree_codes': 'E02.331.300;E04.190'
+            }, 
+            {
+                'index': "'123-4'",
+                'mm': 'MMI',
+                'score': '1.44',
+                'preferred_name': 'Brain',
+                'cui': 'C0006104',
+                'semtypes': '[bpoc]',
+                'trigger': '"Brain"-text-0-"brain"-NN-0',
+                'pos_info': '84/5',
+                'tree_codes': 'A08.186.211'
+            }],
+        'responses': pd.DataFrame(
+                uid         5  6
+                questionID      
+                1           1  1
+                2           1  1
+                3           5  5
+                4           3  3
+                5           3  4
+                6           3  3
+                7           2  3
+                8           5  4
+                9           5  4
+                10          4  3
+                11          5  5
+                12          1  1
+                13          4  1
+                14          3  2
+                15          5  3
+                ),
+    }
+}
+
+# View results
+counter = 5
+for i in transformed_data:
+    counter -= 1
+    if counter < 0:
+        break
+    print("==={}===".format(i))
+    for key in transformed_data[i]:
+        print("{}: {}".format(key, transformed_data[i][key]))
+    print()
+
+```
+
+### Full example code
 
 ```python
 # IPython magics for auto-reloading code changes to the library
@@ -36,34 +129,83 @@ Please follow this notebook naming convention for exploratory notebooks in the s
 %autoreload 2
 
 import autodiscern as ad
+import autodiscern.annotations as ada
 import autodiscern.transformations as adt
 
-# see "Note on Data" above for what to pass here
+# ============================================
+# STEP 1: Load the raw data 
+# ============================================
+
+# See "Note on Data" above for what to pass here
 dm = ad.DataManager("path/to/discern/data")
 
-# data is loaded in automatically
+# (Optional) View the raw data like this (data is loaded in automatically):
 dm.html_articles.head()
 dm.responses.head()
 
-input_dicts = [{'id': row['entity_id'], 'content': row['content']} 
-              for i, row in dm.html_articles.iterrows()]
+# Build data dictionaries for processing. This builds a dict of dicts, each data dict keyed on its entity_id. 
+data_dict = dm.build_dicts()
 
-# select which transformations and segmentations you want to apply
+# ============================================
+# STEP 2: Clean and transform the data
+# ============================================
+
+# Select which transformations and segmentations you want to apply
 # segment_into: words, sentences, paragraphs
-transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
+html_transformer = adt.Transformer(leave_some_html=True,      # leave important html tags in place
                               html_to_plain_text=True,   # convert html tags to a form that doesnt interrupt segmentation
                               segment_into='sentences',  # segment documents into sentences
                               flatten=True,              # after segmentation, flatten list[doc_dict([sentences]] into list[sentences]
                               annotate_html=True,        # annotate sentences with html tags
                               parallelism=True           # run in parallel for 2x speedup
                               )
+transformed_data = html_transformer.apply(data_dict)
 
-transformed_data = transformer.apply(input_dicts)
+# ============================================
+# STEP 3: Add annotations
+# ============================================
 
-for item in transformed_data[:5]:
-    print(item)
+# Apply annotations, which add new keys to each data dict
+transformed_data = ada.add_word_token_annotations(transformed_data)
 
-# ===
+# Applying MetaMap annotations takes about half an hour for the full dataset
+# This requires a independent installation of MetaMapLite.
+# See more details below on using the MetaMapLite and the pymetamap package
+transformed_data = ada.add_metamap_annotations(transformed_data, dm)
+
+# WARNING: ner annotations are *very* slow
+transformed_data = ada.add_ner_annotations(transformed_data)
+
+# ============================================
+# STEP 4: Save and reload data for future use
+# ============================================
+
+# Save the data with pickle. The filename is assigned automatically.
+# You may add a descriptor to the filename via
+#   dm.save_transformed_data(transformed_data, tag='note')
+dm.save_transformed_data(transformed_data)
+
+# Load up a pickled data dictionary.
+# automatically loads the file with the most recent timestamp
+# To load a specific file, use
+#   dm.load_transformed_data('filename')
+transformed_data = dm.load_most_recent_transformed_data()
+
+# View results
+counter = 5
+for i in transformed_data:
+    counter -= 1
+    if counter < 0:
+        break
+    print("==={}===".format(i))
+    for key in transformed_data[i]:
+        print("{}: {}".format(key, transformed_data[i][key]))
+    print()
+
+# =====================================
+# MISC
+# =====================================
+
 # tag Named Entities
 from allennlp.predictors.predictor import Predictor
 from IPython.display import HTML
