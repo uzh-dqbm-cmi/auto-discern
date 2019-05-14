@@ -1,13 +1,14 @@
 import pandas as pd
 import random
+from scipy.sparse import coo_matrix
 from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV
-from typing import Callable, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 
 class ExperimentManager:
 
-    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, feature_func, n_partitions: int = 5):
+    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, n_partitions: int = 5):
         """
 
         Args:
@@ -15,7 +16,6 @@ class ExperimentManager:
             data_dict: Dict. Data to run the model on.
             model: Callable. A model with a fit() method.
             hyperparams: Dict. Dictionary of hyperparamters to search for the best model.
-            feature_func: Callable. Function for transforming the input data into a matrix for consumption by self.model
             n_partitions: int. Number of partitions to split the data on and run the experiment on.
         """
 
@@ -26,7 +26,6 @@ class ExperimentManager:
         self.data_dict = data_dict
         self.model = model
         self.hyperparams = hyperparams
-        self.feature_func = feature_func
         self.n_partitions = n_partitions
         document_ids = list(set([self.data_dict[t]['entity_id'] for t in self.data_dict]))
         self.partitions_by_ids = self.partition_document_ids(document_ids, self.n_partitions)
@@ -44,7 +43,6 @@ class ExperimentManager:
             if partition_id in partitions_to_run:
                 print("Running partition {}...".format(partition_id))
                 model_run = self.run_experiment_on_one_partition(data_dict=self.data_dict, partition_ids=p,
-                                                                 feature_func=self.feature_func,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams)
                 self.model_runs[partition_id] = model_run
@@ -54,11 +52,10 @@ class ExperimentManager:
         return self.experiment_results
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], feature_func: Callable, model,
+    def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model,
                                         hyperparams: Dict):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
-        mr = ModelRun(train_set=train_set, test_set=test_set, model=model, feature_func=feature_func,
-                      hyperparams=hyperparams)
+        mr = ModelRun(train_set=train_set, test_set=test_set, model=model, hyperparams=hyperparams)
         mr.run()
         return mr
 
@@ -79,7 +76,12 @@ class ExperimentManager:
 
     @classmethod
     def summarize_runs(cls, run_results):
-        return [run_results[mr].evaluation for mr in run_results]
+        if type(run_results[0]) == ModelRun:
+            return [run_results[mr].evaluation for mr in run_results]
+        elif type(run_results[0]) == dict:
+            return [{key: run_results[mr][key].evaluation} for mr in run_results for key in run_results[mr]]
+        else:
+            print("Unknown type stored in passed run_results: {}".format(type(run_results[0])))
 
     def show_feature_importances(self):
         all_feature_importances = pd.DataFrame()
@@ -105,10 +107,9 @@ class ExperimentManager:
 
 class ModelRun:
 
-    def __init__(self, train_set: List[Dict], test_set: List[Dict], feature_func: Callable, model, hyperparams: Dict):
+    def __init__(self, train_set: List[Dict], test_set: List[Dict], model, hyperparams: Dict):
         self.train_set = train_set
         self.test_set = test_set
-        self.feature_func = feature_func
         self.model = clone(model)
         self.hyperparams = hyperparams
 
@@ -116,17 +117,40 @@ class ModelRun:
         self.x_test = None
         self.y_train = None
         self.y_test = None
+        self.y_train_predicted = None
+        self.y_test_predicted = None
         self.feature_cols = []
         self.encoders = {}
         self.evaluation = None
 
     def run(self):
-        self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.feature_func(
+        self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_features(
             self.train_set, self.test_set)
         # self.model = self.search_hyperparameters(self.model, self.hyperparams, x_train, y_train)
         self.model.fit(self.x_train, self.y_train)
+        self.y_train_predicted = self.model.predict(self.x_train)
+        self.y_test_predicted = self.model.predict(self.x_test)
         self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test)
         return self.evaluation
+
+    @classmethod
+    def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
+                                                                                  List, Dict]:
+        """Placeholder function to hold the custom feature building functionality of a ModelRun.
+        build_features takes as input:
+            - train_set: List
+            - test_set: List
+        build_features returns a Tuple of the following:
+            - x_train: Matrix
+            - x_test: Matrix
+            - y_train: List
+            - y_test: List
+            - feature_cols: List
+            - encoders: Dict. Encoders used to generate the feature set. Encoders that may want to be saved include
+                vectorizers trained on the train_set and applied to the test_set.
+        """
+        raise NotImplementedError("The ModelRun class must be subclassed to be used, "
+                                  "with the build_feature_func implemented.")
 
     @classmethod
     def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
