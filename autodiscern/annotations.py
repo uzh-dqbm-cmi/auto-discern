@@ -15,7 +15,8 @@ def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     return inputs
 
 
-def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None) -> Dict[str, Dict]:
+def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None,
+                            git_bash_pth: str = None) -> Dict[str, Dict]:
     from pymetamap import MetaMapLite
 
     if metamap_path is None:
@@ -52,7 +53,7 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
 
     # run metamap
     print("Extracing MetaMap concepts...")
-    mm = MetaMapLite.get_instance(metamap_path)
+    mm = MetaMapLite.get_instance(metamap_path, git_bash_pth=git_bash_pth)
     concepts, error = mm.extract_concepts(sentences, ids)
 
     print("Attaching Metamap concepts...")

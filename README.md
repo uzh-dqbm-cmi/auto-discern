@@ -53,9 +53,9 @@ transformed_data = dm.load_most_recent_transformed_data()
 # Each data dict represents a snippet of text, and contains keys with information about that text.
 # Here is an example of the data structure:
 {
-    '205-3': {
-        'entity_id': 205,
-        'sub_id': 3,
+    '123-4': {
+        'entity_id': 123,
+        'sub_id': 4,
         'content': "Deep brain stimulation involves implanting electrodes within certain areas of your brain.",
         'tokens': ['Deep', 'brain', 'stimulation', 'involves', 'implanting', 'electrodes', 'within', 'certain', 'areas', 'of', 'your', 'brain', '.'],
         'categoryName': 5,
@@ -65,7 +65,7 @@ transformed_data = dm.load_most_recent_transformed_data()
         'link_type': ['external'],
         'metamap': ['Procedures', 'Anatomy'],
         'metamap_detail': [{
-                'index': "'205-3'",
+                'index': "'123-4'",
                 'mm': 'MMI',
                 'score': '2.57',
                 'preferred_name': 'Deep Brain Stimulation',
@@ -76,7 +76,7 @@ transformed_data = dm.load_most_recent_transformed_data()
                 'tree_codes': 'E02.331.300;E04.190'
             }, 
             {
-                'index': "'205-3'",
+                'index': "'123-4'",
                 'mm': 'MMI',
                 'score': '1.44',
                 'preferred_name': 'Brain',
