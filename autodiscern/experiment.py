@@ -8,6 +8,16 @@ from typing import Callable, Dict, List, Tuple
 class ExperimentManager:
 
     def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, feature_func, n_partitions: int = 5):
+        """
+
+        Args:
+            name: str. Name for identification of the Experiment.
+            data_dict: Dict. Data to run the model on.
+            model: Callable. A model with a fit() method.
+            hyperparams: Dict. Dictionary of hyperparamters to search for the best model.
+            feature_func: Callable. Function for transforming the input data into a matrix for consumption by self.model
+            n_partitions: int. Number of partitions to split the data on and run the experiment on.
+        """
 
         if n_partitions < 2:
             raise ValueError("n_partitions must be greater than 1. Got {}.".format(n_partitions))

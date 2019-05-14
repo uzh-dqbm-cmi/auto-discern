@@ -183,6 +183,7 @@ def vectorize_citations(input: List[str]) -> pd.DataFrame:
 
 def compute_polarity(input: str, sid: SentimentIntensityAnalyzer) -> np.array:
     polarity_score_dict = sid.polarity_scores(input)
+    polarity_score_dict = {"sentiment_{}".format(key): polarity_score_dict[key] for key in polarity_score_dict}
     return pd.DataFrame(polarity_score_dict, index=[0])
 
 
