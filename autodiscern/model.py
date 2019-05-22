@@ -50,6 +50,15 @@ def neg_neutral_pos_category(score):
         raise(ValueError("No label applied"))
 
 
+def neg_pos_category(score):
+    if round(score) < 3:
+        return 'negative'
+    elif round(score) >= 3:
+        return 'positive'
+    else:
+        raise(ValueError("No label applied"))
+
+
 def build_data_for_question_submodels(data: Dict, label_func: Callable = continuous_regression,
                                       important_questions: List[int] = [4, 5, 9, 10, 11]) -> Dict:
     """
@@ -143,18 +152,20 @@ def build_remaining_feature_vector(data_dict, sid):
         vectorize_citations(data_dict['citations']),
         compute_polarity(data_dict['content'], sid),
         vectorize_metamap((data_dict.get('metamap', []))),
+        # TODO: citation keywords: bibliography, works cited, references
+        # TODO: dates
     ], axis=1)
 
 
 def vectorize_html(input: List[str]) -> pd.DataFrame:
     return pd.DataFrame({
-        'h1': 1 if 'h1' in input else 0,
-        'h2': 1 if 'h2' in input else 0,
-        'h3': 1 if 'h3' in input else 0,
-        'h4': 1 if 'h4' in input else 0,
-        'a': 1 if 'a' in input else 0,
-        'li': 1 if 'li' in input else 0,
-        'tr': 1 if 'tr' in input else 0,
+        'html_h1': 1 if 'h1' in input else 0,
+        'html_h2': 1 if 'h2' in input else 0,
+        'html_h3': 1 if 'h3' in input else 0,
+        'html_h4': 1 if 'h4' in input else 0,
+        'html_a': 1 if 'a' in input else 0,
+        'html_li': 1 if 'li' in input else 0,
+        'html_tr': 1 if 'tr' in input else 0,
     }, index=[0])
 
 

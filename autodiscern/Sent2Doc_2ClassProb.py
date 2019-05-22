@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
-from scipy.sparse import hstack, coo_matrix
-from sklearn.feature_extraction.text import TfidfVectorizer
 from typing import Dict, List, Tuple
 
 import autodiscern.experiment as ade
+from autodiscern.TwoLevelSentenceExperiment import SentenceLevelModelRun
 
 
-class TwoLevelSentenceExperiment(ade.ExperimentManager):
+class Sent2Doc_2ClassProb_Experiment(ade.ExperimentManager):
 
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model, hyperparams: Dict):
@@ -22,8 +21,8 @@ class TwoLevelSentenceExperiment(ade.ExperimentManager):
         data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set)
         data_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set)
 
-        dl_mr = SentenceToDocModelRun(train_set=data_set_train, test_set=data_set_test, model=model,
-                                      hyperparams=hyperparams)
+        dl_mr = SentenceToDocProbaModelRun(train_set=data_set_train, test_set=data_set_test, model=model,
+                                           hyperparams=hyperparams)
         dl_mr.run()
 
         return {'sentence_level': sl_mr,
@@ -39,53 +38,21 @@ class TwoLevelSentenceExperiment(ade.ExperimentManager):
             'sub_prediction': cat_prediction,
             'proba_0': [i[0] for i in proba_prediction],
             'proba_1': [i[1] for i in proba_prediction],
-            'proba_2': [i[2] for i in proba_prediction],
             'label': [d['label'] for d in data_set],
         })
         return new_data_set
 
 
-class SentenceLevelModelRun(ade.ModelRun):
-
-    @classmethod
-    def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
-                                                                                  List, Dict]:
-        corpus_train = [entity_dict['content'] for entity_dict in train_set]
-        corpus_test = [entity_dict['content'] for entity_dict in test_set]
-
-        feature_vec_train = pd.concat([entity_dict['feature_vec'] for entity_dict in train_set], axis=0)
-        feature_vec_test = pd.concat([entity_dict['feature_vec'] for entity_dict in test_set], axis=0)
-
-        y_train = [entity_dict['label'] for entity_dict in train_set]
-        y_test = [entity_dict['label'] for entity_dict in test_set]
-
-        vectorizer = TfidfVectorizer(max_df=0.9999, min_df=0.0001, stop_words='english')
-        x_train_tfidf = vectorizer.fit_transform(corpus_train)
-        x_test_tfidf = vectorizer.transform(corpus_test)
-
-        x_train = hstack([x_train_tfidf, coo_matrix(feature_vec_train)])
-        x_test = hstack([x_test_tfidf, coo_matrix(feature_vec_test)])
-        feature_cols = vectorizer.get_feature_names()
-        feature_cols.extend(feature_vec_train.columns)
-        encoders = {'vectorizer': vectorizer}
-
-        return x_train, x_test, y_train, y_test, feature_cols, encoders
-
-
-class SentenceToDocModelRun(ade.ModelRun):
+class SentenceToDocProbaModelRun(ade.ModelRun):
 
     @classmethod
     def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, List,
                                                                                       List, List, Dict]:
         # turn string labels into numbers
-        train_set['pred_num'] = np.where(train_set['sub_prediction'] == 'positive', 2,
-                                         np.where(train_set['sub_prediction'] == 'neutral', 1, 0))
-        train_set['label_num'] = np.where(train_set['label'] == 'positive', 2,
-                                          np.where(train_set['label'] == 'neutral', 1, 0))
-        test_set['pred_num'] = np.where(test_set['sub_prediction'] == 'positive', 2,
-                                        np.where(test_set['sub_prediction'] == 'neutral', 1, 0))
-        test_set['label_num'] = np.where(test_set['label'] == 'positive', 2,
-                                         np.where(test_set['label'] == 'neutral', 1, 0))
+        train_set['pred_num'] = np.where(train_set['sub_prediction'] == 'positive', 1, 0)
+        train_set['label_num'] = np.where(train_set['label'] == 'positive', 1, 0)
+        test_set['pred_num'] = np.where(test_set['sub_prediction'] == 'positive', 1, 0)
+        test_set['label_num'] = np.where(test_set['label'] == 'positive', 1, 0)
 
         # build df with col for each sentence, dim = max sentences in a doc in the training set
         # discarded because: gets really big, and lots of NAs if one long doc, and relative position in doc is lost

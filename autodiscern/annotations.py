@@ -89,6 +89,85 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
     return inputs
 
 
+def amend_content_with_metamap_concepts(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        if 'metamap' in inputs[id].keys():
+            inputs[id]['content'] = replace_metamap_content_with_concept_name(inputs[id]['content'],
+                                                                              inputs[id]['metamap_detail'],
+                                                                              inputs[id]['metamap'],)
+    return inputs
+
+
+def get_metamap_pos(pos_info: str) -> Tuple[int, int]:
+    pos_start, pos_end = pos_info.split('/')
+    pos_start = int(pos_start)
+    pos_end = pos_start + int(pos_end)
+    return pos_start, pos_end
+
+
+def replace_metamap_content_with_concept_name(content: str, metamap_detail: List[Dict], metamap_concepts: List[str]
+                                              ) -> str:
+    # add concepts directly into detail dicts
+    for i, mm_d in enumerate(metamap_detail):
+        metamap_detail[i]['concept'] = metamap_concepts[i]
+
+    metamap_detail = split_repeated_metamap_concepts(metamap_detail)
+    metamap_detail = sorted(metamap_detail, key=lambda k: k['start_pos'])
+    metamap_detail = prune_overlapping_metamap_details(metamap_detail)
+
+    # metamap position indexes are based on raw strings, where '\n' counts as two characters, but they are only counted
+    #    as 1 by Python, which breaks the positon-based replacement. Convert newlines to 2-character placeholders.
+    content = content.replace('\n', '^^')
+
+    for mm_d in reversed(metamap_detail):
+        pos_start, pos_end = get_metamap_pos(mm_d['pos_info'])
+        concept = "MMConcept" + mm_d['concept']
+        content = ''.join((content[:pos_start - 1], concept, content[pos_end - 1:]))
+
+    # flip the new line conversion back
+    content = content.replace('^^', '\n')
+    return content
+
+
+def split_repeated_metamap_concepts(metamap_details: List[Dict]) -> List[Dict]:
+    metamap_details_split = []
+    for metamap_entry in metamap_details:
+        pos_entries = metamap_entry['pos_info'].split(';')
+        for pos in pos_entries:
+            metamap_details_split.append({
+                'pos_info': pos,
+                'start_pos': get_metamap_pos((pos))[0],
+                'concept': metamap_entry['concept'],
+                'score': metamap_entry['score'],
+            })
+    return metamap_details_split
+
+
+def prune_overlapping_metamap_details(mm_d: List[Dict]) -> List[Dict]:
+    """Iterate over the metamap details, removing adjacent concepts that overlap, until no overlaps are found.
+    Assumes metamap concepts are listed in position order."""
+    # set overlap_found to True to enter the loop for the first time
+    # subsequently, overlap_found is assumed False until an overlap is found,
+    #   at which point the for loop breaks and starts over from the beginning
+    #   because removing items from the list resets the indexes
+    overlap_found = True
+    while overlap_found:
+        overlap_found = False
+        for i, d in enumerate(mm_d):
+            if i <= len(mm_d) - 2:
+                pos_start, pos_end = get_metamap_pos(d['pos_info'])
+                next_pos_start, next_pos_end = get_metamap_pos(mm_d[i + 1]['pos_info'])
+                if pos_start <= next_pos_start <= pos_end or pos_start <= next_pos_end <= pos_end:
+                    overlap_found = True
+                    # figure out which of the two concepts to remove
+                    if mm_d[i]['score'] >= mm_d[i + 1]['score']:
+                        del mm_d[i + 1]
+                    else:
+                        del mm_d[i]
+                    break
+    return mm_d
+
+
 def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     # is there a batch predictor?
     # https://allenai.github.io/allennlp-docs/api/allennlp.predictors.html#sentence-tagger

@@ -4,6 +4,148 @@ import autodiscern.annotations as ada
 
 class TestAnnotations(unittest.TestCase):
 
+    def test_replace_metamap_with_concept_basic(self):
+        test_input = {
+            'content': '• Changes in appetite that result in weight losses or gains unrelated to dieting.',
+            'metamap': ['Physiology', 'Disorders'],
+            'metamap_detail': [
+                {
+                    'index': "'250-6'",
+                    'mm': 'MMI',
+                    'score': '5.59',
+                    'preferred_name': 'Desire for food',
+                    'cui': 'C0003618',
+                    'semtypes': '[orgf]',
+                    'trigger': '"Appetite"-text-0-"appetite"-NN-0',
+                    'pos_info': '14/8',
+                    'tree_codes': 'F02.830.071;G07.203.650.390.070;G10.261.390.070'
+                },
+                {
+                    'index': "'250-6'",
+                    'mm': 'MMI',
+                    'score': '5.59',
+                    'preferred_name': 'Weight decreased',
+                    'cui': 'C1262477',
+                    'semtypes': '[fndg]',
+                    'trigger': '"Weight Losses"-text-0-"weight losses"-NN-0',
+                    'pos_info': '38/13',
+                    'tree_codes': 'C23.888.144.243.963;G07.345.249.314.120.200.963'
+                }
+            ],
+        }
+        output = ada.replace_metamap_content_with_concept_name(test_input['content'], test_input['metamap_detail'],
+                                              test_input['metamap'])
+        expected_output = '• Changes in MMConceptPhysiology that result in MMConceptDisorders or gains unrelated to dieting.'
+        self.assertEqual(output, expected_output)
+
+    def test_split_repeated_metamap_concepts(self):
+        test_input = [{'index': '205',
+                      'mm': 'MMI',
+                      'score': '26.00',
+                      'preferred_name': 'Brain',
+                      'cui': 'C0006104',
+                      'semtypes': '[bpoc]',
+                      'trigger': '"Brain"-text-0-"brain"-NN-0',
+                      'pos_info': '109/5;237/5',
+                      'tree_codes': 'A08.186.211',
+                      'concept': 'Anatomy'}]
+        expected_ouput = [
+            {
+                'pos_info': '109/5',
+                'start_pos': 109,
+                'score': '26.00',
+                'concept': 'Anatomy'
+            },
+            {
+                'pos_info': '237/5',
+                'start_pos': 237,
+                'score': '26.00',
+                'concept': 'Anatomy'
+            }
+        ]
+        output = ada.split_repeated_metamap_concepts(test_input)
+        for i in range(len(expected_ouput)):
+            for key in expected_ouput[i]:
+                self.assertEqual(output[i][key], expected_ouput[i][key])
+
+    def test_prune_overlapping_metamap_details_no_overlap(self):
+        test_input = [
+            {'pos_info': '1/2', 'score': 1},
+        ]
+        expected_output = [
+            {'pos_info': '1/2', 'score': 1},
+        ]
+        output = ada.prune_overlapping_metamap_details(test_input)
+        self.assertEqual(output, expected_output)
+
+    def test_prune_overlapping_metamap_details_overlap(self):
+        test_input = [
+            {'pos_info': '5/3', 'score': 1},
+            {'pos_info': '6/2', 'score': .5},
+        ]
+        expected_output = [
+            {'pos_info': '5/3', 'score': 1},
+        ]
+        output = ada.prune_overlapping_metamap_details(test_input)
+        self.assertEqual(output, expected_output)
+
+    def test_prune_overlapping_metamap_details_multiple_same(self):
+        test_input = [
+            {'pos_info': '5/3', 'score': 1},
+            {'pos_info': '5/3', 'score': .5},
+            {'pos_info': '5/3', 'score': .75},
+        ]
+        expected_output = [
+            {'pos_info': '5/3', 'score': 1},
+        ]
+        output = ada.prune_overlapping_metamap_details(test_input)
+        self.assertEqual(output, expected_output)
+
+    def test_replace_metamap_content_with_concept_name_overlapping_concepts(self):
+        test_input = {
+            'content': '• Insomnia or oversleeping.',
+            'metamap': ['Disorders', 'Disorders', 'Disorders'],
+            'metamap_detail': [
+                {
+                    'index': "'250-7'",
+                    'mm': 'MMI',
+                    'score': '4.67',
+                    'preferred_name': 'Insomnia, CTCAE 3.0',
+                    'cui': 'C1963237',
+                    'semtypes': '[fndg]',
+                    'trigger': '"Insomnia"-text-0-"Insomnia"-NNP-0',
+                    'pos_info': '3/8',
+                    'tree_codes': 'C10.886.425.800.800;F03.870.400.800.800'
+                },
+                {
+                    'index': "'250-7'",
+                    'mm': 'MMI',
+                    'score': '4.67',
+                    'preferred_name': 'Insomnia, CTCAE 5.0',
+                    'cui': 'C4554626',
+                    'semtypes': '[fndg]',
+                    'trigger': '"Insomnia"-text-0-"Insomnia"-NNP-0',
+                    'pos_info': '3/8',
+                    'tree_codes': 'C10.886.425.800.800;F03.870.400.800.800'
+                },
+                {
+                    'index': "'250-7'",
+                    'mm': 'MMI',
+                    'score': '4.67',
+                    'preferred_name': 'Sleeplessness',
+                    'cui': 'C0917801',
+                    'semtypes': '[sosy]',
+                    'trigger': '"Insomnia"-text-0-"Insomnia"-NNP-0',
+                    'pos_info': '3/8',
+                    'tree_codes': 'C10.886.425.800.800;F03.870.400.800.800'
+                }
+            ],
+        }
+        output = ada.replace_metamap_content_with_concept_name(test_input['content'], test_input['metamap_detail'],
+                                              test_input['metamap'])
+        expected_output = '• MMConceptDisorders or oversleeping.'
+        self.assertEqual(output, expected_output)
+
     def test_apply_inline_citation_regex_name_and_year_parens(self):
         test_input = "text (Frood, 1942)."
         expected_output = ["(Frood, 1942)"]

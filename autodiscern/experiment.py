@@ -126,7 +126,7 @@ class ModelRun:
     def run(self):
         self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_features(
             self.train_set, self.test_set)
-        # self.model = self.search_hyperparameters(self.model, self.hyperparams, x_train, y_train)
+        self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
         self.model.fit(self.x_train, self.y_train)
         self.y_train_predicted = self.model.predict(self.x_train)
         self.y_test_predicted = self.model.predict(self.x_test)
@@ -154,11 +154,12 @@ class ModelRun:
 
     @classmethod
     def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
-        model = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=5, cv=1, verbose=2,
-                                   random_state=42, n_jobs=-1)
+        random_search = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=5, cv=2, verbose=2,
+                                           random_state=42, n_jobs=-1)
         # Fit the random search model
-        model.fit(x_train, y_train)
-        return model
+        random_search.fit(x_train, y_train)
+        print(random_search.best_params_)
+        return random_search.best_estimator_
 
     @classmethod
     def evaluate_model(cls, model, x_test, y_test):
