@@ -59,6 +59,15 @@ def neg_pos_category(score):
         raise(ValueError("No label applied"))
 
 
+def zero_one_category(score):
+    if round(score) < 3:
+        return 0
+    elif round(score) >= 3:
+        return 1
+    else:
+        raise(ValueError("No label applied"))
+
+
 def build_data_for_question_submodels(data: Dict, label_func: Callable = continuous_regression,
                                       important_questions: List[int] = [4, 5, 9, 10, 11]) -> Dict:
     """

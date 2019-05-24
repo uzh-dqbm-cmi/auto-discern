@@ -1,14 +1,16 @@
+import numpy as np
 import pandas as pd
 import random
 from scipy.sparse import coo_matrix
 from sklearn.base import clone
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from typing import Dict, List, Tuple
 
 
-class ExperimentManager:
+class PartitionedExperiment:
 
-    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, n_partitions: int = 5):
+    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, n_partitions: int = 5, stratified=True,
+                 verbose=False):
         """
 
         Args:
@@ -24,14 +26,28 @@ class ExperimentManager:
 
         self.name = name
         self.data_dict = data_dict
+        self.verbose = verbose
         self.model = model
         self.hyperparams = hyperparams
+
         self.n_partitions = n_partitions
-        document_ids = list(set([self.data_dict[t]['entity_id'] for t in self.data_dict]))
-        self.partitions_by_ids = self.partition_document_ids(document_ids, self.n_partitions)
+        # create dict of document and ids, which will de-dupe across the sentences
+        document_labels = {}
+        for d in self.data_dict:
+            document_labels[self.data_dict[d]['entity_id']] = self.data_dict[d]['label']
+        document_ids = list(document_labels.keys())
+        doc_labels = [document_labels[id] for id in document_ids]
+        if stratified:
+            self.partitions_by_ids = self.partition_document_ids_stratified(document_ids, doc_labels, self.n_partitions)
+        else:
+            self.partitions_by_ids = self.partition_document_ids(document_ids, self.n_partitions)
+
         self.model_runs = {}
         self.all_run_results = []
         self.experiment_results = []
+
+        if verbose:
+            self.report_partition_stats(self.partitions_by_ids, self.data_dict)
 
     def run(self, partition_ids=None):
         partitions_to_run = range(len(self.partitions_by_ids))
@@ -66,6 +82,17 @@ class ExperimentManager:
         return [doc_list[i::n] for i in range(n)]
 
     @classmethod
+    def partition_document_ids_stratified(cls, doc_list: List[int], label_list: List[int], n: int) -> List[List[int]]:
+        """Randomly shuffle and split the doc_list into n roughly equal lists, stratified by label."""
+        skf = StratifiedKFold(n_splits=n, random_state=42, shuffle=True)
+        x = np.zeros(len(label_list))  # split takes a X argument for backwards compatibility and is not used
+        partition_indexes = [test_index for train_index, test_index in skf.split(x, label_list)]
+        partitions = []
+        for p in partition_indexes:
+            partitions.append([doc_list[i] for i in p])
+        return partitions
+
+    @classmethod
     def materialize_partition(cls, partition_ids: List[int], data_dict: Dict) -> Tuple[List[Dict], List[Dict]]:
         """Create trainng and testing dataset based on the partition, which indicated the ids for the test set."""
 
@@ -73,6 +100,25 @@ class ExperimentManager:
         test_set = [data_dict[d] for d in data_dict if data_dict[d]['entity_id'] in partition_ids]
 
         return train_set, test_set
+
+    @classmethod
+    def report_partition_stats(cls, partitions_by_ids: List[List[int]], data_dict: Dict):
+        for i, p_ids in enumerate(partitions_by_ids):
+            train, test = cls.materialize_partition(p_ids, data_dict)
+            labels_train = pd.DataFrame([d['label'] for d in train])
+            labels_test = pd.DataFrame([d['label'] for d in test])
+
+            print('\n-Partition {}-'.format(i))
+            print("Train: {:,.0f} data points".format(labels_train.shape[0]))
+            print("Test: {:,.0f} data points".format(labels_test.shape[0]))
+
+            train_positive = labels_train[labels_train[0] == 1].shape[0] / labels_train.shape[0]
+            train_negative = labels_train[labels_train[0] == 0].shape[0] / labels_train.shape[0]
+            test_positive = labels_test[labels_test[0] == 1].shape[0] / labels_test.shape[0]
+            test_negative = labels_test[labels_test[0] == 0].shape[0] / labels_test.shape[0]
+
+            print("Train Set: {:.0%} pos - {:.0%} neg".format(train_positive, train_negative))
+            print("Test Set: {:.0%} pos - {:.0%} neg".format(test_positive, test_negative))
 
     @classmethod
     def summarize_runs(cls, run_results):

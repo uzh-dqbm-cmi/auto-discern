@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
+
 from typing import Dict, List, Tuple
 
 import autodiscern.experiment as ade
 from autodiscern.TwoLevelSentenceExperiment import SentenceLevelModelRun
 
 
-class Sent2Doc_2ClassProb_Experiment(ade.ExperimentManager):
+class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
 
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model, hyperparams: Dict):
@@ -48,41 +49,23 @@ class SentenceToDocProbaModelRun(ade.ModelRun):
     @classmethod
     def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, List,
                                                                                       List, List, Dict]:
-        # turn string labels into numbers
-        train_set['pred_num'] = np.where(train_set['sub_prediction'] == 'positive', 1, 0)
-        train_set['label_num'] = np.where(train_set['label'] == 'positive', 1, 0)
-        test_set['pred_num'] = np.where(test_set['sub_prediction'] == 'positive', 1, 0)
-        test_set['label_num'] = np.where(test_set['label'] == 'positive', 1, 0)
 
-        # build df with col for each sentence, dim = max sentences in a doc in the training set
-        # discarded because: gets really big, and lots of NAs if one long doc, and relative position in doc is lost
-        # # compile results by document
-        # x_train = pd.pivot_table(train_set, index='doc_id', columns='sub_id',  values='pred_num', aggfunc='median'
-        #                          ).fillna(na_number)
-        # x_test = pd.pivot_table(test_set, index='doc_id', columns='sub_id', values='pred_num', aggfunc='median'
-        #                         ).fillna(na_number)
-        # # make sure x_test has the same columns as x_train
-        # cols_to_add_to_x_test = [col for col in x_train.columns if col not in x_test.columns]
-        # for col in cols_to_add_to_x_test:
-        #     x_test[col] = na_number
-        # x_test = x_test[x_train.columns]
+        x_train = cls.sents_to_doc_buckets_mean(train_set)
+        x_test = cls.sents_to_doc_buckets_mean(test_set)
 
-        x_train = sents_to_doc_buckets_mean(train_set)
-        x_test = sents_to_doc_buckets_mean(test_set)
-
-        y_train = train_set.groupby('doc_id')['label_num'].median()
-        y_test = test_set.groupby('doc_id')['label_num'].median()
+        y_train = train_set.groupby('doc_id')['label'].median()
+        y_test = test_set.groupby('doc_id')['label'].median()
 
         feature_cols = x_train.columns
         encoders = {}
 
         return x_train, x_test, y_train, y_test, feature_cols, encoders
 
-
-def sents_to_doc_buckets_mean(df):
-    series_of_list_of_bucket_avgs = df.groupby('doc_id')['pred_num'].apply(calc_avg_over_ten_parts)
-    df = series_of_list_to_df_columns(series_of_list_of_bucket_avgs)
-    return df
+    @classmethod
+    def sents_to_doc_buckets_mean(cls, df):
+        series_of_list_of_bucket_avgs = df.groupby('doc_id')['sub_prediction'].apply(calc_avg_over_ten_parts)
+        df = series_of_list_to_df_columns(series_of_list_of_bucket_avgs)
+        return df
 
 
 def mean_0_when_empty(p):

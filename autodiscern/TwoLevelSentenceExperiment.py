@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 import autodiscern.experiment as ade
 
 
-class TwoLevelSentenceExperiment(ade.ExperimentManager):
+class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model, hyperparams: Dict):
