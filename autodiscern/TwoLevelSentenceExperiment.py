@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.sparse import hstack, coo_matrix
+from scipy.sparse import hstack, vstack, coo_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing import Dict, List, Tuple
 
@@ -10,21 +10,23 @@ import autodiscern.experiment as ade
 class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model, hyperparams: Dict):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
+                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
 
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
 
         # run SentenceLevelModel
-        sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, model=model, hyperparams=hyperparams)
-        sl_mr.run()
+        sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
+                                      hyperparams=hyperparams, encoders=encoders)
+        sl_mr.run(skip_hyperparam_search=skip_hyperparam_search)
 
         # use predictions from SentenceLevelModel to create training set for SentenceToDocModel
         data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set)
         data_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set)
 
-        dl_mr = SentenceToDocModelRun(train_set=data_set_train, test_set=data_set_test, model=model,
-                                      hyperparams=hyperparams)
-        dl_mr.run()
+        dl_mr = SentenceToDocModelRun(train_set=data_set_train, test_set=data_set_test, label_key=label_key,
+                                      model=model, hyperparams=hyperparams, encoders=encoders)
+        dl_mr.run(skip_hyperparam_search=skip_hyperparam_search)
 
         return {'sentence_level': sl_mr,
                 'doc_level': dl_mr}
@@ -48,20 +50,22 @@ class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 class SentenceLevelModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
-                                                                                  List, Dict]:
-        corpus_train = [entity_dict['content'] for entity_dict in train_set]
-        corpus_test = [entity_dict['content'] for entity_dict in test_set]
+    def build_features(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
+            Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
+        # corpus_train = [entity_dict['content'] for entity_dict in train_set]
+        # corpus_test = [entity_dict['content'] for entity_dict in test_set]
 
         feature_vec_train = pd.concat([entity_dict['feature_vec'] for entity_dict in train_set], axis=0)
         feature_vec_test = pd.concat([entity_dict['feature_vec'] for entity_dict in test_set], axis=0)
 
-        y_train = [entity_dict['label'] for entity_dict in train_set]
-        y_test = [entity_dict['label'] for entity_dict in test_set]
+        y_train = [entity_dict[label_key] for entity_dict in train_set]
+        y_test = [entity_dict[label_key] for entity_dict in test_set]
 
-        vectorizer = TfidfVectorizer(max_df=0.9999, min_df=0.0001, stop_words='english')
-        x_train_tfidf = vectorizer.fit_transform(corpus_train)
-        x_test_tfidf = vectorizer.transform(corpus_test)
+        train_tfidf_by_doc, test_tfidf_by_doc, vectorizer = cls.build_tfidf_vectors_on_doc_level(train_set, test_set)
+
+        # build sentence level feature vec out of doc tfidf
+        x_train_tfidf = vstack([train_tfidf_by_doc[entity_dict['entity_id']] for entity_dict in train_set])
+        x_test_tfidf = vstack([test_tfidf_by_doc[entity_dict['entity_id']] for entity_dict in test_set])
 
         x_train = hstack([x_train_tfidf, coo_matrix(feature_vec_train)])
         x_test = hstack([x_test_tfidf, coo_matrix(feature_vec_test)])
@@ -71,20 +75,55 @@ class SentenceLevelModelRun(ade.ModelRun):
 
         return x_train, x_test, y_train, y_test, feature_cols, encoders
 
+    @staticmethod
+    def build_tfidf_vectors_on_doc_level(train_set: List[Dict], test_set: List[Dict]) -> Tuple[Dict, Dict,
+                                                                                               TfidfVectorizer]:
+        """Given a list of sentences, combine the sentences back to their document representation and train a
+        TF/IDF model. Return a dict of doc: TF'IDF vector. """
+        train_document_ids = list(set([d['entity_id'] for d in train_set]))
+        train_documents = []
+        for doc_id in train_document_ids:
+            train_documents.append(" ".join([d['content'] for d in train_set if d['entity_id'] == doc_id]))
+
+        test_document_ids = list(set([d['entity_id'] for d in test_set]))
+        test_documents = []
+        for doc_id in test_document_ids:
+            test_documents.append(" ".join([d['content'] for d in test_set if d['entity_id'] == doc_id]))
+
+        print("Some example documents:")
+        for i in train_documents[:2]:
+            print(i)
+
+        print("Training vectorizer on {} documents".format(len(train_documents)))
+        vectorizer = TfidfVectorizer(max_df=0.95, min_df=0.01, max_features=200, stop_words='english')
+        train_documents_tfidf = vectorizer.fit_transform(train_documents)
+        test_documents_tfidf = vectorizer.transform(test_documents)
+        print("    Generated TF/IDF with {} columns".format(train_documents_tfidf.shape[1]))
+
+        train_tfidf = {}
+        for i in range(len(train_document_ids)):
+            train_tfidf[train_document_ids[i]] = train_documents_tfidf[i]
+
+        test_tfidf = {}
+        for i in range(len(test_document_ids)):
+            test_tfidf[test_document_ids[i]] = test_documents_tfidf[i]
+
+        return train_tfidf, test_tfidf, vectorizer
+
 
 class SentenceToDocModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, List,
-                                                                                      List, List, Dict]:
+    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame, label_key: str, encoders: Dict) -> \
+            Tuple[pd.DataFrame, pd.DataFrame, List, List, List, Dict]:
         # turn string labels into numbers
         train_set['pred_num'] = np.where(train_set['sub_prediction'] == 'positive', 2,
                                          np.where(train_set['sub_prediction'] == 'neutral', 1, 0))
-        train_set['label_num'] = np.where(train_set['label'] == 'positive', 2,
-                                          np.where(train_set['label'] == 'neutral', 1, 0))
+        train_set['label_num'] = np.where(train_set[label_key] == 'positive', 2,
+                                          np.where(train_set[label_key] == 'neutral', 1, 0))
         test_set['pred_num'] = np.where(test_set['sub_prediction'] == 'positive', 2,
                                         np.where(test_set['sub_prediction'] == 'neutral', 1, 0))
-        test_set['label_num'] = np.where(test_set['label'] == 'positive', 2,
+        test_set['label_num'] = np.where(test_set[label_key] == 'positive', 2,
                                          np.where(test_set['label'] == 'neutral', 1, 0))
 
         # build df with col for each sentence, dim = max sentences in a doc in the training set

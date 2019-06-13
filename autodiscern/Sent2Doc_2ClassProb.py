@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-
 from typing import Dict, List, Tuple
 
 import autodiscern.experiment as ade
@@ -10,20 +9,22 @@ from autodiscern.TwoLevelSentenceExperiment import SentenceLevelModelRun
 class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, partition_ids: List[int], model, hyperparams: Dict):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
+                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
 
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
 
         # run SentenceLevelModel
-        sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, model=model, hyperparams=hyperparams)
+        sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
+                                      hyperparams=hyperparams)
         sl_mr.run()
 
         # use predictions from SentenceLevelModel to create training set for SentenceToDocModel
         data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set)
         data_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set)
 
-        dl_mr = SentenceToDocProbaModelRun(train_set=data_set_train, test_set=data_set_test, model=model,
-                                           hyperparams=hyperparams)
+        dl_mr = SentenceToDocProbaModelRun(train_set=data_set_train, test_set=data_set_test, label_key=label_key,
+                                           model=model, hyperparams=hyperparams, encoders=encoders)
         dl_mr.run()
 
         return {'sentence_level': sl_mr,
@@ -47,8 +48,8 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
 class SentenceToDocProbaModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, List,
-                                                                                      List, List, Dict]:
+    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame, label_key: str, encoders: Dict) -> \
+            Tuple[pd.DataFrame, pd.DataFrame, List, List, List, Dict]:
 
         x_train = cls.sents_to_doc_buckets_mean(train_set)
         x_test = cls.sents_to_doc_buckets_mean(test_set)

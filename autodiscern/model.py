@@ -161,7 +161,7 @@ def build_remaining_feature_vector(data_dict, sid):
         vectorize_citations(data_dict['citations']),
         compute_polarity(data_dict['content'], sid),
         vectorize_metamap((data_dict.get('metamap', []))),
-        # TODO: citation keywords: bibliography, works cited, references
+        compute_bibliography_feature(data_dict['content']),
         # TODO: dates
     ], axis=1)
 
@@ -185,7 +185,7 @@ def vectorize_metamap(input: List[str]) -> pd.DataFrame:
                               'Organizations']
     metamap_vec = {}
     for group_name in metamap_concept_groups:
-        metamap_vec[group_name] = sum([1 for entry in input if entry == group_name])
+        metamap_vec["MM-{}".format(group_name)] = sum([1 for entry in input if entry == group_name])
 
     return pd.DataFrame(metamap_vec, index=[0])
 
@@ -201,10 +201,25 @@ def vectorize_citations(input: List[str]) -> pd.DataFrame:
     return pd.DataFrame({'inline_citation_cnt': len(input)}, index=[0])
 
 
-def compute_polarity(input: str, sid: SentimentIntensityAnalyzer) -> np.array:
+def compute_polarity(input: str, sid: SentimentIntensityAnalyzer) -> pd.DataFrame:
     polarity_score_dict = sid.polarity_scores(input)
     polarity_score_dict = {"sentiment_{}".format(key): polarity_score_dict[key] for key in polarity_score_dict}
     return pd.DataFrame(polarity_score_dict, index=[0])
+
+
+def compute_bibliography_feature(input_str: str) -> pd.DataFrame:
+    bibliography_keywords = [
+        'bibliography',
+        'references',
+        'works cited',
+        'citations',
+        'sources',
+    ]
+    if any(x in input_str.lower() for x in bibliography_keywords):
+        value = 1
+    else:
+        value = 0
+    return pd.DataFrame({'bibliography_feature': value}, index=[0])
 
 
 def combine_features(data_dict):
