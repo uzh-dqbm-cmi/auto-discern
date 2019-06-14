@@ -5,22 +5,23 @@ from scipy.sparse import coo_matrix
 from sklearn.base import clone
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.metrics import f1_score
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
+from autodiscern.predictor import Predictor
 
 
 class PartitionedExperiment:
 
-    def __init__(self, name: str, data_dict: Dict, label_key: str, model, hyperparams: Dict, encoders: Dict = None,
-                 n_partitions: int = 5, stratified=True, verbose=False):
+    def __init__(self, name: str, data_dict: Dict, label_key: str, model: Callable, hyperparams: Dict,
+                 encoders: Dict = None, n_partitions: int = 5, stratified=True, verbose=False):
         """
 
         Args:
-            name: str. Name for identification of the Experiment.
-            data_dict: Dict. Data to run the model on.
+            name: Name for identification of the Experiment.
+            data_dict: Data to run the model on.
             label_key: the key in data_dict to use for the label.
-            model: Callable. A model with a fit() method.
-            hyperparams: Dict. Dictionary of hyperparamters to search for the best model.
-            n_partitions: int. Number of partitions to split the data on and run the experiment on.
+            model: A model with a fit() method.
+            hyperparams: Dictionary of hyperparamters to search for the best model.
+            n_partitions: Number of partitions to split the data on and run the experiment on.
         """
 
         if n_partitions < 2:
@@ -163,6 +164,18 @@ class PartitionedExperiment:
         all_accuracy_df['stddev'] = stddev
         return all_accuracy_df.sort_values('median', ascending=False)
 
+    def generate_predictor(self, partition=0):
+        """
+        Return a Predictor from the trained model of a specific partition.
+
+        Args:
+            partition: The partition id of the model to return. Defaults to 0.
+
+        Returns: a Predictor.
+
+        """
+        return self.model_runs[partition].generate_predictor()
+
 
 class ModelRun:
 
@@ -185,37 +198,61 @@ class ModelRun:
         self.evaluation = None
 
     def run(self, skip_hyperparam_search: bool = False):
-        self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_features(
+        self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_data(
             self.train_set, self.test_set, self.label_key, self.encoders)
         if not skip_hyperparam_search:
             self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
         self.model.fit(self.x_train, self.y_train)
+        print(type(self.x_train))
         self.y_train_predicted = self.model.predict(self.x_train)
         self.y_test_predicted = self.model.predict(self.x_test)
         self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test, self.y_test_predicted)
         return self.evaluation
 
     @classmethod
-    def build_features(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
+    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
             Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
         """Placeholder function to hold the custom feature building functionality of a ModelRun.
-        build_features takes as input:
+        `build_features` takes as input:
             - train_set: List
             - test_set: List
             - label_key: str. key to use in data dicts for label
             - encoders: Dict. Encoders used to generate the feature set, if pre-trained.
 
-        build_features returns a Tuple of the following:
+        `build_features` returns a Tuple of the following:
             - x_train: Matrix
             - x_test: Matrix
             - y_train: List
             - y_test: List
             - feature_cols: List
             - encoders: Dict. Encoders used to generate the feature set. Encoders that may want to be saved include
-                vectorizers trained on the train_set and applied to the test_set.
+            vectorizers trained on the train_set and applied to the test_set.
+
         """
+
+        encoders = cls.train_encoders(train_set)
+
+        x_train, feature_cols = cls.build_x_features(train_set, encoders)
+        x_test, feature_cols = cls.build_x_features(test_set, encoders)
+
+        y_train = cls.build_y_vector(train_set, label_key)
+        y_test = cls.build_y_vector(test_set, label_key)
+
+        return x_train, x_test, y_train, y_test, feature_cols, encoders
+
+    @classmethod
+    def train_encoders(cls, train_set: List[Dict]):
         raise NotImplementedError("The ModelRun class must be subclassed to be used, "
-                                  "with the build_feature_func implemented.")
+                                  "with the `train_encoders` function implemented.")
+
+    @classmethod
+    def build_x_features(cls, data_set: List[Dict], encoders: Dict):
+        raise NotImplementedError("The ModelRun class must be subclassed to be used, "
+                                  "with the `build_x_features` function implemented.")
+
+    @classmethod
+    def build_y_vector(cls, data_set: List[Dict], label_key: str) -> List:
+        return [entity_dict[label_key] for entity_dict in data_set]
 
     @classmethod
     def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
@@ -227,7 +264,19 @@ class ModelRun:
         return random_search.best_estimator_
 
     @classmethod
-    def evaluate_model(cls, model, x_test, y_test, y_test_predicted):
+    def evaluate_model(cls, model: Callable, x_test, y_test, y_test_predicted) -> Dict:
+        """
+        Calculate and return a dictionary of various evaluation metrics.
+
+        Args:
+            model: a model with a `score` method.
+            x_test: input of the test set.
+            y_test: true labels for the test set.
+            y_test_predicted: the model's predictions for the test set.
+
+        Returns:
+
+        """
         accuracy = model.score(x_test, y_test)
         f1 = f1_score(y_test, y_test_predicted, average='macro')
         return {
@@ -236,6 +285,22 @@ class ModelRun:
         }
 
     def get_feature_importances(self) -> pd.DataFrame:
+        """
+        Generate the feature importances of the trained model. Requires self.model to have a `feature_importances_`
+        member variable.
+
+        Returns: pd.DataFrame of feature importances in descending order.
+
+        """
         fi = pd.DataFrame(self.model.feature_importances_, index=self.feature_cols)
         fi = fi.sort_values(0, ascending=False)
         return fi
+
+    def generate_predictor(self) -> Predictor:
+        """
+        Return a Predictor object from the trained model.
+
+        Returns:
+            Predictor
+        """
+        return Predictor(self.model, self.encoders, self.build_x_features)

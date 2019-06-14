@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Dict, List, Tuple
 
 import autodiscern.experiment as ade
-from autodiscern.TwoLevelSentenceExperiment import SentenceLevelModelRun
+from autodiscern.experiments.TwoLevelSentenceExperiment import SentenceLevelModelRun
 
 
 class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
