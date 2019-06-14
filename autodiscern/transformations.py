@@ -335,6 +335,7 @@ class Transformer:
                     return domain
                 else:
                     return 'NA'
+        return 'NA'
 
     def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
                      tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str,
