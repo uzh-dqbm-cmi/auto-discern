@@ -6,6 +6,7 @@ import autodiscern.transformations as adt
 import autodiscern.annotations as ada
 import autodiscern.model as adm
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import inspect
 import pickle
 import requests
 
@@ -28,10 +29,12 @@ def create_app(test_config=None):
         pass
 
     # set up all model infrastructure
-    discern_data_path = "~/switchdrive/Institution/discern"
-    dm = ad.DataManager(discern_data_path)
+    this_file_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
+    # the package directory is the grandparent of this file
+    package_dir = os.path.abspath(os.path.dirname(os.path.dirname(this_file_path)))
+    dm = ad.DataManager(package_dir)
 
-    model_filepath = "/Users/laurakinkead/switchdrive/Institution/discern/models/2019_06_14_doc_models_important_qs.pkl"
+    model_filepath = os.path.join(package_dir, "data/models/2019_06_14_doc_models_important_qs.pkl")
     with open(model_filepath, "rb+") as f:
         ems = pickle.load(f)
 
@@ -61,7 +64,8 @@ def create_app(test_config=None):
                                            )
         transformed_data = html_transformer.apply(data_dict)
         transformed_data = ada.add_inline_citations_annotations(transformed_data)
-        transformed_data = ada.add_metamap_annotations(transformed_data, dm)
+        metamap_path = os.path.join(package_dir, "data/metamap_exec/public_mm_lite")
+        transformed_data = ada.add_metamap_annotations(transformed_data, dm, metamap_path)
 
         sid = SentimentIntensityAnalyzer()
 
@@ -82,3 +86,8 @@ def create_app(test_config=None):
         return predictions
 
     return app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    app.run(host='0.0.0.0', port=80)

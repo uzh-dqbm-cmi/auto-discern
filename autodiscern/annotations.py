@@ -1,5 +1,3 @@
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
-from allennlp.predictors.predictor import Predictor
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 import re
@@ -8,6 +6,7 @@ from autodiscern.data_manager import DataManager
 
 
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
     tok = WordTokenizer()
     for id in inputs:
         # have to convert tokens to text because spacy tokens are not pickleable
@@ -172,6 +171,7 @@ def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     # is there a batch predictor?
     # https://allenai.github.io/allennlp-docs/api/allennlp.predictors.html#sentence-tagger
 
+    from allennlp.predictors.predictor import Predictor
     predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
 
     for id in inputs:

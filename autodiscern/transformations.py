@@ -2,7 +2,6 @@ import html
 import multiprocessing as mp
 import re
 import tldextract
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from bs4.element import Tag
 from nltk.tokenize.punkt import PunktSentenceTokenizer
@@ -73,6 +72,7 @@ class Transformer:
         elif segment_into in {'w', 'word', 'words'}:
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
+            from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
             self.segmenter_helper_obj = WordTokenizer()
         elif segment_into in {'s', 'sent', 'sents', 'sentence', 'sentences'}:
             self.transforms.append(self._to_sentences)
