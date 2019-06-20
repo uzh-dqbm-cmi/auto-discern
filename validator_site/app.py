@@ -44,13 +44,27 @@ def create_app(test_config=None):
 
     @app.route('/')
     def hello():
-        return flask.render_template('base.html', url_str='', predictions={})
+        return flask.render_template('index.html', url_str='', predictions={})
 
     @app.route('/validate', methods=['POST'])
     def validate():
         url = flask.request.form["url"]
         predictions = make_prediction(predictors, url)
-        return flask.render_template('base.html', url_str=url, predictions=predictions)
+        return flask.render_template('index.html', url_str=url, predictions=predictions)
+
+    @app.route('/test', methods=['POST'])
+    def test():
+        # test = flask.request.form["test"]
+        url = "www.dontgetsick.com"
+        predictions = {
+            "q4: Is it clear what sources of information were used to compile the publication (other than the "
+            "author or producer)?": "No",
+            "q5: Is it clear when the information used or reported in the publication was produced?": "No",
+            "q9: Does it describe how each treatment works?": "Yes",
+            "q10: Does it describe the benefits of each treatment?": "Yes",
+            "q11: Does it describe the risks of each treatment?": "No",
+        }
+        return flask.render_template('index.html', url_str=url, predictions=predictions)
 
     def make_prediction(predictors, url: str):
         res = requests.get(url)

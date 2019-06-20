@@ -1,31 +1,16 @@
 <!doctype html>
-<title>{% block title %}{% endblock %} - Flaskr</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-<nav>
-  <h1>autoDiscern Validator</h1>
-</nav>
-<section class="content">
-  <header>
-    {% block header %}{% endblock %}
-  </header>
-  {% for message in get_flashed_messages() %}
-    <div class="flash">{{ message }}</div>
-  {% endfor %}
-    <form method = "post" action = "/validate">
-            <input type="text" name="url" placeholder="Enter url to validate">
-    </form>
+<html lang="en">
+    <head>
+        {% block head %}
+            <title> {% block title %} {% endblock %} </title>
+            {% block css %}<link rel=stylesheet type=text/css href="{{url_for('static', filename='style.css')}}" />{% endblock %}
+        {% endblock head %}
+    </head>
+    <body>
+        {% block body %} {% endblock %}
 
-  {% if url_str != '' %}
-    <h3>Results for:</h3>
-    {{ url_str }}
-  {% endif %}
-
-  {% block content %}
-    {% for question in predictions %}
-      <h3 {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ question }} </h3>
-
-      <p {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ predictions[question] }} </p>
-      <br>
-    {% endfor %}
-  {% endblock %}
-</section>
+        {% block footer %}
+            <img src="https://www.math.uzh.ch/as/typo3conf/ext/uzh_cd_template/Resources/Public/Images/uzh_logo_e_pos.svg" class="center">
+        {% endblock %}
+    </body>
+</html>

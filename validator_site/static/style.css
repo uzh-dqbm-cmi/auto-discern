@@ -1,0 +1,53 @@
+#content {
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+    background-color:  #FFFFFF;
+    padding: 15px;
+    font-family: 'Georgia';
+    color: #000000;
+}
+
+#title {
+    display: block;
+    padding: 5px;
+    background-color: #517dc7;
+    color: #FFFFFF;
+    font-size: 48pt;
+    font-weight: bold;
+    text-align: center;
+    font-family: 'Berkshire Swash';
+}
+a:link {
+    color: #000000;
+}
+
+body {
+    background-color: #437092;
+    background-position:top left;
+    background-repeat:repeat;
+    background-attachment:fixed;
+}
+
+footer {
+    background-position:top center;
+    background-repeat:repeat;
+    background-attachment:fixed;
+    text-align: center;
+}
+
+.metanav {
+    background: #fdd291;
+    color: #437092;
+    padding: 2px;
+}
+.metanav a:link {
+    color: #6ea4cc;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 25%;
+}
