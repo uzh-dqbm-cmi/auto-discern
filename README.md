@@ -11,6 +11,41 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
 * Acquire a copy of this project's data and structure it according to "A Note on Data" below. 
 * Skip on down to Example Usage below.
 
+### Deployment
+On your local machine, from within `autodiscern/`:
+ 1. Build the docker image
+ 
+    `docker build --tag=autodiscern .`
+    
+ 1. Run the image locally and make sure it works
+
+    `docker run -p 80:80 autodiscern`
+
+    You can also open up the image and take a look around:
+
+    `docker run -it autodiscern /bin/bash`
+
+ 1. Tag the image, incrementing the tag number
+
+    `docker tag autodiscern lokijuhy/autodiscern:v2`
+
+ 1. Push the image to repository
+
+    `docker push lokijuhy/autodiscern:v2`
+
+On the server:
+
+ 1. (optional?) Log in
+
+    `docker login -u docker-registry-username`
+
+ 1. Pull down the image
+
+    `docker pull lokijuhy/autodiscern:v2`
+
+ 1. Run the image!
+
+    `docker run -p 80:80 lokijuhy/autodiscern:v2`
 
 ### A Note on Data
 This repo contains no data. To use this package, you must have a copy of the data locally, in the following file structure:
