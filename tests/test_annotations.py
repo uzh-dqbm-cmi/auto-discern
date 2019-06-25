@@ -146,6 +146,16 @@ class TestAnnotations(unittest.TestCase):
         expected_output = '• MMConceptDisorders or oversleeping.'
         self.assertEqual(output, expected_output)
 
+    def test_replace_links_with_plain_text_no_link(self):
+        test_input = "There is no link in this sentence."
+        expected_output = "There is no link in this sentence."
+        self.assertEqual(ada.replace_links_with_plain_text(test_input), expected_output)
+
+    def test_replace_links_with_plain_text_with_link(self):
+        test_input = "Go to www.nih.gov to learn more."
+        expected_output = "Go to thisisalink to learn more."
+        self.assertEqual(ada.replace_links_with_plain_text(test_input), expected_output)
+
     def test_apply_inline_citation_regex_name_and_year_parens(self):
         test_input = "text (Frood, 1942)."
         expected_output = ["(Frood, 1942)"]

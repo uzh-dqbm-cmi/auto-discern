@@ -45,7 +45,7 @@ On the server:
 
  1. Run the image!
 
-    `docker run -p 80:80 lokijuhy/autodiscern:v2`
+    `docker run -d -p 80:80 lokijuhy/autodiscern:v2`
 
 ### A Note on Data
 This repo contains no data. To use this package, you must have a copy of the data locally, in the following file structure:

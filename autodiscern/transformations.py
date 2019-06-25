@@ -24,7 +24,8 @@ class Transformer:
     """
 
     def __init__(self, leave_some_html: bool = False, html_to_plain_text: bool = False, segment_into: str = None,
-                 flatten: bool = False, annotate_html: bool = False, parallelism: bool = False, num_cores=8):
+                 remove_newlines: bool = True, flatten: bool = False, annotate_html: bool = False,
+                 parallelism: bool = False, num_cores=8):
         """
         Sets the parameters of the Transformer object.
 
@@ -86,6 +87,10 @@ class Transformer:
             self.segmenter_helper_obj = None
         else:
             raise ValueError("Invalid segment_type: {}".format(segment_into))
+
+        if remove_newlines:
+            self.transforms.append(self.remove_newlines)
+            self.transforms.append(self.regex_out_punctuation_and_white_space)
 
         # annotations to use
         if annotate_html:
@@ -439,6 +444,10 @@ class Transformer:
         for p in chars_to_replace:
             x = x.replace(p, replacement_char)
         return x
+
+    @classmethod
+    def remove_newlines(cls, x: str) -> str:
+        return cls.replace_chars(x, ['\n'], ' ')
 
     # === Annotation Functions ==================================
 

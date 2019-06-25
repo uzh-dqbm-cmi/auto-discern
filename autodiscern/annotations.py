@@ -14,6 +14,8 @@ def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     return inputs
 
 
+# === METAMAP =========================================================================================================
+
 def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None,
                             git_bash_pth: str = None) -> Dict[str, Dict]:
     from pymetamap import MetaMapLite
@@ -115,16 +117,22 @@ def replace_metamap_content_with_concept_name(content: str, metamap_detail: List
     metamap_detail = prune_overlapping_metamap_details(metamap_detail)
 
     # metamap position indexes are based on raw strings, where '\n' counts as two characters, but they are only counted
-    #    as 1 by Python, which breaks the positon-based replacement. Convert newlines to 2-character placeholders.
-    content = content.replace('\n', '^^')
+    #    as 1 by Python, which breaks the position-based replacement. Convert newlines to 2-character placeholders.
+    escape_char_replacements = {
+        '\n': '^^',
+        "'": '@@',
+    }
+    for c in escape_char_replacements:
+        content = content.replace(c, escape_char_replacements[c])
 
     for mm_d in reversed(metamap_detail):
         pos_start, pos_end = get_metamap_pos(mm_d['pos_info'])
         concept = "MMConcept" + mm_d['concept']
         content = ''.join((content[:pos_start - 1], concept, content[pos_end - 1:]))
 
-    # flip the new line conversion back
-    content = content.replace('^^', '\n')
+    # flip the escape char conversions back
+    for c in escape_char_replacements:
+        content = content.replace(escape_char_replacements[c], c)
     return content
 
 
@@ -167,19 +175,88 @@ def prune_overlapping_metamap_details(mm_d: List[Dict]) -> List[Dict]:
     return mm_d
 
 
-def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
-    # is there a batch predictor?
-    # https://allenai.github.io/allennlp-docs/api/allennlp.predictors.html#sentence-tagger
+# === LINKS ===========================================================================================================
 
-    from allennlp.predictors.predictor import Predictor
-    predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+def amend_content_with_link_plain_text(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        inputs[id]['content'] = replace_links_with_plain_text(inputs[id]['content'])
+    return inputs
+
+
+def replace_links_with_plain_text(input_str: str) -> str:
+    """
+    Regex from http://www.regexguru.com/2008/11/detecting-urls-in-a-block-of-text/
+
+    Args:
+        input_str: string in which to replace links.
+
+    Returns: string with links replaced with "thisisalink".
+
+    """
+    r = r'\b(?:(?:https?|ftp|file):\/\/|www\.|ftp\.)[-A-Za-z0-9+&@#/%=~_|$?!:,.]*[A-Za-z0-9+&@#/%=~_|$]'
+    return re.sub(r, 'thisisalink', input_str)
+
+
+# === NER =============================================================================================================
+
+def amend_content_with_ner_type_labels(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        inputs[id]['content'] = replace_ner_with_type_labels(inputs[id]['content'], inputs[id]['ner'])
+    return inputs
+
+
+def replace_ner_with_type_labels(input_str: str, ner_info: List[Dict[str, str]]) -> str:
+    # TODO: untested
+    output_str = input_str
+    for entity in reversed(ner_info):
+        pos_start = entity['start_char']
+        pos_end = entity['end_char']
+        output_str = ''.join((output_str[:pos_start], entity['custom_label'], output_str[pos_end:]))
+    return output_str
+
+
+def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    import spacy
+    nlp = spacy.load('en')
 
     for id in inputs:
-        sentence = inputs[id]['content']
-        ner_output = allennlp_ner_tagger(sentence, predictor)
-        ner_output = [x for x in ner_output if x[1] != 'O']
-        inputs[id]['ner'] = ner_output
+        inputs[id]['ner'] = execute_spacy_ner(inputs[id]['content'], nlp)
     return inputs
+
+
+def execute_spacy_ner(input_str, nlp):
+    results = []
+    doc = nlp(input_str)
+    for ent in doc.ents:
+        entity_dict = {
+            'text': ent.text,
+            'start_char': ent.start_char,
+            'end_char': ent.end_char,
+            'label': ent.label_,
+        }
+        entity_dict['custom_label'] = select_custom_ner_label(entity_dict['text'], entity_dict['label'])
+        results.append(entity_dict)
+    return results
+
+
+def select_custom_ner_label(text: str, spacy_label: str) -> str:
+    """
+    Custom logic for defining more specific Named Entity labels than what spacy gives by default
+
+    Args:
+        text: the text of the entity spacy recognized
+        spacy_label: the label spacy assigned to the entity
+
+    Returns: custom label
+
+    """
+    default_label = 'SPACY_NER_{}'.format(spacy_label)
+    if spacy_label == 'DATE':
+        if any(i.isdigit() for i in text):
+            return default_label
+        else:
+            return '{}_NO_DIGIT'.format(default_label)
+    return default_label
 
 
 def allennlp_ner_tagger(sentence: str, predictor: Callable) -> List[Tuple[str, str]]:
@@ -217,6 +294,8 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
 
     return ner_html
 
+
+# === CITATIONS =======================================================================================================
 
 def add_inline_citations_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     for id in inputs:

@@ -67,10 +67,13 @@ def create_app(test_config=None):
         return flask.render_template('index.html', url_str=url, predictions=predictions)
 
     def make_prediction(predictors, url: str):
+        # load the webpage content
         res = requests.get(url)
         html_page = res.content.decode("utf-8")
         data_dict = {0: {'entity_id': 0, 'content': html_page, 'url': url}}
 
+        # run data processing
+        # TODO: refactor so that this logic is tied to model directly
         html_transformer = adt.Transformer(leave_some_html=True,
                                            html_to_plain_text=True,
                                            annotate_html=True,
@@ -78,6 +81,7 @@ def create_app(test_config=None):
                                            )
         transformed_data = html_transformer.apply(data_dict)
         transformed_data = ada.add_inline_citations_annotations(transformed_data)
+        # TODO: refactor metamap path to be in config or something
         metamap_path = os.path.join(package_dir, "data/metamap_exec/public_mm_lite")
         transformed_data = ada.add_metamap_annotations(transformed_data, dm, metamap_path)
 
@@ -88,8 +92,9 @@ def create_app(test_config=None):
 
         predictions = {}
         for q in predictors:
-            question = "{}: {}".format(q, adm.questions[int(q.split('q')[1])])
             prediction = predictors[q].predict(transformed_data[0])
+
+            question = "{}: {}".format(q, adm.questions[int(q.split('q')[1])])
             if prediction[0] == 0:
                 predictions[question] = 'No'
             elif prediction[0] == 1:

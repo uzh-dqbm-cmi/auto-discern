@@ -42,21 +42,3 @@ class DocLevelModelRun(ade.ModelRun):
         feature_cols.extend(feature_vec.columns)
 
         return x_all, feature_cols
-
-    # @classmethod
-    # def build_y_vector(cls, data_set, label_key):
-    #     return [entity_dict[label_key] for entity_dict in data_set]
-    #
-    # @classmethod
-    # def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
-    #         Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
-    #
-    #     encoders = cls.train_encoders(train_set)
-    #
-    #     x_train, feature_cols = cls.build_x_features(train_set, encoders)
-    #     x_test, feature_cols = cls.build_x_features(test_set, encoders)
-    #
-    #     y_train = cls.build_y_vector(train_set, label_key)
-    #     y_test = cls.build_y_vector(test_set, label_key)
-    #
-    #     return x_train, x_test, y_train, y_test, feature_cols, encoders

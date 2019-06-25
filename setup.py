@@ -17,7 +17,7 @@ setup(name='autodiscern',
             'numpy>=1.15.0',
             'pandas==0.24.1',
             'scikit-learn',
-            # 'spacy==2.0.18',
+            'spacy==2.0.18',
             'tldextract',
       ],
       extras_requires={
