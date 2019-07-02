@@ -12,7 +12,7 @@ from autodiscern.predictor import Predictor
 class PartitionedExperiment:
 
     def __init__(self, name: str, data_dict: Dict, label_key: str, model: Callable, hyperparams: Dict,
-                 encoders: Dict = None, n_partitions: int = 5, stratified=True, verbose=False):
+                 n_partitions: int = 5, stratified=True, verbose=False):
         """
 
         Args:
@@ -22,6 +22,8 @@ class PartitionedExperiment:
             model: A model with a fit() method.
             hyperparams: Dictionary of hyperparamters to search for the best model.
             n_partitions: Number of partitions to split the data on and run the experiment on.
+            stratified: Whether to stratify the partitions by label.
+            verbose: Whether to display verbose messages.
         """
 
         if n_partitions < 2:
@@ -34,18 +36,9 @@ class PartitionedExperiment:
         self.model = model
         self.hyperparams = hyperparams
 
-        if encoders is not None:
-            self.encoders = encoders
-        else:
-            self.encoders = {}
-
         self.n_partitions = n_partitions
-        # create dict of document and ids, which will de-dupe across the sentences
-        document_labels = {}
-        for d in self.data_dict:
-            document_labels[self.data_dict[d]['entity_id']] = self.data_dict[d][self.label_key]
-        document_ids = list(document_labels.keys())
-        doc_labels = [document_labels[id] for id in document_ids]
+
+        document_ids, doc_labels = self.build_doc_id_and_label_lists(data_dict, label_key)
         if stratified:
             self.partitions_by_ids = self.partition_document_ids_stratified(document_ids, doc_labels, self.n_partitions)
         else:
@@ -72,7 +65,6 @@ class PartitionedExperiment:
                                                                  partition_ids=p,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
-                                                                 encoders=self.encoders,
                                                                  skip_hyperparam_search=skip_hyperparam_search)
                 self.model_runs[partition_id] = model_run
 
@@ -82,12 +74,21 @@ class PartitionedExperiment:
 
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
-                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
+                                        hyperparams: Dict, skip_hyperparam_search: bool):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
-        mr = ModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model, hyperparams=hyperparams,
-                      encoders=encoders)
+        mr = ModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model, hyperparams=hyperparams)
         mr.run(skip_hyperparam_search=skip_hyperparam_search)
         return mr
+
+    @staticmethod
+    def build_doc_id_and_label_lists(data_dict, label_key):
+        # create dict of document and ids, which will de-dupe across the sentences
+        document_labels = {}
+        for d in data_dict:
+            document_labels[data_dict[d]['entity_id']] = data_dict[d][label_key]
+        document_ids = list(document_labels.keys())
+        doc_labels = [document_labels[id] for id in document_ids]
+        return document_ids, doc_labels
 
     @classmethod
     def partition_document_ids(cls, doc_list: List[int], n: int) -> List[List[int]]:
@@ -179,14 +180,12 @@ class PartitionedExperiment:
 
 class ModelRun:
 
-    def __init__(self, train_set: List[Dict], test_set: List[Dict], label_key: str, model, hyperparams: Dict,
-                 encoders: Dict = None):
+    def __init__(self, train_set: List[Dict], test_set: List[Dict], label_key: str, model, hyperparams: Dict):
         self.train_set = train_set
         self.test_set = test_set
         self.label_key = label_key
         self.model = clone(model)
         self.hyperparams = hyperparams
-        self.encoders = encoders
 
         self.x_train = None
         self.x_test = None
@@ -199,7 +198,7 @@ class ModelRun:
 
     def run(self, skip_hyperparam_search: bool = False):
         self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_data(
-            self.train_set, self.test_set, self.label_key, self.encoders)
+            self.train_set, self.test_set, self.label_key)
         if not skip_hyperparam_search:
             self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
         self.model.fit(self.x_train, self.y_train)
@@ -210,16 +209,16 @@ class ModelRun:
         return self.evaluation
 
     @classmethod
-    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
+    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str) -> \
             Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
-        """Placeholder function to hold the custom feature building functionality of a ModelRun.
-        `build_features` takes as input:
+        """Orchestrates the construction of train and test x matrices, and train and test y vectors.
+
+        `build_data` takes as input:
             - train_set: List
             - test_set: List
             - label_key: str. key to use in data dicts for label
-            - encoders: Dict. Encoders used to generate the feature set, if pre-trained.
 
-        `build_features` returns a Tuple of the following:
+        `build_data` returns a Tuple of the following:
             - x_train: Matrix
             - x_test: Matrix
             - y_train: List
@@ -242,16 +241,44 @@ class ModelRun:
 
     @classmethod
     def train_encoders(cls, train_set: List[Dict]):
+        """
+        Placeholder function to hold the custom encoder training functionality of a ModelRun.
+
+        Args:
+            data_set: Data set to train encoders on.
+
+        Returns:
+            Dict of encoders.
+        """
         raise NotImplementedError("The ModelRun class must be subclassed to be used, "
                                   "with the `train_encoders` function implemented.")
 
     @classmethod
     def build_x_features(cls, data_set: List[Dict], encoders: Dict):
+        """
+        Placeholder function to hold the custom feature building functionality of a ModelRun.
+
+        Args:
+            data_set: Data set to transform into features.
+            encoders: Dict of pre-trained encoders for use in building features.
+
+        Returns:
+            Matrix-type
+        """
         raise NotImplementedError("The ModelRun class must be subclassed to be used, "
                                   "with the `build_x_features` function implemented.")
 
     @classmethod
     def build_y_vector(cls, data_set: List[Dict], label_key: str) -> List:
+        """
+        Extract the labels from each data dict and compile into one y vector.
+        Args:
+            data_set: List of data dicts.
+            label_key: The key int he data dicts under which the label is stored.
+
+        Returns:
+            Array-type
+        """
         return [entity_dict[label_key] for entity_dict in data_set]
 
     @classmethod
