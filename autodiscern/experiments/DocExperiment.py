@@ -1,25 +1,26 @@
 import pandas as pd
 from scipy.sparse import hstack, coo_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
-from typing import Dict, List
-import autodiscern.experiment as ade
+from typing import Dict, List, Callable
+from autodiscern import experiment, model
 
 
-class DocExperiment(ade.PartitionedExperiment):
+class DocExperiment(experiment.PartitionedExperiment):
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
-                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
+                                        preprocessing_func: Callable, model, hyperparams: Dict,
+                                        skip_hyperparam_search: bool):
 
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
 
-        mr = DocLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
-                              hyperparams=hyperparams, encoders=encoders)
+        mr = DocLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key,
+                              preprocessing_func=preprocessing_func, model=model, hyperparams=hyperparams)
         mr.run(skip_hyperparam_search=skip_hyperparam_search)
         return mr
 
 
-class DocLevelModelRun(ade.ModelRun):
+class DocLevelModelRun(experiment.ModelRun):
 
     @classmethod
     def train_encoders(cls, train_set: List[Dict]):
@@ -42,3 +43,17 @@ class DocLevelModelRun(ade.ModelRun):
         feature_cols.extend(feature_vec.columns)
 
         return x_all, feature_cols
+
+    @classmethod
+    def build_y_vector(cls, data_set: List[Dict], label_key: str) -> List:
+        """
+        Extract the labels from each data dict and compile into one y vector.
+        Args:
+            data_set: List of data dicts.
+            label_key: The key int he data dicts under which the label is stored.
+
+        Returns:
+            Array-type
+        """
+        return [model.zero_one_category(model.get_score_for_question(entity_dict, label_key)) for entity_dict in
+                data_set]

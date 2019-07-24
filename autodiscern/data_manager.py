@@ -3,11 +3,12 @@ from git import Repo
 import glob
 import inspect
 import os
+import pkg_resources
 import pandas as pd
 import pickle
 from pathlib import Path
 import subprocess
-from typing import Dict
+from typing import Any, Callable, Dict, Tuple
 
 import autodiscern.transformations as adt
 
@@ -94,7 +95,22 @@ class DataManager:
             self._load_articles(version_id)
         return self.data[version_id]
 
-    def save_transformed_data(self, data: Dict, tag: str = None) -> None:
+    @staticmethod
+    def get_repo_path():
+        return os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+
+    @classmethod
+    def generate_filename_for_file(cls, tag: str = None) -> str:
+        repo_path = cls.get_repo_path()
+        git_hash = cls._get_git_hash(repo_path)
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        if tag:
+            filename = "{}_{}_{}".format(timestamp, git_hash, tag)
+        else:
+            filename = "{}_{}".format(timestamp, git_hash)
+        return filename
+
+    def save_transformed_data(self, data: Dict, tag: str = None, enforce_clean_git=True) -> str:
         """Save a data dictionary to data/transformed directory with a filename created from the current timestamp and
         an optional tag.
         Getting the path based on:
@@ -107,16 +123,25 @@ class DataManager:
         Returns: None
 
         """
-        repo_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-        git_hash = self._get_git_hash(repo_path)
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        if tag:
-            filepath = Path(self.data_path, "data/transformed_data/{}_{}_{}.pkl".format(timestamp, git_hash, tag))
-        else:
-            filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, git_hash))
+        if enforce_clean_git:
+            self.check_for_uncommitted_git_changes()
+
+        filename = self.generate_filename_for_file(tag)
+        filepath = Path(self.data_path, "data/transformed_data", "{}.pkl".format(filename))
         with open(filepath, "wb+") as f:
             pickle.dump(data, f)
-            print("Saved data to {}".format(filepath))
+        print("Saved data to {}".format(filepath))
+        return filepath
+
+    def cache_data_processor(self, data: Any, processing_func: Callable, tag: str = None, enforce_clean_git=True
+                             ) -> str:
+        if enforce_clean_git:
+            self.check_for_uncommitted_git_changes()
+
+        file_name = self.generate_filename_for_file(tag)
+        file_data_path = Path(self.data_path, "data/transformed_data")
+        DataProcessorCacheManager.save(data, processing_func, file_name=file_name, file_dir_path=file_data_path)
+        return file_name
 
     def load_transformed_data(self, filename: str) -> Dict:
         """Load a pickled data dictionary from the data/transformed directory.
@@ -128,6 +153,10 @@ class DataManager:
             filepath = Path(self.data_path, "data/transformed_data/{}.pkl".format(filename))
         with open(filepath, "rb+") as f:
             return pickle.load(f)
+
+    def load_cached_data_processor(self, file_name: str) -> Tuple[Any, Callable]:
+        file_data_path = Path(self.data_path, "data/transformed_data")
+        return DataProcessorCacheManager.load(file_name=file_name, file_dir_path=file_data_path)
 
     def load_most_recent_transformed_data(self):
         """Load the most recent pickled data dictionary from the data/transformed directory,
@@ -159,24 +188,28 @@ class DataManager:
         Returns:
             git_hash (str): Short hash of latest commit on the active branch of the git repo.
         """
-        cls._check_for_uncommitted_git_changes(path)
         git_hash_raw = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
                                                cwd=path)
         git_hash = git_hash_raw.strip().decode("utf-8")
         return git_hash
 
     @classmethod
-    def _check_for_uncommitted_git_changes(cls, repopath: str) -> bool:
+    def check_for_uncommitted_git_changes(cls):
+        repo_path = cls.get_repo_path()
+        return cls._check_for_uncommitted_git_changes_at_path(repo_path)
+
+    @classmethod
+    def _check_for_uncommitted_git_changes_at_path(cls, repo_path: str) -> bool:
         """
         Check if there are uncommitted changes in the git repo, and raise an error if there are.
 
         Args:
-            repopath: str. Path to the repo to check.
+            repo_path: str. Path to the repo to check.
 
         Returns: bool. False: no uncommitted changes found, Repo is valid.
             True: uncommitted changes found. Repo is not valid.
         """
-        repo = Repo(repopath, search_parent_directories=True)
+        repo = Repo(repo_path, search_parent_directories=True)
 
         try:
             # get list of gitignore filenames and extensions as these wouldn't have been code synced over
@@ -227,10 +260,106 @@ class DataManager:
         return self.data['responses']
 
     def _load_metamap_semantics(self):
-        self.data['metamap_semantics'] = pd.read_csv(Path(self.data_path, "data/metamap/metamap_semantics.csv"))
+        metamap_semantics_path = pkg_resources.resource_filename('autodiscern',
+                                                                 'data/metamap_semantics/metamap_semantics.csv')
+        self.data['metamap_semantics'] = pd.read_csv(metamap_semantics_path)
 
     @property
     def metamap_semantics(self) -> pd.DataFrame:
         if 'metamap_semantics' not in self.data:
             self._load_metamap_semantics()
         return self.data['metamap_semantics']
+
+
+class DataProcessorCacheManager:
+
+    @staticmethod
+    def save(data: Any, processing_func: Callable, file_name: str, file_dir_path: str):
+        data_interface = DataInterfaceManager.select(file_name)
+        data = processing_func(data)
+        data_interface.save(data, file_name, file_dir_path)
+        PickleDataInterface.save(processing_func, file_name+'_processor', file_dir_path)
+
+    @staticmethod
+    def load(file_name: str, file_dir_path: str) -> Tuple[Any, Callable]:
+        data_interface = DataInterfaceManager.select(file_name)
+        data = data_interface.load(file_name, file_dir_path)
+        processing_func = PickleDataInterface.load(file_name+'_processor', file_dir_path)
+        return data, processing_func
+
+
+class DataInterface:
+
+    file_extension = None
+
+    @classmethod
+    def construct_file_path(cls, file_name: str, file_dir_path: str) -> Path:
+        return Path(file_dir_path, "{}.{}".format(file_name, cls.file_extension))
+
+    @classmethod
+    def save(cls, data: Any, file_name: str, file_dir_path: str) -> None:
+        file_path = cls.construct_file_path(file_name, file_dir_path)
+        return cls._interface_specific_save(data, file_path)
+
+    @classmethod
+    def _interface_specific_save(cls, data: Any, file_path) -> None:
+        raise NotImplementedError
+
+    @classmethod
+    def load(cls, file_name: str, file_dir_path: str) -> Any:
+        file_path = cls.construct_file_path(file_name, file_dir_path)
+        return cls._interface_specific_load(file_path)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path) -> Any:
+        raise NotImplementedError
+
+
+class PickleDataInterface(DataInterface):
+
+    file_extension = '.pkl'
+
+    @classmethod
+    def _interface_specific_save(cls, data: Any, file_path) -> None:
+        with open(file_path, "wb+") as f:
+            pickle.dump(data, f)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path) -> Any:
+        with open(file_path, "rb+") as f:
+            return pickle.load(f)
+
+
+class CSVDataInterface(DataInterface):
+
+    file_extension = '.csv'
+
+    @classmethod
+    def _interface_specific_save(cls, data, file_path):
+        data.to_csv(file_path)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path):
+        return pd.read_csv(file_path)
+
+
+class DataInterfaceManager:
+
+    file_extension = None
+    registered_interfaces = {
+        'pkl': PickleDataInterface,
+        'csv': CSVDataInterface,
+    }
+
+    @classmethod
+    def create(cls, file_type: str) -> DataInterface:
+        if file_type in cls.registered_interfaces:
+            return cls.registered_interfaces[file_type]()
+        else:
+            raise ValueError("File type {} not recognized. Supported file types include {}".format(
+                file_type, list(cls.registered_interfaces.keys())))
+
+    @classmethod
+    def select(cls, file_name_with_extension: str):
+        file_name, file_extension = file_name_with_extension.split('.')
+        return cls.create(file_extension)

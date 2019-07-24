@@ -9,7 +9,8 @@ WORKDIR /autodiscern
 # Create a virtual env and install dependencies and the project package itself
 RUN  python3 -m venv /venv \
   && /venv/bin/pip install --trusted-host pypi.python.org . \
-  && /venv/bin/python3 -c "import nltk; nltk.download('vader_lexicon')"
+  && /venv/bin/python3 -c "import nltk; nltk.download('vader_lexicon')" \
+  && /venv/bin/python3 -m spacy download en_core_web_sm
 
 # ================================================================
 FROM rappdw/docker-java-python as metamapbuilder

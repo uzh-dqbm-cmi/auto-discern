@@ -11,14 +11,15 @@ from autodiscern.predictor import Predictor
 
 class PartitionedExperiment:
 
-    def __init__(self, name: str, data_dict: Dict, label_key: str, model: Callable, hyperparams: Dict,
-                 n_partitions: int = 5, stratified=True, verbose=False):
+    def __init__(self, name: str, data_dict: Dict, label_key: str, preprocessing_func: Callable, model: Callable,
+                 hyperparams: Dict, n_partitions: int = 5, stratified=True, verbose=False):
         """
 
         Args:
             name: Name for identification of the Experiment.
             data_dict: Data to run the model on.
             label_key: the key in data_dict to use for the label.
+            preprocessing_func: the function that was used to preprocess `data_dict`
             model: A model with a fit() method.
             hyperparams: Dictionary of hyperparamters to search for the best model.
             n_partitions: Number of partitions to split the data on and run the experiment on.
@@ -32,6 +33,7 @@ class PartitionedExperiment:
         self.name = name
         self.data_dict = data_dict
         self.label_key = label_key
+        self.preprocessing_func = preprocessing_func
         self.verbose = verbose
         self.model = model
         self.hyperparams = hyperparams
@@ -63,6 +65,7 @@ class PartitionedExperiment:
                 model_run = self.run_experiment_on_one_partition(data_dict=self.data_dict,
                                                                  label_key=self.label_key,
                                                                  partition_ids=p,
+                                                                 preprocessing_func=self.preprocessing_func,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
                                                                  skip_hyperparam_search=skip_hyperparam_search)
@@ -73,10 +76,12 @@ class PartitionedExperiment:
         return self.experiment_results
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
-                                        hyperparams: Dict, skip_hyperparam_search: bool):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
+                                        preprocessing_func: Callable, model, hyperparams: Dict,
+                                        skip_hyperparam_search: bool):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
-        mr = ModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model, hyperparams=hyperparams)
+        mr = ModelRun(train_set=train_set, test_set=test_set, label_key=label_key,
+                      preprocessing_func=preprocessing_func, model=model, hyperparams=hyperparams)
         mr.run(skip_hyperparam_search=skip_hyperparam_search)
         return mr
 
@@ -180,10 +185,12 @@ class PartitionedExperiment:
 
 class ModelRun:
 
-    def __init__(self, train_set: List[Dict], test_set: List[Dict], label_key: str, model, hyperparams: Dict):
+    def __init__(self, train_set: List[Dict], test_set: List[Dict], label_key: str, model, hyperparams: Dict,
+                 preprocessing_func: Callable):
         self.train_set = train_set
         self.test_set = test_set
         self.label_key = label_key
+        self.encoders = {}
         self.model = clone(model)
         self.hyperparams = hyperparams
 
@@ -195,6 +202,8 @@ class ModelRun:
         self.y_test_predicted = None
         self.feature_cols = []
         self.evaluation = None
+
+        self.preprocessing_func = preprocessing_func
 
     def run(self, skip_hyperparam_search: bool = False):
         self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_data(
@@ -245,7 +254,7 @@ class ModelRun:
         Placeholder function to hold the custom encoder training functionality of a ModelRun.
 
         Args:
-            data_set: Data set to train encoders on.
+            train_set: Data set to train encoders on.
 
         Returns:
             Dict of encoders.
@@ -330,4 +339,4 @@ class ModelRun:
         Returns:
             Predictor
         """
-        return Predictor(self.model, self.encoders, self.build_x_features)
+        return Predictor(self.model, self.encoders, self.preprocessing_func, self.build_x_features)

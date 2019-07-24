@@ -10,6 +10,8 @@ import inspect
 import pickle
 import requests
 
+PREDICTOR_FILE_PATH = 'data/models/2019_06_14_doc_models_important_qs.pkl'
+
 
 def create_app(test_config=None):
     # create and configure the app
@@ -34,8 +36,8 @@ def create_app(test_config=None):
     package_dir = os.path.abspath(os.path.dirname(os.path.dirname(this_file_path)))
     dm = ad.DataManager(package_dir)
 
-    model_filepath = os.path.join(package_dir, "data/models/2019_06_14_doc_models_important_qs.pkl")
-    with open(model_filepath, "rb+") as f:
+    predictor_filepath = os.path.join(package_dir, PREDICTOR_FILE_PATH)
+    with open(predictor_filepath, "rb+") as f:
         ems = pickle.load(f)
 
     predictors = {}

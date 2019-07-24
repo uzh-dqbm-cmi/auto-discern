@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+import pandas as pd
 import re
+import string
 from typing import Callable, Dict, List, Tuple
-from autodiscern.data_manager import DataManager
+import pkg_resources
 
 
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
@@ -14,17 +16,31 @@ def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     return inputs
 
 
+def remove_punctuation(s: str) -> str:
+    # remove smart quotes, which aren't included in string.punctuation
+    s = s.replace('“', '').replace('”', '').replace('’', '')
+    return s.translate(str.maketrans('', '', string.punctuation))
+
+
+def ammed_content_remove_punctuation(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        inputs[id]['content'] = remove_punctuation(inputs[id]['content'])
+    return inputs
+
+
 # === METAMAP =========================================================================================================
 
-def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None,
-                            git_bash_pth: str = None) -> Dict[str, Dict]:
+def add_metamap_annotations(inputs: Dict[str, Dict], git_bash_pth: str = None) -> Dict[str, Dict]:
     from pymetamap import MetaMapLite
 
-    if metamap_path is None:
-        print("NOTE: no Metamap path provided. Using Laura's default")
-        metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
+    # if metamap_path is None:
+    #     print("NOTE: no Metamap path provided. Using Laura's default")
+    #     metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
 
-    metamap_semantics = dm.metamap_semantics
+    metamap_path = pkg_resources.resource_filename('autodiscern', 'package_data/public_mm_lite/')
+    metamap_semantics_filename = pkg_resources.resource_filename('autodiscern',
+                                                                 'package_data/metamap_semantics/metamap_semantics.csv')
+    metamap_semantics = pd.read_csv(metamap_semantics_filename)
     groups_to_keep = [
         'Anatomy',
         'Devices',
@@ -120,14 +136,16 @@ def replace_metamap_content_with_concept_name(content: str, metamap_detail: List
     #    as 1 by Python, which breaks the position-based replacement. Convert newlines to 2-character placeholders.
     escape_char_replacements = {
         '\n': '^^',
-        "'": '@@',
+        "\'": '@@',
     }
     for c in escape_char_replacements:
         content = content.replace(c, escape_char_replacements[c])
 
     for mm_d in reversed(metamap_detail):
         pos_start, pos_end = get_metamap_pos(mm_d['pos_info'])
-        concept = "MMConcept" + mm_d['concept']
+        # replace token with "MMConcept" + <concept name with spaces removed>
+        # and also '&' removed (present in the "Chemicals & Drugs" category
+        concept = "MMConcept" + mm_d['concept'].replace(' ', '').replace('&', '')
         content = ''.join((content[:pos_start - 1], concept, content[pos_end - 1:]))
 
     # flip the escape char conversions back
@@ -200,24 +218,28 @@ def replace_links_with_plain_text(input_str: str) -> str:
 # === NER =============================================================================================================
 
 def amend_content_with_ner_type_labels(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    entity_types_to_not_replace = ['ORG', 'NORP', 'PERSON']
     for id in inputs:
-        inputs[id]['content'] = replace_ner_with_type_labels(inputs[id]['content'], inputs[id]['ner'])
+        inputs[id]['content'] = replace_ner_with_type_labels(inputs[id]['content'], inputs[id]['ner'],
+                                                             entity_types_to_not_replace)
     return inputs
 
 
-def replace_ner_with_type_labels(input_str: str, ner_info: List[Dict[str, str]]) -> str:
+def replace_ner_with_type_labels(input_str: str, ner_info: List[Dict[str, str]], entity_types_to_not_replace: List[str]
+                                 ) -> str:
     # TODO: untested
     output_str = input_str
     for entity in reversed(ner_info):
-        pos_start = entity['start_char']
-        pos_end = entity['end_char']
-        output_str = ''.join((output_str[:pos_start], entity['custom_label'], output_str[pos_end:]))
+        if entity['label'] not in entity_types_to_not_replace:
+            pos_start = entity['start_char']
+            pos_end = entity['end_char']
+            output_str = ''.join((output_str[:pos_start], entity['custom_label'], output_str[pos_end:]))
     return output_str
 
 
 def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     import spacy
-    nlp = spacy.load('en')
+    nlp = spacy.load('en_core_web_sm')
 
     for id in inputs:
         inputs[id]['ner'] = execute_spacy_ner(inputs[id]['content'], nlp)
