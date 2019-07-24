@@ -1,4 +1,4 @@
-from typing import Callable, Dict
+from typing import Any, Callable, Dict
 
 
 class Predictor:
@@ -17,7 +17,27 @@ class Predictor:
         self.encoders = encoders
         self.transform_func = transform_func
 
-    def predict(self, data_point: Dict):
-        data_processed = self.preprocess_fun(data_point)
-        x, feature_cols = self.transform_func([data_processed], self.encoders)
+    def predict(self, data_point: Dict[str, Any]):
+        """
+        Make a prediction.
+
+        Args:
+            data_point: A dictionary containing all the keys necessary to describe the data point.
+
+        Returns: prediction value.
+
+        """
+        # wrap the data_point in a dict to mimic the structure expected by preprocess_func,
+        #   which is a dict of data point dicts
+        data_point['entity_id'] = 0
+        wrapped_data_point = {0: data_point}
+        wrapped_data_processed = self.preprocess_fun(wrapped_data_point)
+
+        # unwrap the data point
+        data_processed = wrapped_data_processed[0]
+
+        # but then put it in a list, because that's what the transform_func expects :(
+        rewrapped_data_processed = [data_processed]
+
+        x, feature_cols = self.transform_func(rewrapped_data_processed, self.encoders)
         return self.model.predict(x)

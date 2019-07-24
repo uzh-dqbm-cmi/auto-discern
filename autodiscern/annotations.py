@@ -22,9 +22,14 @@ def remove_punctuation(s: str) -> str:
     return s.translate(str.maketrans('', '', string.punctuation))
 
 
-def ammed_content_remove_punctuation(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+def replace_bad_punctuation_encoding(s: str) -> str:
+    # remove smart quotes, which aren't included in string.punctuation
+    return s.replace('“', '"').replace('”', '"').replace('’', "'")
+
+
+def ammed_content_replace_bad_punctuation_encoding(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     for id in inputs:
-        inputs[id]['content'] = remove_punctuation(inputs[id]['content'])
+        inputs[id]['content'] = replace_bad_punctuation_encoding(inputs[id]['content'])
     return inputs
 
 
@@ -69,9 +74,13 @@ def add_metamap_annotations(inputs: Dict[str, Dict], git_bash_pth: str = None) -
         sentences.append(inputs[id]['content'])
 
     # run metamap
-    print("Extracing MetaMap concepts...")
+    import time
+    start_time = time.time()
+    print("Extracting MetaMap concepts for {} documents, starting at {}...".format(len(sentences), start_time))
     mm = MetaMapLite.get_instance(metamap_path, git_bash_pth=git_bash_pth)
     concepts, error = mm.extract_concepts(sentences, ids)
+    end_time = time.time()
+    print("Finished at {}. That took {}".format(end_time, end_time - start_time))
 
     print("Attaching Metamap concepts...")
     # add concepts with score above 1 and matching the semantics filter to input sentences

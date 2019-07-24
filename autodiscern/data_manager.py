@@ -138,7 +138,7 @@ class DataManager:
         if enforce_clean_git:
             self.check_for_uncommitted_git_changes()
 
-        file_name = self.generate_filename_for_file(tag)
+        file_name = self.generate_filename_for_file(tag) + '.pkl'
         file_data_path = Path(self.data_path, "data/transformed_data")
         DataProcessorCacheManager.save(data, processing_func, file_name=file_name, file_dir_path=file_data_path)
         return file_name

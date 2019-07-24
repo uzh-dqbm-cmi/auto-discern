@@ -1,23 +1,23 @@
 import pandas as pd
 from scipy.sparse import hstack, coo_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
-from typing import Dict, List, Callable
+from typing import Dict, List
 from autodiscern import experiment, model
 
 
-class DocExperiment(experiment.PartitionedExperiment):
-
-    @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
-                                        preprocessing_func: Callable, model, hyperparams: Dict,
-                                        skip_hyperparam_search: bool):
-
-        train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
-
-        mr = DocLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key,
-                              preprocessing_func=preprocessing_func, model=model, hyperparams=hyperparams)
-        mr.run(skip_hyperparam_search=skip_hyperparam_search)
-        return mr
+# class DocExperiment(experiment.PartitionedExperiment):
+#
+#     @classmethod
+#     def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
+#                                         preprocessing_func: Callable, model, hyperparams: Dict,
+#                                         skip_hyperparam_search: bool):
+#
+#         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
+#
+#         mr = DocLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key,
+#                               preprocessing_func=preprocessing_func, model=model, hyperparams=hyperparams)
+#         mr.run(skip_hyperparam_search=skip_hyperparam_search)
+#         return mr
 
 
 class DocLevelModelRun(experiment.ModelRun):

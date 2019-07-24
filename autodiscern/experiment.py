@@ -11,15 +11,17 @@ from autodiscern.predictor import Predictor
 
 class PartitionedExperiment:
 
-    def __init__(self, name: str, data_dict: Dict, label_key: str, preprocessing_func: Callable, model: Callable,
-                 hyperparams: Dict, n_partitions: int = 5, stratified=True, verbose=False):
+    def __init__(self, name: str, data_dict: Dict, label_key: str, preprocessing_func: Callable,
+                 model_run_class: "ModelRun", model, hyperparams: Dict, n_partitions: int = 5, stratified=True,
+                 verbose=False):
         """
 
         Args:
             name: Name for identification of the Experiment.
             data_dict: Data to run the model on.
-            label_key: the key in data_dict to use for the label.
+            label_key: the key to use to calculate the label.
             preprocessing_func: the function that was used to preprocess `data_dict`
+            model_run_class: An implemented subclass of ModelRun.
             model: A model with a fit() method.
             hyperparams: Dictionary of hyperparamters to search for the best model.
             n_partitions: Number of partitions to split the data on and run the experiment on.
@@ -35,12 +37,13 @@ class PartitionedExperiment:
         self.label_key = label_key
         self.preprocessing_func = preprocessing_func
         self.verbose = verbose
+        self.model_run_class = model_run_class
         self.model = model
         self.hyperparams = hyperparams
 
         self.n_partitions = n_partitions
 
-        document_ids, doc_labels = self.build_doc_id_and_label_lists(data_dict, label_key)
+        document_ids, doc_labels = self.build_doc_id_and_label_lists(data_dict, model_run_class, label_key)
         if stratified:
             self.partitions_by_ids = self.partition_document_ids_stratified(document_ids, doc_labels, self.n_partitions)
         else:
@@ -51,7 +54,7 @@ class PartitionedExperiment:
         self.experiment_results = []
 
         if verbose:
-            self.report_partition_stats(self.partitions_by_ids, self.data_dict, self.label_key)
+            self.report_partition_stats(self.partitions_by_ids, document_ids, doc_labels)
 
     def run(self, partition_ids=None, skip_hyperparam_search=False):
         partitions_to_run = range(len(self.partitions_by_ids))
@@ -66,6 +69,7 @@ class PartitionedExperiment:
                                                                  label_key=self.label_key,
                                                                  partition_ids=p,
                                                                  preprocessing_func=self.preprocessing_func,
+                                                                 model_run_class=self.model_run_class,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
                                                                  skip_hyperparam_search=skip_hyperparam_search)
@@ -77,22 +81,26 @@ class PartitionedExperiment:
 
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
-                                        preprocessing_func: Callable, model, hyperparams: Dict,
-                                        skip_hyperparam_search: bool):
+                                        preprocessing_func: Callable, model_run_class: "ModelRun", model,
+                                        hyperparams: Dict, skip_hyperparam_search: bool):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
-        mr = ModelRun(train_set=train_set, test_set=test_set, label_key=label_key,
-                      preprocessing_func=preprocessing_func, model=model, hyperparams=hyperparams)
+        mr = model_run_class(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
+                             preprocessing_func=preprocessing_func, hyperparams=hyperparams)
         mr.run(skip_hyperparam_search=skip_hyperparam_search)
         return mr
 
     @staticmethod
-    def build_doc_id_and_label_lists(data_dict, label_key):
+    def build_doc_id_and_label_lists(data_dict: Dict[int, Dict], model_run_class, label_key):
         # create dict of document and ids, which will de-dupe across the sentences
-        document_labels = {}
-        for d in data_dict:
-            document_labels[data_dict[d]['entity_id']] = data_dict[d][label_key]
-        document_ids = list(document_labels.keys())
-        doc_labels = [document_labels[id] for id in document_ids]
+        # document_labels = {}
+        document_ids = list(data_dict.keys())
+        data_list_of_dicts = [data_dict[k] for k in document_ids]
+        doc_labels = model_run_class.build_y_vector(data_list_of_dicts, label_key)
+
+        # for d in data_dict:
+        #     document_labels[data_dict[d]['entity_id']] = data_dict[d][label_key]
+        # document_ids = list(document_labels.keys())
+        # doc_labels = [document_labels[id] for id in document_ids]
         return document_ids, doc_labels
 
     @classmethod
@@ -122,11 +130,14 @@ class PartitionedExperiment:
         return train_set, test_set
 
     @classmethod
-    def report_partition_stats(cls, partitions_by_ids: List[List[int]], data_dict: Dict, label_key: str):
+    def report_partition_stats(cls, partitions_by_ids: List[List[int]], document_ids: List[int], doc_labels: List[int]):
+        labels_dict = {}
+        for i, doc_id in enumerate(document_ids):
+            labels_dict[doc_id] = doc_labels[i]
+
         for i, p_ids in enumerate(partitions_by_ids):
-            train, test = cls.materialize_partition(p_ids, data_dict)
-            labels_train = pd.DataFrame([d[label_key] for d in train])
-            labels_test = pd.DataFrame([d[label_key] for d in test])
+            labels_train = pd.DataFrame([labels_dict[d] for d in document_ids if d not in p_ids])
+            labels_test = pd.DataFrame([labels_dict[d] for d in document_ids if d in p_ids])
 
             print('\n-Partition {}-'.format(i))
             print("Train: {:,.0f} data points".format(labels_train.shape[0]))

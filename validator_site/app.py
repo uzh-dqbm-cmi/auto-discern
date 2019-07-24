@@ -72,7 +72,7 @@ def create_app(test_config=None):
         # load the webpage content
         res = requests.get(url)
         html_page = res.content.decode("utf-8")
-        data_dict = {0: {'entity_id': 0, 'content': html_page, 'url': url}}
+        data_dict = {'content': html_page, 'url': url}
 
         # run data processing
         # TODO: refactor so that this logic is tied to model directly
