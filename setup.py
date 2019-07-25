@@ -22,6 +22,6 @@ setup(name='autodiscern',
             'tldextract',
       ],
       extras_requires={
-            'allennlp': ['allennlp'],
+            'dev': ['jupyter', 'sacred'],
       },
       zip_safe=False)
