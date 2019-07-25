@@ -9,7 +9,9 @@ from sacred.observers import MongoObserver
 # run with python first_experiment.py
 
 ex = Experiment()
-# ex.observers.append(MongoObserver.create())
+ex.observers.append(MongoObserver.create(
+    url='mongodb://mongo_user:mongo_password@127.0.0.1:27017/?authMechanism=SCRAM-SHA-1',
+    db_name='sacred'))
 
 
 @ex.config
