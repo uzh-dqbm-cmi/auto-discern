@@ -9,10 +9,17 @@ from typing import Dict, List, Tuple, Callable
 from autodiscern.predictor import Predictor
 
 
+category_key = {
+    2: 'breast cancer',
+    4: 'arthritis',
+    5: 'depression',
+}
+
+
 class PartitionedExperiment:
 
     def __init__(self, name: str, data_dict: Dict, label_key: str, preprocessing_func: Callable,
-                 model_run_class: "ModelRun", model, hyperparams: Dict, n_partitions: int = 5, stratified=True,
+                 model_run_class: "ModelRun", model, hyperparams: Dict, n_partitions: int = 5, stratify_by='label',
                  verbose=False):
         """
 
@@ -25,7 +32,7 @@ class PartitionedExperiment:
             model: A model with a fit() method.
             hyperparams: Dictionary of hyperparamters to search for the best model.
             n_partitions: Number of partitions to split the data on and run the experiment on.
-            stratified: Whether to stratify the partitions by label.
+            stratify_by: Whether to stratify the partitions by label, disease category, or None.
             verbose: Whether to display verbose messages.
         """
 
@@ -44,8 +51,11 @@ class PartitionedExperiment:
         self.n_partitions = n_partitions
 
         document_ids, doc_labels = self.build_doc_id_and_label_lists(data_dict, model_run_class, label_key)
-        if stratified:
+        if stratify_by == 'label':
             self.partitions_by_ids = self.partition_document_ids_stratified(document_ids, doc_labels, self.n_partitions)
+        elif stratify_by == 'category':
+            doc_categories = [self.data_dict[doc_id]['categoryName'] for doc_id in self.data_dict]
+            self.partitions_by_ids = self.partition_document_ids_by_category(document_ids, doc_categories, category_key)
         else:
             self.partitions_by_ids = self.partition_document_ids(document_ids, self.n_partitions)
 
@@ -54,26 +64,37 @@ class PartitionedExperiment:
         self.experiment_results = []
 
         if verbose:
+            print("Partition Stats for {}".format(self.name))
             self.report_partition_stats(self.partitions_by_ids, document_ids, doc_labels)
 
-    def run(self, partition_ids=None, skip_hyperparam_search=False):
-        partitions_to_run = range(len(self.partitions_by_ids))
-        if partition_ids is not None:
-            partitions_to_run = [i for i in partitions_to_run if i in partition_ids]
-            print("Running only partitions {}".format(partitions_to_run))
+    def run(self, num_partitions_to_run=None, skip_hyperparam_search=False):
+        """
+        Run the experiment.
 
-        for partition_id, p in enumerate(self.partitions_by_ids):
-            if partition_id in partitions_to_run:
-                print("Running partition {}...".format(partition_id))
+        Args:
+            num_partitions_to_run: select a subset of partitions to run, for faster testing.
+            skip_hyperparam_search: skip hyperparam search, for faster testing.
+
+        Returns:
+
+        """
+        partitions_to_run = list(self.partitions_by_ids.keys())
+        if num_partitions_to_run is not None:
+            partitions_to_run = partitions_to_run[:num_partitions_to_run]
+            print("Running only partitions {}".format(", ".join(partitions_to_run)))
+
+        for partition_name in self.partitions_by_ids:
+            if partition_name in partitions_to_run:
+                print("Running partition {}...".format(partition_name))
                 model_run = self.run_experiment_on_one_partition(data_dict=self.data_dict,
                                                                  label_key=self.label_key,
-                                                                 partition_ids=p,
+                                                                 partition_ids=self.partitions_by_ids[partition_name],
                                                                  preprocessing_func=self.preprocessing_func,
                                                                  model_run_class=self.model_run_class,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
                                                                  skip_hyperparam_search=skip_hyperparam_search)
-                self.model_runs[partition_id] = model_run
+                self.model_runs[partition_name] = model_run
 
         print("Compiling results")
         self.experiment_results = self.summarize_runs(self.model_runs)
@@ -104,20 +125,40 @@ class PartitionedExperiment:
         return document_ids, doc_labels
 
     @classmethod
-    def partition_document_ids(cls, doc_list: List[int], n: int) -> List[List[int]]:
+    def partition_document_ids(cls, doc_list: List[int], n: int) -> Dict[str, List[int]]:
         """Randomly shuffle and split the doc_list into n roughly equal lists."""
         random.shuffle(doc_list)
-        return [doc_list[i::n] for i in range(n)]
+        return {'Partition {}'.format(i): doc_list[i::n] for i in range(n)}
 
     @classmethod
-    def partition_document_ids_stratified(cls, doc_list: List[int], label_list: List[int], n: int) -> List[List[int]]:
+    def partition_document_ids_stratified(cls, doc_list: List[int], label_list: List[int], n: int) -> \
+            Dict[str, List[int]]:
         """Randomly shuffle and split the doc_list into n roughly equal lists, stratified by label."""
         skf = StratifiedKFold(n_splits=n, random_state=42, shuffle=True)
         x = np.zeros(len(label_list))  # split takes a X argument for backwards compatibility and is not used
         partition_indexes = [test_index for train_index, test_index in skf.split(x, label_list)]
-        partitions = []
-        for p in partition_indexes:
-            partitions.append([doc_list[i] for i in p])
+        partitions = {}
+        for p_id, p in enumerate(partition_indexes):
+            partitions['Partition {}'.format(p_id)] = [doc_list[i] for i in p]
+        return partitions
+
+    @classmethod
+    def partition_document_ids_by_category(cls, doc_list: List[int], category_list: List[int],
+                                           category_key: Dict[int, str]) -> Dict[str, List[int]]:
+        """
+        Partition the documents by their disease category, to test generalizability.
+
+        Args:
+            doc_list: list of the document ids
+            category_list: list of each document's category id, in the same order as doc_list
+            category_key: mapping for the category ids
+
+        Returns: List of List of ints, representing each partition
+        """
+        categories = np.unique(category_list)
+        partitions = {}
+        for cat_id in categories:
+            partitions[category_key[cat_id]] = [doc_list[i] for i, val in enumerate(category_list) if val == cat_id]
         return partitions
 
     @classmethod
@@ -130,16 +171,18 @@ class PartitionedExperiment:
         return train_set, test_set
 
     @classmethod
-    def report_partition_stats(cls, partitions_by_ids: List[List[int]], document_ids: List[int], doc_labels: List[int]):
+    def report_partition_stats(cls, partitions_by_ids: Dict[str, List[int]], document_ids: List[int],
+                               doc_labels: List[int]):
         labels_dict = {}
         for i, doc_id in enumerate(document_ids):
             labels_dict[doc_id] = doc_labels[i]
 
-        for i, p_ids in enumerate(partitions_by_ids):
+        for partition_name in partitions_by_ids:
+            p_ids = partitions_by_ids[partition_name]
             labels_train = pd.DataFrame([labels_dict[d] for d in document_ids if d not in p_ids])
             labels_test = pd.DataFrame([labels_dict[d] for d in document_ids if d in p_ids])
 
-            print('\n-Partition {}-'.format(i))
+            print('\n-Partition {}-'.format(partition_name))
             print("Train: {:,.0f} data points".format(labels_train.shape[0]))
             print("Test: {:,.0f} data points".format(labels_test.shape[0]))
 
@@ -152,13 +195,14 @@ class PartitionedExperiment:
             print("Test Set: {:.0%} pos - {:.0%} neg".format(test_positive, test_negative))
 
     @classmethod
-    def summarize_runs(cls, run_results):
-        if type(run_results[0]) == ModelRun:
+    def summarize_runs(cls, run_results: Dict):
+        first_key_name = list(run_results.keys())[0]
+        if issubclass(type(run_results[first_key_name]), ModelRun):
             return [run_results[mr].evaluation for mr in run_results]
-        elif type(run_results[0]) == dict:
+        elif type(run_results[first_key_name]) == dict:
             return [{key: run_results[mr][key].evaluation} for mr in run_results for key in run_results[mr]]
         else:
-            print("Unknown type stored in passed run_results: {}".format(type(run_results[0])))
+            print("Unknown type stored in passed run_results: {}".format(type(run_results[first_key_name])))
 
     def show_feature_importances(self):
         all_feature_importances = pd.DataFrame()
@@ -222,7 +266,6 @@ class ModelRun:
         if not skip_hyperparam_search:
             self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
         self.model.fit(self.x_train, self.y_train)
-        print(type(self.x_train))
         self.y_train_predicted = self.model.predict(self.x_train)
         self.y_test_predicted = self.model.predict(self.x_test)
         self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test, self.y_test_predicted)

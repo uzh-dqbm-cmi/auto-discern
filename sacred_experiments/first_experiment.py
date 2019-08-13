@@ -51,11 +51,12 @@ def my_config():
     
     model_run_class = DocLevelModelRun
     n_partitions = 5
-    stratified = True
+    stratify_by = 'label'
 
 
 @ex.automain
-def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions, stratified):
+def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions,
+            stratify_by):
 
     dm = DataManager(discern_path)
     data_dict, processing_func = dm.load_cached_data_processor(cache_file)
@@ -69,7 +70,7 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                                                           model_run_class=model_run_class,
                                                           model=model_obj, preprocessing_func=processing_func,
                                                           hyperparams=hyperparams, n_partitions=n_partitions,
-                                                          stratified=stratified, verbose=True)
+                                                          stratify_by=stratify_by, verbose=True)
 
     # run the experiments
     for q in question_models:
