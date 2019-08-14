@@ -136,14 +136,15 @@ class DataManager:
         print("Saved data to {}".format(filepath))
         return filepath
 
-    def cache_data_processor(self, data: Any, processing_func: Callable, tag: str = None, enforce_clean_git=True
-                             ) -> str:
+    def cache_data_processor(self, data: Any, processing_func: Callable, tag: str = None, data_file_type='pkl',
+                             enforce_clean_git=True) -> str:
         if enforce_clean_git:
             self.check_for_uncommitted_git_changes()
 
-        file_name = self.generate_filename_for_file(tag) + '.pkl'
+        file_name = self.generate_filename_for_file(tag)
         file_data_path = Path(self.data_path, "data/transformed_data")
-        self.DataProcessorCacheManager.save(data, processing_func, file_name=file_name, file_dir_path=file_data_path)
+        self.DataProcessorCacheManager.save(data, processing_func, file_name=file_name, data_file_type=data_file_type,
+                                            file_dir_path=file_data_path)
         return file_name
 
     def load_transformed_data(self, filename: str) -> Dict:
@@ -274,22 +275,44 @@ class DataManager:
         return self.data['metamap_semantics']
 
 
+class DataProcessor:
+
+    def __init__(self, data, processor_func, code):
+        self.data_set = data
+        self.processor_func = processor_func
+        self.code = code
+
+    @property
+    def data(self):
+        return self.data_set
+
+    def rerun(self, *args, **kwargs):
+        return self.processor_func(*args, **kwargs)
+
+    def view_code(self):
+        return self.code
+
+
 class DataProcessorCacheManager:
 
     def __init__(self):
         self.processor_designation = '_processor'
         self.processor_data_interface = DillDataInterface
+        self.code_designation = '_code'
+        self.code_data_interface = TextDataInterface
 
-    def save(self, data: Any, processing_func: Callable, file_name: str, file_dir_path: str):
-        if self.check_name_already_exists():
+    def save(self, data: Any, processing_func: Callable, file_name: str, data_file_type: str, file_dir_path: str):
+        if self.check_name_already_exists(file_name, file_dir_path):
             raise ValueError("That data processor name is already in use")
 
-        data_interface = DataInterfaceManager.select(file_name)
+        data_interface = DataInterfaceManager.select(data_file_type)
         data = processing_func(data)
         data_interface.save(data, file_name, file_dir_path)
         self.processor_data_interface.save(processing_func, file_name+self.processor_designation, file_dir_path)
+        processing_func_code = inspect.getsource(processing_func)
+        self.code_data_interface.save(processing_func_code, file_name+self.code_designation, file_dir_path)
 
-    def load(self, file_name: str, file_dir_path: str) -> Tuple[Any, Callable]:
+    def load(self, file_name: str, file_dir_path: str) -> DataProcessor:
         """
         Load a cached data processor- the data and the function that generated it.
         Accepts a file name with or without a file extension.
@@ -309,12 +332,15 @@ class DataProcessorCacheManager:
         # load the processor
         processing_func = self.processor_data_interface.load(file_name+self.processor_designation, file_dir_path)
 
+        # load the data
+        code = self.code_data_interface.load(file_name+self.code_designation, file_dir_path)
+
         # find and load the data
         if data_file_extension is None:
             data_file_extension = self.get_data_processor_data_type(file_name, file_dir_path)
         data_interface = DataInterfaceManager.select(data_file_extension)
         data = data_interface.load(file_name, file_dir_path)
-        return data, processing_func
+        return DataProcessor(data, processing_func, code)
 
     def check_name_already_exists(self, file_name, file_dir_path):
         existing_data_processors = self.list_cached_data_processors(file_dir_path)
@@ -417,6 +443,22 @@ class CSVDataInterface(DataInterface):
         return pd.read_csv(file_path)
 
 
+class TextDataInterface(DataInterface):
+
+    file_extension = 'txt'
+
+    @classmethod
+    def _interface_specific_save(cls, data, file_path):
+        with open(file_path, 'w+') as f:
+            f.write(data)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path):
+        with open(file_path, 'r') as f:
+            data = f.read()
+        return data
+
+
 class DataInterfaceManager:
 
     file_extension = None
@@ -424,6 +466,7 @@ class DataInterfaceManager:
         'pkl': PickleDataInterface,
         'csv': CSVDataInterface,
         'dill': DillDataInterface,
+        'txt': TextDataInterface,
     }
 
     @classmethod
@@ -436,6 +479,15 @@ class DataInterfaceManager:
 
     @classmethod
     def select(cls, file_hint: str):
+        """
+        Select the appropriate data interface based on the file_hint.
+
+        Args:
+            file_hint: May be a file name with an extension, or just a file extension.
+
+        Returns: A DataInterface.
+
+        """
         if '.' in file_hint:
             file_name, file_extension = file_hint.split('.')
             return cls.create(file_extension)
