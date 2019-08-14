@@ -44,7 +44,7 @@ def sentence_data_preprocessor(data_dict):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test', action='store', type=int, default=3,
+    parser.add_argument('--test', action='store', type=int, default=-1,
                         help='Run the data processor on a subset of data for faster testing.')
     args = parser.parse_args()
 
@@ -52,14 +52,13 @@ if __name__ == "__main__":
     dm = DataManager(discern_path)
     raw_data_dict = dm.build_dicts()
 
-    if args.test:
+    if args.test > 0:
         print("***Running in test mode on {} documents***".format(args.test))
         subset = list(raw_data_dict.keys())[:args.test]
         raw_data_dict = {key: raw_data_dict[key] for key in raw_data_dict if key in subset}
         TAG = "{}_test".format(TAG)
 
-    file_name = dm.cache_data_processor(raw_data_dict, sentence_data_preprocessor,
-                                        tag=TAG, enforce_clean_git=False)
+    file_name = dm.cache_data_processor(raw_data_dict, sentence_data_preprocessor, tag=TAG, enforce_clean_git=False)
     print("--> Completed caching {}".format(file_name))
 
     # re-load the processing func and re-run it on an input
