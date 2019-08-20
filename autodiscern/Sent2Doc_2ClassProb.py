@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Dict, List, Tuple
 
 import autodiscern.experiment as ade
-from autodiscern.TwoLevelSentenceExperiment import SentenceLevelModelRun
+from autodiscern.hierarchical_sent_doc_experiment import SentenceLevelModelRun
 
 
 class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
@@ -42,7 +42,6 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
             'label': [d['label'] for d in data_set],
         })
         return new_data_set
-
 
 class SentenceToDocProbaModelRun(ade.ModelRun):
 

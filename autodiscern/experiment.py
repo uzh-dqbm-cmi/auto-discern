@@ -48,13 +48,21 @@ class PartitionedExperiment:
 
         if verbose:
             self.report_partition_stats(self.partitions_by_ids, self.data_dict)
+    
+    def set_partitions_by_ids(self, partitions_by_ids: List[List[int]]):
+        '''set the test set ids as partitions for model development
+        '''
+        self.partitions_by_ids = partitions_by_ids
+        # update number of partitions based on the provided list of ids
+        self.n_partitions = len(self.partitions_by_ids)
 
     def run(self, partition_ids=None):
+        # partition ids is a list of partition ids we want to use for training/testing the model
         partitions_to_run = range(len(self.partitions_by_ids))
         if partition_ids is not None:
             partitions_to_run = [i for i in partitions_to_run if i in partition_ids]
             print("Running only partitions {}".format(partitions_to_run))
-
+        # partitions_by_ids is list of list of article ids (i.e. List[List[int]])
         for partition_id, p in enumerate(self.partitions_by_ids):
             if partition_id in partitions_to_run:
                 print("Running partition {}...".format(partition_id))
@@ -107,18 +115,23 @@ class PartitionedExperiment:
             train, test = cls.materialize_partition(p_ids, data_dict)
             labels_train = pd.DataFrame([d['label'] for d in train])
             labels_test = pd.DataFrame([d['label'] for d in test])
-
+            
+            # identify the labels (assume all labels are seen in the train set)
+            outcome_classes = set(labels_train[0].unique())
             print('\n-Partition {}-'.format(i))
             print("Train: {:,.0f} data points".format(labels_train.shape[0]))
             print("Test: {:,.0f} data points".format(labels_test.shape[0]))
-
-            train_positive = labels_train[labels_train[0] == 1].shape[0] / labels_train.shape[0]
-            train_negative = labels_train[labels_train[0] == 0].shape[0] / labels_train.shape[0]
-            test_positive = labels_test[labels_test[0] == 1].shape[0] / labels_test.shape[0]
-            test_negative = labels_test[labels_test[0] == 0].shape[0] / labels_test.shape[0]
-
-            print("Train Set: {:.0%} pos - {:.0%} neg".format(train_positive, train_negative))
-            print("Test Set: {:.0%} pos - {:.0%} neg".format(test_positive, test_negative))
+            print("Outcome/class distribution:")
+            for dset, desc in [(labels_train, 'Train set'), (labels_test, 'Test set')]:
+                for clss in outcome_classes:
+                    clss_perc = dset[dset[0] == clss].shape[0] / dset.shape[0]
+                    print(desc, ": {:.0%} {}".format(clss_perc, clss))
+            # train_positive = labels_train[labels_train[0] == 1].shape[0] / labels_train.shape[0]
+            # train_negative = labels_train[labels_train[0] == 0].shape[0] / labels_train.shape[0]
+            # test_positive = labels_test[labels_test[0] == 1].shape[0] / labels_test.shape[0]
+            # test_negative = labels_test[labels_test[0] == 0].shape[0] / labels_test.shape[0]
+            # print("Train Set: {:.0%} pos - {:.0%} neg".format(train_positive, train_negative))
+            # print("Test Set: {:.0%} pos - {:.0%} neg".format(test_positive, test_negative))
 
     @classmethod
     def summarize_runs(cls, run_results):
@@ -140,12 +153,20 @@ class PartitionedExperiment:
         return all_feature_importances.sort_values('median', ascending=False)
 
     def show_accuracy(self):
+        res = {}
+        for level in ('doc_level', 'sentence_level'):
+            res[level] = self.show_accuracy_perlevel(level)
+        return(res)
+
+    def show_accuracy_perlevel(self, level):
         all_accuracy = {}
         for partition_id in self.model_runs:
-            all_accuracy['partition{}'.format(partition_id)] = self.model_runs[partition_id].evaluation
+            all_accuracy['partition{}'.format(partition_id)] = self.model_runs[partition_id][level].evaluation
         all_accuracy_df = pd.DataFrame(all_accuracy, index=[self.name])
         median = all_accuracy_df.median(axis=1)
+        mean = all_accuracy_df.mean(axis=1)
         stddev = all_accuracy_df.std(axis=1)
+        all_accuracy_df['mean']  = mean
         all_accuracy_df['median'] = median
         all_accuracy_df['stddev'] = stddev
         return all_accuracy_df.sort_values('median', ascending=False)
@@ -179,8 +200,7 @@ class ModelRun:
         self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test)
         return self.evaluation
 
-    @classmethod
-    def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
+    def build_features(self, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
                                                                                   List, Dict]:
         """Placeholder function to hold the custom feature building functionality of a ModelRun.
         build_features takes as input:
@@ -200,8 +220,8 @@ class ModelRun:
 
     @classmethod
     def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
-        random_search = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=5, cv=2, verbose=2,
-                                           random_state=42, n_jobs=-1)
+        random_search = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=10, cv=3, verbose=2,
+                                           random_state=42, n_jobs=-1, scoring='f1')
         # Fit the random search model
         random_search.fit(x_train, y_train)
         print(random_search.best_params_)

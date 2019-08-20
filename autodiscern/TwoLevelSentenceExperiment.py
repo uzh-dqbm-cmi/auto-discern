@@ -33,6 +33,7 @@ class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
     def create_sent_to_doc_data_set(cls, model, x_feature_set, data_set: List):
         cat_prediction = model.predict(x_feature_set)
         proba_prediction = model.predict_proba(x_feature_set)
+        # proba_prediction could be optimized to select the whole column instead of iterating through
         new_data_set = pd.DataFrame({
             'doc_id': [d['entity_id'] for d in data_set],
             'sub_id': [d['sub_id'] for d in data_set],
@@ -46,7 +47,7 @@ class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 
 
 class SentenceLevelModelRun(ade.ModelRun):
-
+    
     @classmethod
     def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
                                                                                   List, Dict]:
@@ -100,6 +101,9 @@ class SentenceToDocModelRun(ade.ModelRun):
         #     x_test[col] = na_number
         # x_test = x_test[x_train.columns]
 
+        # generate a df where each row represents a document (the document is partitioned into 10 equal parts)
+        # such that we compute average prediction on each part to form a feature (i.e. a column) in df
+        # hence for each row, we have 10 features
         x_train = sents_to_doc_buckets_mean(train_set)
         x_test = sents_to_doc_buckets_mean(test_set)
 
