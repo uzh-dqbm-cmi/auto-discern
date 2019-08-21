@@ -14,14 +14,27 @@ ex.observers.append(MongoObserver.create(
     url='mongodb://mongo_user:mongo_password@127.0.0.1:27017/?authMechanism=SCRAM-SHA-1',
     db_name='sacred'))
 
+@ex.capture
+def get_exp_id(_run):
+    return _run._id
 
 @ex.config
 def my_config():
+
+    test_mode = False
+    if test_mode:
+        run_hyperparam_search = False
+        num_partitions_to_run = 1
+        important_qs = [4]
+    else:
+        important_qs = [4, 5, 9, 10, 11]
+        run_hyperparam_search = True
+        num_partitions_to_run = None
+
     discern_path = "~/switchdrive/Institution/discern"
     cache_file = '2019-07-24_15-43-08_bd60a7f_with_mm_and_ner_ammendments.pkl'
     # cache_file = '2019-07-24_13-40-50_166c23e_test_mm_and_ner_ammendments_on_subset_30'
-    important_qs = [4, 5, 9, 10, 11]
-    
+
     n_estimators_default = 500
     min_samples_leaf_default = 5
     max_depth_default = 50
@@ -56,25 +69,29 @@ def my_config():
 
 @ex.automain
 def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions,
-            stratify_by):
+            stratify_by, run_hyperparam_search, num_partitions_to_run, test_mode):
+
+    # convert hyperparams from a sacred.config.ReadOnlyDict to a regular Dictionary,
+    #   otherwise pickling of the experiment fails
+    hyperparams_dict = {k: hyperparams[k] for k in hyperparams}
 
     dm = DataManager(discern_path)
-    data_dict, processing_func = dm.load_cached_data_processor(cache_file)
+    data_processor = dm.load_cached_data_processor(cache_file)
 
     # initialize an modeling experiment for each DISCERN question
     model_obj = model_class()
     question_models = {}
     for q_no in important_qs:
         exp_name = "q{}".format(q_no)
-        question_models[exp_name] = PartitionedExperiment(exp_name, data_dict, label_key=q_no,
+        question_models[exp_name] = PartitionedExperiment(exp_name, data_processor.data, label_key=q_no,
                                                           model_run_class=model_run_class,
-                                                          model=model_obj, preprocessing_func=processing_func,
-                                                          hyperparams=hyperparams, n_partitions=n_partitions,
+                                                          model=model_obj, preprocessing_func=data_processor.func,
+                                                          hyperparams=hyperparams_dict, n_partitions=n_partitions,
                                                           stratify_by=stratify_by, verbose=True)
 
     # run the experiments
     for q in question_models:
-        question_models[q].run()
+        question_models[q].run(num_partitions_to_run=num_partitions_to_run, run_hyperparam_search=run_hyperparam_search)
 
     # view F1 scores
     all_q_f1 = pd.concat([question_models[q].show_evaluation(metric='f1') for q in question_models], axis=0)
@@ -89,10 +106,16 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
     # try saving individual f1 scores as metrics
     for q in all_q_f1.index:
         for col_name in all_q_f1.columns:
-            if 'partition' in col_name:
-                partiton_number = int(col_name.split(' ')[1])
+            if col_name not in ['mean', 'median', 'stddev']:
                 value = round(all_q_f1.loc[q, col_name], 3)
-                ex.log_scalar("{}_f1".format(q), value, partiton_number)
+                # if the experiment ran with stratified partitions, include the partition id
+                # otherwise, just let whatever partitions be reported in increasing order
+                #   (step is automatically assigned)
+                if 'partition ' in col_name.lower():
+                    partiton_number = int(col_name.split(' ')[1])
+                    ex.log_scalar("{}_f1".format(q), value, partiton_number)
+                else:
+                    ex.log_scalar("{}_f1".format(q), value)
 
     # save the result
     ex.result = all_q_f1['median'].to_string()
@@ -105,3 +128,9 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
         with open(feature_path, 'w') as f:
             f.write(question_models[q].show_feature_importances().head(20).to_string())
         ex.add_artifact(feature_path)
+
+    # save the models themselves for future inspection
+    file_name = '{}.dill'.format(get_exp_id())
+    print(type(question_models))
+    save_path = dm.save_experiment(question_models, file_name=file_name)
+    ex.add_artifact(save_path)

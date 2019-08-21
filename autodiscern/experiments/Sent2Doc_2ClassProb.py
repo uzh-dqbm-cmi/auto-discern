@@ -1,37 +1,39 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Dict, List, Callable
 
 import autodiscern.experiment as ade
+from autodiscern import model as admodel
 from autodiscern.experiments.TwoLevelSentenceExperiment import SentenceLevelModelRun
 
 
 class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
-                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
+                                        preprocessing_func: Callable, model_run_class: ade.ModelRun, model,
+                                        hyperparams: Dict, run_hyperparam_search: bool):
 
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
 
         # run SentenceLevelModel
         sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
-                                      hyperparams=hyperparams)
-        sl_mr.run()
+                                      preprocessing_func=preprocessing_func, hyperparams=hyperparams)
+        sl_mr.run(run_hyperparam_search=run_hyperparam_search)
 
         # use predictions from SentenceLevelModel to create training set for SentenceToDocModel
-        data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set)
-        data_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set)
+        doc_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set, label_key)
+        doc_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set, label_key)
 
-        dl_mr = SentenceToDocProbaModelRun(train_set=data_set_train, test_set=data_set_test, label_key=label_key,
-                                           model=model, hyperparams=hyperparams, encoders=encoders)
-        dl_mr.run()
+        dl_mr = SentenceToDocProbaModelRun(train_set=doc_set_train, test_set=doc_set_test, label_key=label_key,
+                                           model=model, preprocessing_func=preprocessing_func, hyperparams=hyperparams)
+        dl_mr.run(run_hyperparam_search=run_hyperparam_search)
 
         return {'sentence_level': sl_mr,
                 'doc_level': dl_mr}
 
     @classmethod
-    def create_sent_to_doc_data_set(cls, model, x_feature_set, data_set: List):
+    def create_sent_to_doc_data_set(cls, model, x_feature_set, data_set: List, label_key: str):
         cat_prediction = model.predict(x_feature_set)
         proba_prediction = model.predict_proba(x_feature_set)
         new_data_set = pd.DataFrame({
@@ -40,30 +42,82 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
             'sub_prediction': cat_prediction,
             'proba_0': [i[0] for i in proba_prediction],
             'proba_1': [i[1] for i in proba_prediction],
-            'label': [d['label'] for d in data_set],
+            'label': [admodel.zero_one_category(admodel.get_score_for_question(d, label_key)) for d in data_set],
         })
         return new_data_set
+
+    def show_feature_importances(self):
+        print("ERROR: this is not a valid function in `Sent2Doc_2ClassProb_Experiment`."
+              "Use `show_sent_feature_importances` or `show_doc_feature_importances`.")
+
+    def show_sent_feature_importances(self):
+        all_feature_importances = pd.DataFrame()
+        for partition_id in self.model_runs:
+            partition_feature_importances = self.model_runs[partition_id]['sentence_level'].get_feature_importances()
+            partition_feature_importances.columns = [partition_id]
+            all_feature_importances = pd.merge(all_feature_importances, partition_feature_importances, how='outer',
+                                               left_index=True, right_index=True)
+        all_feature_importances['median'] = all_feature_importances.median(axis=1)
+        return all_feature_importances.sort_values('median', ascending=False)
+
+    def show_doc_feature_importances(self):
+        all_feature_importances = pd.DataFrame()
+        for partition_id in self.model_runs:
+            partition_feature_importances = self.model_runs[partition_id]['doc_level'].get_feature_importances()
+            partition_feature_importances.columns = [partition_id]
+            all_feature_importances = pd.merge(all_feature_importances, partition_feature_importances, how='outer',
+                                               left_index=True, right_index=True)
+        all_feature_importances['median'] = all_feature_importances.median(axis=1)
+        return all_feature_importances.sort_values('median', ascending=False)
+
+    def show_evaluation(self, metric: str = 'accuracy'):
+        all_accuracy = {}
+        for partition_id in self.model_runs:
+            all_accuracy[partition_id] = self.model_runs[partition_id]['doc_level'].evaluation[metric]
+        all_accuracy_df = pd.DataFrame(all_accuracy, index=[self.name])
+        median = all_accuracy_df.median(axis=1)
+        stddev = all_accuracy_df.std(axis=1)
+        all_accuracy_df['median'] = median
+        all_accuracy_df['stddev'] = stddev
+        return all_accuracy_df.sort_values('median', ascending=False)
+
+    def generate_predictor(self, partition=0):
+        """
+        Return a Predictor from the trained model of a specific partition.
+
+        Args:
+            partition: The partition id of the model to return. Defaults to 0.
+
+        Returns: a Predictor.
+
+        """
+        # TODO: THIS WILL NOT WORK AS IS!!
+        # def make_prediction(input):
+        #     sent_predictor = self.model_runs['sentence_level'].generate_predictor()
+        #     doc_predictor = self.model_runs['doc_level'].generate_predictor()
+        #     return doc_predictor(sent_predictor(input))
+
+        return self.model_runs[partition].generate_predictor()
 
 
 class SentenceToDocProbaModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame, label_key: str, encoders: Dict) -> \
-            Tuple[pd.DataFrame, pd.DataFrame, List, List, List, Dict]:
-
-        x_train = cls.sents_to_doc_buckets_mean(train_set)
-        x_test = cls.sents_to_doc_buckets_mean(test_set)
-
-        y_train = train_set.groupby('doc_id')['label'].median()
-        y_test = test_set.groupby('doc_id')['label'].median()
-
-        feature_cols = x_train.columns
-        encoders = {}
-
-        return x_train, x_test, y_train, y_test, feature_cols, encoders
+    def train_encoders(cls, train_set: List[Dict]):
+        return None
 
     @classmethod
-    def sents_to_doc_buckets_mean(cls, df):
+    def build_x_features(cls, data_set: pd.DataFrame, encoders: Dict):
+        x = cls.sents_to_doc_buckets_mean(data_set)
+        feature_cols = x.columns
+        return x, feature_cols
+
+    @classmethod
+    def build_y_vector(cls, data_set: pd.DataFrame, label_key: str) -> List:
+        return data_set.groupby('doc_id')['label'].median()
+
+    @classmethod
+    def sents_to_doc_buckets_mean(cls, df: pd.DataFrame):
         series_of_list_of_bucket_avgs = df.groupby('doc_id')['sub_prediction'].apply(calc_avg_over_ten_parts)
         df = series_of_list_to_df_columns(series_of_list_of_bucket_avgs)
         return df

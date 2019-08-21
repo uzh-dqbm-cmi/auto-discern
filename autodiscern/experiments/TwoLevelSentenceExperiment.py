@@ -2,31 +2,33 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import hstack, vstack, coo_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 
 import autodiscern.experiment as ade
+from autodiscern import model
 
 
 class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 
     @classmethod
-    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int], model,
-                                        hyperparams: Dict, encoders: Dict, skip_hyperparam_search: bool):
+    def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
+                                        preprocessing_func: Callable, model_run_class: ade.ModelRun, model,
+                                        hyperparams: Dict, run_hyperparam_search: bool):
 
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
 
         # run SentenceLevelModel
         sl_mr = SentenceLevelModelRun(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
-                                      hyperparams=hyperparams, encoders=encoders)
-        sl_mr.run(skip_hyperparam_search=skip_hyperparam_search)
+                                      preprocessing_func=preprocessing_func, hyperparams=hyperparams)
+        sl_mr.run(run_hyperparam_search=run_hyperparam_search)
 
         # use predictions from SentenceLevelModel to create training set for SentenceToDocModel
         data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set)
         data_set_test = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_test, sl_mr.test_set)
 
         dl_mr = SentenceToDocModelRun(train_set=data_set_train, test_set=data_set_test, label_key=label_key,
-                                      model=model, hyperparams=hyperparams, encoders=encoders)
-        dl_mr.run(skip_hyperparam_search=skip_hyperparam_search)
+                                      model=model, preprocessing_func=preprocessing_func, hyperparams=hyperparams)
+        dl_mr.run(run_hyperparam_search=run_hyperparam_search)
 
         return {'sentence_level': sl_mr,
                 'doc_level': dl_mr}
@@ -50,7 +52,31 @@ class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 class SentenceLevelModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, encoders: Dict) -> \
+    def train_encoders(cls, train_set: List[Dict]):
+        print("`train_encoders` is not used in the `SentenceLevelModelRun` implementation")
+        return
+
+    @classmethod
+    def build_x_features(cls, data_set: pd.DataFrame, encoders: Dict):
+        print("`build_x_features` is not used in the `SentenceLevelModelRun` implementation")
+        return
+
+    @classmethod
+    def build_y_vector(cls, data_set: List[Dict], label_key: str) -> List:
+        """
+        Extract the labels from each data dict and compile into one y vector.
+        Args:
+            data_set: List of data dicts.
+            label_key: The key int he data dicts under which the label is stored.
+
+        Returns:
+            Array-type
+        """
+        return [model.zero_one_category(model.get_score_for_question(entity_dict, label_key)) for entity_dict in
+                data_set]
+
+    @classmethod
+    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str) -> \
             Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
         # corpus_train = [entity_dict['content'] for entity_dict in train_set]
         # corpus_test = [entity_dict['content'] for entity_dict in test_set]
@@ -58,8 +84,8 @@ class SentenceLevelModelRun(ade.ModelRun):
         feature_vec_train = pd.concat([entity_dict['feature_vec'] for entity_dict in train_set], axis=0)
         feature_vec_test = pd.concat([entity_dict['feature_vec'] for entity_dict in test_set], axis=0)
 
-        y_train = [entity_dict[label_key] for entity_dict in train_set]
-        y_test = [entity_dict[label_key] for entity_dict in test_set]
+        y_train = cls.build_y_vector(train_set, label_key)
+        y_test = cls.build_y_vector(test_set, label_key)
 
         train_tfidf_by_doc, test_tfidf_by_doc, vectorizer = cls.build_tfidf_vectors_on_doc_level(train_set, test_set)
 
@@ -90,9 +116,9 @@ class SentenceLevelModelRun(ade.ModelRun):
         for doc_id in test_document_ids:
             test_documents.append(" ".join([d['content'] for d in test_set if d['entity_id'] == doc_id]))
 
-        print("Some example documents:")
-        for i in train_documents[:2]:
-            print(i)
+        # print("Some example documents:")
+        # for i in train_documents[:2]:
+        #     print(i)
 
         print("Training vectorizer on {} documents".format(len(train_documents)))
         vectorizer = TfidfVectorizer(max_df=0.95, min_df=0.01, max_features=200, stop_words='english')
@@ -114,7 +140,7 @@ class SentenceLevelModelRun(ade.ModelRun):
 class SentenceToDocModelRun(ade.ModelRun):
 
     @classmethod
-    def build_features(cls, train_set: pd.DataFrame, test_set: pd.DataFrame, label_key: str, encoders: Dict) -> \
+    def build_data(cls, train_set: pd.DataFrame, test_set: pd.DataFrame, label_key: str) -> \
             Tuple[pd.DataFrame, pd.DataFrame, List, List, List, Dict]:
         # turn string labels into numbers
         train_set['pred_num'] = np.where(train_set['sub_prediction'] == 'positive', 2,
@@ -149,6 +175,16 @@ class SentenceToDocModelRun(ade.ModelRun):
         encoders = {}
 
         return x_train, x_test, y_train, y_test, feature_cols, encoders
+
+    @classmethod
+    def train_encoders(cls, train_set: List[Dict]):
+        print("`train_encoders` is not used in the `SentenceToDocModelRun` implementation")
+        return
+
+    @classmethod
+    def build_x_features(cls, data_set: pd.DataFrame, encoders: Dict):
+        print("`build_x_features` is not used in the `SentenceToDocModelRun` implementation")
+        return
 
 
 def sents_to_doc_buckets_mean(df):

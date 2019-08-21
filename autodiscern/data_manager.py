@@ -9,7 +9,7 @@ import pandas as pd
 import pickle
 from pathlib import Path
 import subprocess
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict
 
 import autodiscern.transformations as adt
 
@@ -158,7 +158,7 @@ class DataManager:
         with open(filepath, "rb+") as f:
             return pickle.load(f)
 
-    def load_cached_data_processor(self, file_name: str) -> Tuple[Any, Callable]:
+    def load_cached_data_processor(self, file_name: str) -> 'DataProcessor':
         file_data_path = Path(self.data_path, "data/transformed_data")
         return self.DataProcessorCacheManager.load(file_name=file_name, file_dir_path=file_data_path)
 
@@ -178,6 +178,21 @@ class DataManager:
         chosen_one = filenames[-1]
         print("Loading {}".format(chosen_one))
         return self.load_transformed_data(chosen_one)
+
+    def save_experiment(self, experiment_object: Any, file_name: str) -> str:
+        data_interface = DataInterfaceManager.select(file_name, default_file_type='dill')
+        file_dir_path = Path(self.data_path, 'experiment_objects')
+        data_interface.save(experiment_object, file_name=file_name, file_dir_path=file_dir_path)
+        return Path(file_dir_path, file_name)
+
+    def load_experiment(self, file_name: str) -> Any:
+        # convert the file_name to a string, because file names are experiment id numbers, so an int may be passed
+        file_name = str(file_name)
+
+        data_interface = DataInterfaceManager.select(file_name, default_file_type='dill')
+        file_dir_path = Path(self.data_path, 'experiment_objects')
+        experiment_object = data_interface.load(file_name=file_name, file_dir_path=file_dir_path)
+        return experiment_object
 
     @classmethod
     def _get_git_hash(cls, path: str) -> str:
@@ -286,6 +301,10 @@ class DataProcessor:
     def data(self):
         return self.data_set
 
+    @property
+    def func(self):
+        return self.processor_func
+
     def rerun(self, *args, **kwargs):
         return self.processor_func(*args, **kwargs)
 
@@ -379,7 +398,20 @@ class DataInterface:
 
     @classmethod
     def construct_file_path(cls, file_name: str, file_dir_path: str) -> Path:
-        return Path(file_dir_path, "{}.{}".format(file_name, cls.file_extension))
+        """Construct the file path.
+         Can handle both cases of the file extension being included in the file_name or not
+
+        Args:
+            file_name: File name, with or without file extension
+            file_dir_path: Path for the file
+
+        Returns: Path
+
+        """
+        if '.{}'.format(cls.file_extension) in file_name:
+            return Path(file_dir_path, file_name)
+        else:
+            return Path(file_dir_path, "{}.{}".format(file_name, cls.file_extension))
 
     @classmethod
     def save(cls, data: Any, file_name: str, file_dir_path: str) -> None:
@@ -478,12 +510,13 @@ class DataInterfaceManager:
                 file_type, list(cls.registered_interfaces.keys())))
 
     @classmethod
-    def select(cls, file_hint: str):
+    def select(cls, file_hint: str, default_file_type=None):
         """
         Select the appropriate data interface based on the file_hint.
 
         Args:
             file_hint: May be a file name with an extension, or just a file extension.
+            default_file_type: default file type to use, if the file_hint doesn't specify.
 
         Returns: A DataInterface.
 
@@ -491,5 +524,10 @@ class DataInterfaceManager:
         if '.' in file_hint:
             file_name, file_extension = file_hint.split('.')
             return cls.create(file_extension)
-        else:
+        elif file_hint in cls.registered_interfaces:
             return cls.create(file_hint)
+        elif default_file_type is not None:
+            return cls.create(default_file_type)
+        else:
+            raise ValueError("File hint {} not recognized. Supported file types include {}".format(
+                file_hint, list(cls.registered_interfaces.keys())))

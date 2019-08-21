@@ -51,13 +51,18 @@ On the server:
 This repo contains no data. To use this package, you must have a copy of the data locally, in the following file structure:
 
 ```
-path/to/discern/data/
-└── data/
-    ├── target_ids.csv
-    ├── responses.csv
-    └── html_articles/
-        └── *.html
-
+path/to/discern/
+├── data/
+|   ├── target_ids.csv
+|   ├── responses.csv
+|   ├── html_articles/
+|   |   └── *.html
+|   └── transformed_data/
+|       ├── *.pkl
+|       ├── *_processor.dill
+|       └── *_code.txt
+└── experiment_objects/
+    └── *.dill
 ```
 
 ### Notebooks
@@ -66,6 +71,63 @@ Please follow this notebook naming convention for exploratory notebooks in the s
 `<number>_<initials>_<short_description>.ipynb`. 
 
 ## Example Usage
+
+### Working with Transformed Data
+`DataManager` provides an interface for saving and loading intermediary data sets, 
+while automatically tracking how each data set was generated. 
+
+You pass the `DataManager` your raw data and your transformation function, 
+and `DataManager`...
+ * runs the transformation function on your data
+ * saves the result, named with timestamp, git hash, and descriptive tag of your choice
+ * saves the transformation function alongside the data, so it can be re-loaded, re-used, and even re-read!
+ 
+ Here's and example of using the data caching interface.
+
+```python
+raw_data = pd.DataFrame()
+
+# do a bunch of processing that takes a long time to run
+def transform_func(df):
+    # your complex and time consuming transformation code here
+    return df
+
+
+dm = DataManager(your_discern_path)
+
+cached_file_name = dm.cache_data_processor(raw_data, transform_func, tag="short_description here")
+# cached_file_name will look like 2019-08-15_06-24-58_10d88c9_short_description
+
+# === at some later date, when you want to load up the data ===
+
+data_processor = dm.load_cached_data_processor(cached_file_name)
+
+# access the cached data set
+data_processor.data
+
+# re-use the transform func that was used to create the cached data set
+# useful for deploying a ML model, and making sure the exact same transforms get applied to prediction data points as were to the training set!
+transformed_prediction_data_point = data_processor.rerun(raw_prediction_data_point)
+
+# you can also access the function directly, to pass to another object
+transform_func = data_processor.func
+
+# you can also read the code of transform_func!
+data_processor.view_code()
+
+```
+
+The files for generating cached data sets in this way are stored in `auto-discern/autodiscern/data_processors/*.py`.
+
+### Running Machine Learning experiments
+Model training experiments are managed via `sacred`. 
+Experiment files are located at `auto-discern/sacred_experiments/`.
+
+Experiments can be run like this: 
+    `python sacred_experiments/first_experiment.py`
+
+Config parameters can be modified for a run like this: 
+    `python first_experiment.py with "test_mode=True"`
 
 ### If all you care about is loading clean data to be on your merry way...
 ```python
@@ -156,7 +218,7 @@ for i in transformed_data:
 
 ```
 
-### Full example code
+### Full example code for transforming data
 
 ```python
 # IPython magics for auto-reloading code changes to the library

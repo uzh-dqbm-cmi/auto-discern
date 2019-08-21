@@ -67,13 +67,13 @@ class PartitionedExperiment:
             print("Partition Stats for {}".format(self.name))
             self.report_partition_stats(self.partitions_by_ids, document_ids, doc_labels)
 
-    def run(self, num_partitions_to_run=None, skip_hyperparam_search=False):
+    def run(self, num_partitions_to_run=None, run_hyperparam_search=True):
         """
         Run the experiment.
 
         Args:
             num_partitions_to_run: select a subset of partitions to run, for faster testing.
-            skip_hyperparam_search: skip hyperparam search, for faster testing.
+            run_hyperparam_search: argument to turn off hyperparam search, for faster testing.
 
         Returns:
 
@@ -93,7 +93,7 @@ class PartitionedExperiment:
                                                                  model_run_class=self.model_run_class,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
-                                                                 skip_hyperparam_search=skip_hyperparam_search)
+                                                                 run_hyperparam_search=run_hyperparam_search)
                 self.model_runs[partition_name] = model_run
 
         print("Compiling results")
@@ -103,25 +103,32 @@ class PartitionedExperiment:
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
                                         preprocessing_func: Callable, model_run_class: "ModelRun", model,
-                                        hyperparams: Dict, skip_hyperparam_search: bool):
+                                        hyperparams: Dict, run_hyperparam_search: bool):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
         mr = model_run_class(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
                              preprocessing_func=preprocessing_func, hyperparams=hyperparams)
-        mr.run(skip_hyperparam_search=skip_hyperparam_search)
+        mr.run(run_hyperparam_search=run_hyperparam_search)
         return mr
 
     @staticmethod
     def build_doc_id_and_label_lists(data_dict: Dict[int, Dict], model_run_class, label_key):
-        # create dict of document and ids, which will de-dupe across the sentences
-        # document_labels = {}
-        document_ids = list(data_dict.keys())
-        data_list_of_dicts = [data_dict[k] for k in document_ids]
-        doc_labels = model_run_class.build_y_vector(data_list_of_dicts, label_key)
+        """
+        Build a list of document ids and list of corresponding labels.
+        Needs to work for both doc and sentence data sets! i.e. regardless of whether the key in data_dict is the same
+          as the entity_id entry
+        Args:
+            data_dict: Dictionary of the dataset (data dicts)
+            model_run_class: The model run class to use to compute the y vector
+            label_key: the label key to compute the target label for
 
-        # for d in data_dict:
-        #     document_labels[data_dict[d]['entity_id']] = data_dict[d][label_key]
-        # document_ids = list(document_labels.keys())
-        # doc_labels = [document_labels[id] for id in document_ids]
+        Returns:
+
+        """
+        document_labels = {}
+        for d in data_dict:
+            document_labels[data_dict[d]['entity_id']] = model_run_class.build_y_vector([data_dict[d]], label_key)
+        document_ids = list(document_labels.keys())
+        doc_labels = [document_labels[id] for id in document_ids]
         return document_ids, doc_labels
 
     @classmethod
@@ -208,7 +215,7 @@ class PartitionedExperiment:
         all_feature_importances = pd.DataFrame()
         for partition_id in self.model_runs:
             partition_feature_importances = self.model_runs[partition_id].get_feature_importances()
-            partition_feature_importances.columns = ['partition{}'.format(partition_id)]
+            partition_feature_importances.columns = [partition_id]
             all_feature_importances = pd.merge(all_feature_importances, partition_feature_importances, how='outer',
                                                left_index=True, right_index=True)
         all_feature_importances['median'] = all_feature_importances.median(axis=1)
@@ -217,7 +224,7 @@ class PartitionedExperiment:
     def show_evaluation(self, metric: str = 'accuracy'):
         all_accuracy = {}
         for partition_id in self.model_runs:
-            all_accuracy['partition {}'.format(partition_id)] = self.model_runs[partition_id].evaluation[metric]
+            all_accuracy[partition_id] = self.model_runs[partition_id].evaluation[metric]
         all_accuracy_df = pd.DataFrame(all_accuracy, index=[self.name])
         median = all_accuracy_df.median(axis=1)
         stddev = all_accuracy_df.std(axis=1)
@@ -260,10 +267,10 @@ class ModelRun:
 
         self.preprocessing_func = preprocessing_func
 
-    def run(self, skip_hyperparam_search: bool = False):
+    def run(self, run_hyperparam_search: bool = True):
         self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_data(
             self.train_set, self.test_set, self.label_key)
-        if not skip_hyperparam_search:
+        if run_hyperparam_search:
             self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
         self.model.fit(self.x_train, self.y_train)
         self.y_train_predicted = self.model.predict(self.x_train)
@@ -385,6 +392,17 @@ class ModelRun:
         fi = pd.DataFrame(self.model.feature_importances_, index=self.feature_cols)
         fi = fi.sort_values(0, ascending=False)
         return fi
+
+    def get_selected_hyperparams(self) -> pd.DataFrame:
+        chosen_hyperparams = {
+            'n_estimators': self.model.n_estimators,
+            'max_features': self.model.max_features,
+            'max_depth': self.model.max_depth,
+            'min_samples_split': self.model.min_samples_split,
+            'min_samples_leaf': self.model.min_samples_leaf,
+            'class_weight': self.model.class_weight,
+        }
+        return pd.DataFrame(chosen_hyperparams)
 
     def generate_predictor(self) -> Predictor:
         """
