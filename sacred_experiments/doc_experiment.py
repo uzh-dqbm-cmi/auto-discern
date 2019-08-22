@@ -1,13 +1,13 @@
 from autodiscern import DataManager, model
-from autodiscern.experiments.TwoLevelSentenceExperiment import SentenceLevelModelRun
-from autodiscern.experiments.Sent2Doc_2ClassProb import Sent2Doc_2ClassProb_Experiment
+from autodiscern.experiment import PartitionedExperiment
+from autodiscern.experiments.DocExperiment import DocLevelModelRun
 import pandas as pd
 from pathlib import Path
 from sacred import Experiment
 from sklearn.ensemble import RandomForestClassifier
 from sacred.observers import MongoObserver
 
-# run with python sentence_experiment.py
+# run with python doc_experiment.py
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(
@@ -33,9 +33,10 @@ def my_config():
         run_hyperparam_search = True
         num_partitions_to_run = None
 
-
     discern_path = "~/switchdrive/Institution/discern"
-    cache_file = '2019-08-15_06-24-58_10d88c9_sentence_no_mm'
+    cache_file = '2019-08-21_18-56-53_fae71bc_doc.pkl'
+    # cache_file = '2019-07-24_15-43-08_bd60a7f_with_mm_and_ner_ammendments.pkl'
+    # cache_file = '2019-07-24_13-40-50_166c23e_test_mm_and_ner_ammendments_on_subset_30'
 
     n_estimators_default = 500
     min_samples_leaf_default = 5
@@ -63,15 +64,15 @@ def my_config():
                    # 'bootstrap': bootstrap,
                    'class_weight': ['balanced_subsample'],
                    }
-
-    model_run_class = SentenceLevelModelRun
+    
+    model_run_class = DocLevelModelRun
     n_partitions = 5
     stratify_by = 'label'
 
 
 @ex.automain
 def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions,
-            stratify_by, run_hyperparam_search, num_partitions_to_run):
+            stratify_by, run_hyperparam_search, num_partitions_to_run, test_mode):
 
     # convert hyperparams from a sacred.config.ReadOnlyDict to a regular Dictionary,
     #   otherwise pickling of the experiment fails
@@ -85,12 +86,11 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
     question_models = {}
     for q_no in important_qs:
         exp_name = "q{}".format(q_no)
-        question_models[exp_name] = Sent2Doc_2ClassProb_Experiment(exp_name, data_processor.data, label_key=q_no,
-                                                                   model_run_class=model_run_class,
-                                                                   model=model_obj,
-                                                                   preprocessing_func=data_processor.func,
-                                                                   hyperparams=hyperparams, n_partitions=n_partitions,
-                                                                   stratify_by=stratify_by, verbose=True)
+        question_models[exp_name] = PartitionedExperiment(exp_name, data_processor.data, label_key=q_no,
+                                                          model_run_class=model_run_class,
+                                                          model=model_obj, preprocessing_func=data_processor.func,
+                                                          hyperparams=hyperparams_dict, n_partitions=n_partitions,
+                                                          stratify_by=stratify_by, verbose=True)
 
     # run the experiments
     for q in question_models:
@@ -119,25 +119,17 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                     else:
                         ex.log_scalar("{}_{}".format(q, metric), value)
 
-    # save feature importances as artifacts
+    # view feature importances as artifacts
     for q in question_models:
         print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
-        print(question_models[q].show_sent_feature_importances().head(10))
-        feature_path = Path(dm.data_path, 'results/feature_importances_sent_{}.txt'.format(q))
+        print(question_models[q].show_feature_importances().head(10))
+        feature_path = Path(dm.data_path, 'results/feature_importances_{}.txt'.format(q))
         with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_sent_feature_importances().head(20).to_string())
+            f.write(question_models[q].show_feature_importances().head(20).to_string())
         ex.add_artifact(feature_path)
 
-    for q in question_models:
-        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
-        print(question_models[q].show_doc_feature_importances().head(10))
-        feature_path = Path(dm.data_path, 'results/feature_importances_doc_{}.txt'.format(q))
-        with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_doc_feature_importances().head(20).to_string())
-        ex.add_artifact(feature_path)
-
-        # save the models themselves for future inspection
-        file_name = '{}.dill'.format(get_exp_id())
-        print(type(question_models))
-        save_path = dm.save_experiment(question_models, file_name=file_name)
-        ex.add_artifact(save_path)
+    # save the models themselves for future inspection
+    file_name = '{}.dill'.format(get_exp_id())
+    print(type(question_models))
+    save_path = dm.save_experiment(question_models, file_name=file_name)
+    ex.add_artifact(save_path)
