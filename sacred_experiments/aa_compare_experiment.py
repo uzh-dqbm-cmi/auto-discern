@@ -1,13 +1,13 @@
 from autodiscern import DataManager, model
-from autodiscern.experiment import PartitionedExperiment
-from autodiscern.experiments.DocExperiment import DocLevelModelRun
+from autodiscern.experiments.TwoLevelSentenceExperiment import SentenceLevelModelRun
+from autodiscern.experiments.Sent2Doc_2ClassProb import Sent2Doc_2ClassProb_Experiment
 import pandas as pd
 from pathlib import Path
 from sacred import Experiment
 from sklearn.ensemble import RandomForestClassifier
 from sacred.observers import MongoObserver
 
-# run with python doc_experiment.py
+# run with python sentence_experiment.py
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(
@@ -33,26 +33,25 @@ def my_config():
         run_hyperparam_search = True
         num_partitions_to_run = None
 
+
     discern_path = "~/switchdrive/Institution/discern"
-    cache_file = '2019-08-21_18-56-53_fae71bc_doc.pkl'
-    # cache_file = '2019-07-24_15-43-08_bd60a7f_with_mm_and_ner_ammendments.pkl'
-    # cache_file = '2019-07-24_13-40-50_166c23e_test_mm_and_ner_ammendments_on_subset_30'
+    cache_file = '2019-08-23_15-10-10_6b9bc88_2019-08-22_15-52-08_6b9bc88_sentence_no_ammend_no_len_1'
 
     n_estimators_default = 500
-    min_samples_leaf_default = 5
-    max_depth_default = 50
+    min_samples_leaf_default = 1
+    max_depth_default = 100
     max_features_default = 'sqrt'
     class_weight_default = 'balanced_subsample'
     model_class = RandomForestClassifier
-    n_estimators = [50, 100, 500]
+    n_estimators = [500]
     # Number of features to consider at every split
     max_features = ['sqrt']
     # Maximum number of levels in tree
-    max_depth = [10, 50, 100]
+    max_depth = [100]
     # Minimum number of samples required to split a node
-    min_samples_split = [5, 50, 500]
+    min_samples_split = [50]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [3, 5, 10, 100]
+    min_samples_leaf = [1]
     # Method of selecting samples for training each tree
     # bootstrap = [True, False]
     # Create the random grid
@@ -64,15 +63,15 @@ def my_config():
                    # 'bootstrap': bootstrap,
                    'class_weight': ['balanced_subsample'],
                    }
-    
-    model_run_class = DocLevelModelRun
+
+    model_run_class = SentenceLevelModelRun
     n_partitions = 5
     stratify_by = 'label'
 
 
 @ex.automain
 def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions,
-            stratify_by, run_hyperparam_search, num_partitions_to_run, test_mode):
+            stratify_by, run_hyperparam_search, num_partitions_to_run):
 
     # convert hyperparams from a sacred.config.ReadOnlyDict to a regular Dictionary,
     #   otherwise pickling of the experiment fails
@@ -86,59 +85,17 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
     question_models = {}
     for q_no in important_qs:
         exp_name = "q{}".format(q_no)
-        question_models[exp_name] = PartitionedExperiment(exp_name, data_processor.data, label_key=q_no,
-                                                          model_run_class=model_run_class,
-                                                          model=model_obj, preprocessing_func=data_processor.func,
-                                                          hyperparams=hyperparams_dict, n_partitions=n_partitions,
-                                                          stratify_by=stratify_by, verbose=True)
+        question_models[exp_name] = Sent2Doc_2ClassProb_Experiment(exp_name, data_processor.data, label_key=q_no,
+                                                                   model_run_class=model_run_class,
+                                                                   model=model_obj,
+                                                                   preprocessing_func=data_processor.func,
+                                                                   hyperparams=hyperparams_dict,
+                                                                   n_partitions=n_partitions,
+                                                                   stratify_by=stratify_by, verbose=True)
 
     # run the experiments
     for q in question_models:
         question_models[q].run(num_partitions_to_run=num_partitions_to_run, run_hyperparam_search=run_hyperparam_search)
-
-        # save feature importances as artifacts
-        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
-        print(question_models[q].show_feature_importances().head(10))
-        feature_path = Path(dm.data_path, 'results/{}_feature_importances.txt'.format(q))
-        with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_feature_importances().head(20).to_string())
-        ex.add_artifact(feature_path)
-
-        # save hyperparams
-        sent_hyperparam_path = Path(dm.data_path, 'results/{}_hyperparams.txt'.format(q))
-        with open(sent_hyperparam_path, 'w') as f:
-            f.write(question_models[q].get_selected_hyperparams().to_string())
-        ex.add_artifact(sent_hyperparam_path)
-
-        # save confusion matrix, test set
-        y_true = []
-        y_pred = []
-        for p in question_models[q].model_runs:
-            y_true.extend(question_models[q].model_runs[p].y_test)
-            y_pred.extend(question_models[q].model_runs[p].y_test_predicted)
-        classes = question_models[q].model_runs[p].model.classes_
-
-        conf_matrix_path = Path(dm.data_path, 'results/{}_confusion_matrix_test.png'.format(q))
-        title = "{} Test Set".format(q)
-        plot = model.plot_confusion_matrix(y_true, y_pred, classes=classes, normalize=True, title=title)
-        fig = plot.get_figure()
-        fig.savefig(conf_matrix_path)
-        ex.add_artifact(conf_matrix_path)
-
-        # save confusion matrix, train set
-        y_true = []
-        y_pred = []
-        for p in question_models[q].model_runs:
-            y_true.extend(question_models[q].model_runs[p].y_train)
-            y_pred.extend(question_models[q].model_runs[p].y_train_predicted)
-        classes = question_models[q].model_runs[p].model.classes_
-
-        conf_matrix_path = Path(dm.data_path, 'results/{}_confusion_matrix_train.png'.format(q))
-        title = "{} Train Set".format(q)
-        plot = model.plot_confusion_matrix(y_true, y_pred, classes=classes, normalize=True, title=title)
-        fig = plot.get_figure()
-        fig.savefig(conf_matrix_path)
-        ex.add_artifact(conf_matrix_path)
 
     # save F1 and accuracy scores as artifacts
     for metric in ['f1', 'accuracy']:
@@ -162,6 +119,27 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                         ex.log_scalar("{}_{}".format(q, metric), value, partiton_number)
                     else:
                         ex.log_scalar("{}_{}".format(q, metric), value)
+
+    # save feature importances, hyperparams, and models as artifacts
+    for q in question_models:
+        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
+        print(question_models[q].show_sent_feature_importances().head(10))
+        sent_feature_path = Path(dm.data_path, 'results/feature_importances_sent_{}.txt'.format(q))
+        with open(sent_feature_path, 'w') as f:
+            f.write(question_models[q].show_sent_feature_importances().head(20).to_string())
+        ex.add_artifact(sent_feature_path)
+
+        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
+        print(question_models[q].show_doc_feature_importances().head(10))
+        doc_feature_path = Path(dm.data_path, 'results/feature_importances_doc_{}.txt'.format(q))
+        with open(doc_feature_path, 'w') as f:
+            f.write(question_models[q].show_doc_feature_importances().head(20).to_string())
+        ex.add_artifact(doc_feature_path)
+
+        sent_hyperparam_path = Path(dm.data_path, 'results/hyperparams_sent_{}.txt'.format(q))
+        with open(sent_hyperparam_path, 'w') as f:
+            f.write(question_models[q].get_selected_hyperparams(model_level='sent').to_string())
+        ex.add_artifact(sent_hyperparam_path)
 
     # save the models themselves for future inspection
     file_name = '{}.dill'.format(get_exp_id())

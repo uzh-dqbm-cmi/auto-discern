@@ -221,6 +221,13 @@ class PartitionedExperiment:
         all_feature_importances['median'] = all_feature_importances.median(axis=1)
         return all_feature_importances.sort_values('median', ascending=False)
 
+    def get_selected_hyperparams(self):
+        all_hyperparams = pd.DataFrame()
+        for partition_id in self.model_runs:
+            partition_hyperparams = self.model_runs[partition_id].get_selected_hyperparams(partition_id)
+            all_hyperparams = pd.concat([all_hyperparams, partition_hyperparams])
+        return all_hyperparams
+
     def show_evaluation(self, metric: str = 'accuracy'):
         all_accuracy = {}
         for partition_id in self.model_runs:
@@ -393,7 +400,7 @@ class ModelRun:
         fi = fi.sort_values(0, ascending=False)
         return fi
 
-    def get_selected_hyperparams(self) -> pd.DataFrame:
+    def get_selected_hyperparams(self, identifier) -> pd.DataFrame:
         chosen_hyperparams = {
             'n_estimators': self.model.n_estimators,
             'max_features': self.model.max_features,
@@ -402,7 +409,7 @@ class ModelRun:
             'min_samples_leaf': self.model.min_samples_leaf,
             'class_weight': self.model.class_weight,
         }
-        return pd.DataFrame(chosen_hyperparams)
+        return pd.DataFrame(chosen_hyperparams, index=[identifier])
 
     def generate_predictor(self) -> Predictor:
         """

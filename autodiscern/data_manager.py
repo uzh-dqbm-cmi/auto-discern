@@ -10,6 +10,7 @@ import pickle
 from pathlib import Path
 import subprocess
 from typing import Any, Callable, Dict
+import yaml
 
 import autodiscern.transformations as adt
 
@@ -25,15 +26,48 @@ class DataManager:
            On windows OS, the backslash in the string should be escaped!!
     """
 
-    def __init__(self, data_path):
-        expanded_path = Path(data_path).expanduser()
-        if expanded_path.exists():
-            self.data_path = expanded_path
-        else:
-            raise ValueError("Path does not exist: {}".format(data_path))
-        self.data = {}
+    def __init__(self, path_hint):
+        """
+        Initialize a DataManager pointing at a project data_path. Can refer to ~/.data_manager.yaml, which has format:
 
+            project:
+                path: ~/path/to/project
+
+        Args:
+            path_hint: a path that exists, or a key in the config for a path
+        """
+        self.data_path = self.identify_data_path(path_hint)
+        self.data = {}
         self.DataProcessorCacheManager = DataProcessorCacheManager()
+
+    def identify_data_path(self, path_hint):
+        # first check if provided data_path is a legitimate path, and use that if it is
+        # otherwise (if config exists) see if the path_hint is in the config
+        # else raise error
+
+        expanded_path = Path(path_hint).expanduser()
+        if expanded_path.exists():
+            return expanded_path
+
+        config = self.load_config()
+        if config is not None and path_hint in config:
+            expanded_config_path = Path(config[path_hint]['path']).expanduser()
+            if expanded_config_path.exists():
+                return expanded_config_path
+            else:
+                raise ValueError("Path provided in config for '{}' does not exist: {}".format(path_hint,
+                                                                                              expanded_config_path))
+
+        raise ValueError("Path does not exist: {}".format(path_hint))
+
+    @staticmethod
+    def load_config():
+        config_path = Path('~/.data_manager.yaml').expanduser()
+        if config_path.exists():
+            config = yaml.safe_load(open(config_path))
+            return config
+        else:
+            return None
 
     def build_dicts(self):
         """Build a dictionary of data dictionaries, keyed on their entity_ids. """

@@ -20,8 +20,9 @@ setup(name='autodiscern',
             'scikit-learn',
             'spacy==2.0.18',
             'tldextract',
+            'pyyaml',
       ],
       extras_requires={
-            'dev': ['jupyter', 'sacred'],
+            'dev': ['jupyter', 'sacred', 'matplotlib'],
       },
       zip_safe=False)

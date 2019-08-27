@@ -70,6 +70,17 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
         all_feature_importances['median'] = all_feature_importances.median(axis=1)
         return all_feature_importances.sort_values('median', ascending=False)
 
+    def get_selected_hyperparams(self, model_level='sent'):
+        level_key = 'sentence_level'
+        if 'doc' in model_level:
+            level_key = 'doc_level'
+
+        all_hyperparams = pd.DataFrame()
+        for partition_id in self.model_runs:
+            partition_hyperparams = self.model_runs[partition_id][level_key].get_selected_hyperparams(partition_id)
+            all_hyperparams = pd.concat([all_hyperparams, partition_hyperparams])
+        return all_hyperparams
+
     def show_evaluation(self, metric: str = 'accuracy'):
         all_accuracy = {}
         for partition_id in self.model_runs:

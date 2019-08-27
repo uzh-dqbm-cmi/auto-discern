@@ -89,7 +89,8 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                                                                    model_run_class=model_run_class,
                                                                    model=model_obj,
                                                                    preprocessing_func=data_processor.func,
-                                                                   hyperparams=hyperparams, n_partitions=n_partitions,
+                                                                   hyperparams=hyperparams_dict,
+                                                                   n_partitions=n_partitions,
                                                                    stratify_by=stratify_by, verbose=True)
 
     # run the experiments
@@ -119,22 +120,26 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                     else:
                         ex.log_scalar("{}_{}".format(q, metric), value)
 
-    # save feature importances as artifacts
-    for q in question_models:
-        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
-        print(question_models[q].show_sent_feature_importances().head(10))
-        feature_path = Path(dm.data_path, 'results/feature_importances_sent_{}.txt'.format(q))
-        with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_sent_feature_importances().head(20).to_string())
-        ex.add_artifact(feature_path)
+        # save feature importances, hyperparams, and models as artifacts
+        for q in question_models:
+            print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
+            print(question_models[q].show_sent_feature_importances().head(10))
+            sent_feature_path = Path(dm.data_path, 'results/feature_importances_sent_{}.txt'.format(q))
+            with open(sent_feature_path, 'w') as f:
+                f.write(question_models[q].show_sent_feature_importances().head(20).to_string())
+            ex.add_artifact(sent_feature_path)
 
-    for q in question_models:
-        print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
-        print(question_models[q].show_doc_feature_importances().head(10))
-        feature_path = Path(dm.data_path, 'results/feature_importances_doc_{}.txt'.format(q))
-        with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_doc_feature_importances().head(20).to_string())
-        ex.add_artifact(feature_path)
+            print("{}: {}".format(q, model.questions[int(q.split('q')[1])]))
+            print(question_models[q].show_doc_feature_importances().head(10))
+            doc_feature_path = Path(dm.data_path, 'results/feature_importances_doc_{}.txt'.format(q))
+            with open(doc_feature_path, 'w') as f:
+                f.write(question_models[q].show_doc_feature_importances().head(20).to_string())
+            ex.add_artifact(doc_feature_path)
+
+            sent_hyperparam_path = Path(dm.data_path, 'results/hyperparams_sent_{}.txt'.format(q))
+            with open(sent_hyperparam_path, 'w') as f:
+                f.write(question_models[q].get_selected_hyperparams(model_level='sent').to_string())
+            ex.add_artifact(sent_hyperparam_path)
 
         # save the models themselves for future inspection
         file_name = '{}.dill'.format(get_exp_id())
