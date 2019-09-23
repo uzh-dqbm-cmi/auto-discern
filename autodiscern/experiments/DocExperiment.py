@@ -2,7 +2,7 @@ import pandas as pd
 from scipy.sparse import hstack, coo_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing import Dict, List
-from autodiscern import experiment, model
+from autodiscern import experiment, model, lemmatization
 
 
 # class DocExperiment(experiment.PartitionedExperiment):
@@ -35,7 +35,11 @@ class DocLevelModelRun(experiment.ModelRun):
     @classmethod
     def build_x_features(cls, data_set: List[Dict], encoders):
         corpus = [entity_dict['content'] for entity_dict in data_set]
-        x_tfidf = encoders['vectorizer'].transform(corpus)
+
+        lemmatizer = lemmatization.Lemmatizer()
+        corpus_lemmas = lemmatizer.lemmatize_list_of_texts(corpus)
+
+        x_tfidf = encoders['vectorizer'].transform(corpus_lemmas)
         feature_vec = pd.concat([entity_dict['feature_vec'] for entity_dict in data_set], axis=0)
         x_all = hstack([x_tfidf, coo_matrix(feature_vec)])
 
