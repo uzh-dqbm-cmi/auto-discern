@@ -109,7 +109,7 @@ def dump_dict_content(dsettype_content_map, dsettypes, desc, wrk_dir):
         ReaderWriter.dump_data(dsettype_content_map[dsettype], os.path.join(wrk_dir, '{}_{}.pkl'.format(desc, dsettype)))
 
 
-def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wrk_dir, sents_embed_dir, to_gpu=True):
+def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wrk_dir, sents_embed_dir, state_dict_dir=None, to_gpu=True):
     pid = "{}".format(os.getpid())  # process id description
     # get data loader config
     dataloader_config = config['dataloader_config']
@@ -145,8 +145,9 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     # setup the models
     # bert model
     bert_encoder = BertEmbedder(bertmodel, bertencoder_config)
-    bert_encoder.type(fdtype).to(device)
     bert_train_flag = bertencoder_config.get('bert_train_flag', False)
+    bert_encoder.type(fdtype).to(device)
+
     # sentence encoder model
     sent_encoder = SentenceEncoder(sentencoder_config['input_dim'], 
                                    sentencoder_config['hidden_dim'], 
@@ -154,8 +155,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                                    bidirection=sentencoder_config['bidirection'], 
                                    pdropout=sentencoder_config['pdropout'],
                                    config=sentencoder_config['generic_config'])
-
-    sent_encoder.type(fdtype).to(device)
     
     # doc encoder model
     attn_model = Attention(attnmodel_config['attn_method'],
@@ -169,12 +168,10 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                              bidirection=docencoder_config['bidirection'],
                              pdropout=docencoder_config['pdropout'],
                              config=docencoder_config['generic_config'])
-    doc_encoder.type(fdtype).to(device)
 
     # doc category scorer
     num_labels = len(class_weights)
     doc_categ_scorer = DocCategScorer(docscorer_config['input_dim'], num_labels)
-    doc_categ_scorer.type(fdtype).to(device)
     
     # define optimizer and group parameters
     models_param = list(sent_encoder.parameters()) + list(doc_encoder.parameters()) + list(doc_categ_scorer.parameters())
@@ -183,24 +180,50 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         models_param += list(bert_encoder.parameters())
         models += [(bert_encoder, 'bert_encoder')]
 
-    weight_decay = options.get('weight_decay', 0)
-    optimizer = torch.optim.Adam(models_param, weight_decay=weight_decay)
+    if(state_dict_dir):  # load state dictionary of saved models
+        for m, m_name in models:
+            m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name))))
+
+    # update models fdtype and move to device
+    for m, m_name in models:
+        m.type(fdtype).to(device)
+
+    if('train' in data_loaders):
+        weight_decay = options.get('weight_decay', 1e-3)
+        optimizer = torch.optim.Adam(models_param, weight_decay=weight_decay, lr=1e-3)
+        # see paper Cyclical Learning rates for Training Neural Networks for parameters' choice
+        # `https://arxive.org/pdf/1506.01186.pdf`
+        # pytorch version >1.1, scheduler should be called after optimizer
+        # for cyclical lr scheduler, it should be called after each batch update
+        num_iter = len(data_loaders['train']) # num_train_samples/batch_size
+        c_step_size = int(np.ceil(5*num_iter))  # this should be 2-10 times num_iter
+        base_lr = 3e-4
+        max_lr = 5*base_lr  # 3-5 times base_lr
+        cyc_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr, max_lr, step_size_up=c_step_size, mode='triangular', cycle_momentum=False)
+
+
+    # store attention weights for validation and test set
+    docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}  # store sentences' attention weights
     
-    # bert_proc_docs = {}  # to hold sentences' bert embedding 
-    docid_attnweights_map = {dsettype: {} for dsettype in ['validation', 'test']}  # store sentences' attention weights
-    m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
-    fig_dir = create_directory(os.path.join(wrk_dir, 'figures'))
+    if('validation' in data_loaders):
+        m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
+    
+    if(num_epochs > 1):
+        fig_dir = create_directory(os.path.join(wrk_dir, 'figures'))
+
     # dump config dictionaries on disk
     config_dir = create_directory(os.path.join(wrk_dir, 'config'))
     ReaderWriter.dump_data(config, os.path.join(config_dir, 'mconfig.pkl'))
     ReaderWriter.dump_data(options, os.path.join(config_dir, 'exp_options.pkl'))
 
-    bert_proc_docs = {}
-    dump_embed_dict_flag = True
     if(os.path.isfile(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))):
         bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
         dump_embed_dict_flag = False
-    print(dump_embed_dict_flag)
+    else:
+        bert_proc_docs = {}
+        dump_embed_dict_flag = True
+    
+    # print(dump_embed_dict_flag)
 
     for epoch in range(num_epochs):
         print("-"*35)
@@ -213,12 +236,15 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
             data_loader = data_loaders[dsettype]
             total_num_samples = len(data_loader.dataset)
             epoch_loss = 0.
+            epoch_loss_deavrg = 0.
+
             if(dsettype == 'train'):  # should be only for train
                 for m, m_name in models:
                     m.train()
             else:
                 for m, m_name in models:
                     m.eval()
+
             sample_counter = 0
             for i_batch, samples_batch in enumerate(data_loader):
                 # print('batch num:', i_batch)
@@ -226,7 +252,9 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                 logprob_scores = []
                 target_class = []
                 # zero model grad
-                optimizer.zero_grad()
+                if(dsettype == 'train'):
+                    optimizer.zero_grad()
+
                 docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id = samples_batch
     
                 docs_batch = docs_batch.to(device)
@@ -234,77 +262,80 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                 docs_sents_len = docs_sents_len.type(torch.int64).numpy()  # to feed this in RNN 
                 docs_labels = docs_labels.type(torch.int64).to(device)
                 
-                # print("number of examples in batch:", docs_batch.size(0))
-                num_iter = docs_batch.size(0)
-                for doc_indx in range(num_iter):
-                    # print('doc_indx', doc_indx)
-                    doc_id = docs_id[doc_indx].item()
-                    print(doc_id)
-                    if(doc_id in bert_proc_docs):
-                        # due to GPU limit
-                        embed_sents = ReaderWriter.read_data(bert_proc_docs[doc_id])
-                        embed_sents = embed_sents.to(device)  # send to gpu device
-                    else:
-                        embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx], docs_len[doc_indx].item())
-                        # add embedding to dict
-                        embed_fpath = os.path.join(sents_embed_dir, '{}.pkl'.format(doc_id))
-                        ReaderWriter.dump_data(embed_sents, embed_fpath)
-                        bert_proc_docs[doc_id] = embed_fpath
-                    
-                    sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx], docs_len[doc_indx].item())
-                     
-                    # # remove the embedding from GPU
-                    # bert_proc_docs[doc_id].to(cpu_device)
-                    # print('sents_rnn_hidden', sents_rnn_hidden.shape)
-                    enc_sents = sents_rnn_hidden
-                    # print('enc_sents', enc_sents.shape)
-                    doc_out, doc_attn_weights = doc_encoder(enc_sents)
-                    # print('doc_out', doc_out.shape)
-                    # print('doc_attn_weights', doc_attn_weights.shape)
-                    if(dsettype in docid_attnweights_map):
-                        docid_attnweights_map[dsettype][doc_id] = doc_attn_weights
-       
-                    logsoftmax_scores = doc_categ_scorer(doc_out)
-                    __, pred_classindx = torch.max(logsoftmax_scores, 1)  # apply max on row level
-                    
-                    # print('logsoftmax_scores', logsoftmax_scores.shape)
-                    # print('pred_calssindx', pred_classindx.shape)
-                    # print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
-                    # print('predicted class index:', pred_classindx.item())
-                    # print('ref class index:', docs_labels[doc_indx, question].item())
-                    pred_class.append(pred_classindx.item())
-                    ref_class.append(docs_labels[doc_indx, question].item())
-                    
-                    logprob_scores.append(logsoftmax_scores)
-                    target_class.append(docs_labels[doc_indx, question].unsqueeze(0))
-                    sample_counter +=  1
-                    print("processed samples {}/{}".format(sample_counter, total_num_samples))
+                with torch.set_grad_enabled(dsettype == 'train'):
+                    # print("number of examples in batch:", docs_batch.size(0))
+                    num_docs_perbatch = docs_batch.size(0)
+                    for doc_indx in range(num_docs_perbatch):
+                        # print('doc_indx', doc_indx)
+                        doc_id = docs_id[doc_indx].item()
+                        if(doc_id in bert_proc_docs):
+                            # due to GPU limit
+                            embed_sents = ReaderWriter.read_data(bert_proc_docs[doc_id])
+                            embed_sents = embed_sents.to(device)  # send to gpu device
+                        else:
+                            embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx], docs_len[doc_indx].item())
+                            # add embedding to dict
+                            embed_fpath = os.path.join(sents_embed_dir, '{}.pkl'.format(doc_id))
+                            ReaderWriter.dump_data(embed_sents, embed_fpath)
+                            bert_proc_docs[doc_id] = embed_fpath
+                        
+                        sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx], docs_len[doc_indx].item())
+                        
+                        # # remove the embedding from GPU
+                        # bert_proc_docs[doc_id].to(cpu_device)
+                        # print('sents_rnn_hidden', sents_rnn_hidden.shape)
+                        enc_sents = sents_rnn_hidden
+                        # print('enc_sents', enc_sents.shape)
+                        doc_out, doc_attn_weights = doc_encoder(enc_sents)
+                        # print('doc_out', doc_out.shape)
+                        # print('doc_attn_weights', doc_attn_weights.shape)
+                        if(dsettype in docid_attnweights_map):  # tracking attention weight for validation and test examples
+                            docid_attnweights_map[dsettype][doc_id] = doc_attn_weights
+        
+                        logsoftmax_scores = doc_categ_scorer(doc_out)
+                        __, pred_classindx = torch.max(logsoftmax_scores, 1)  # apply max on row level
+                        
+                        # print('logsoftmax_scores', logsoftmax_scores.shape)
+                        # print('pred_calssindx', pred_classindx.shape)
+                        # print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
+                        # print('predicted class index:', pred_classindx.item())
+                        # print('ref class index:', docs_labels[doc_indx, question].item())
+                        pred_class.append(pred_classindx.item())
+                        ref_class.append(docs_labels[doc_indx, question].item())
+                        
+                        logprob_scores.append(logsoftmax_scores)
+                        target_class.append(docs_labels[doc_indx, question].unsqueeze(0))
+                        sample_counter += 1
+                        print("doc_id: {}, processed samples {}/{}".format(doc_id, sample_counter, total_num_samples))
 
-                # finished processing docs in batch
-                b_logprob_scores = torch.cat(logprob_scores, dim=0)
-                b_target_class = torch.cat(target_class, dim=0)
-                # print("b_logprob_scores", b_logprob_scores.shape)
-                # print("b_target_class", b_target_class.shape)
-                loss = loss_func(b_logprob_scores, b_target_class)   
-                if(dsettype == 'train'):
-                    # print("computing loss")
-                    # backward step (i.e. compute gradients)
-                    loss.backward()
-                    # apply grad clipping
-                    if(rgrad_mode):
-                        restrict_grad_(models_param, rgrad_mode, rgrad_limit)
-                    # optimzer step -- update weights
-                    optimizer.step()
+                    # finished processing docs in batch
+                    b_logprob_scores = torch.cat(logprob_scores, dim=0)
+                    b_target_class = torch.cat(target_class, dim=0)
+                    # print("b_logprob_scores", b_logprob_scores.shape)
+                    # print("b_target_class", b_target_class.shape)
+                    loss = loss_func(b_logprob_scores, b_target_class)   
+                    if(dsettype == 'train'):
+                        # print("computing loss")
+                        # backward step (i.e. compute gradients)
+                        loss.backward()
+                        # apply grad clipping
+                        if(rgrad_mode):
+                            restrict_grad_(models_param, rgrad_mode, rgrad_limit)
+                        # optimzer step -- update weights
+                        optimizer.step()
+                        # after each batch step the scheduler
+                        cyc_scheduler.step()
+                    epoch_loss += loss.item()
+                    epoch_loss_deavrg += loss.item() * num_docs_perbatch  # deaverage the loss to deal with last batch with unequal size
 
-                epoch_loss += loss.item()
-                # do some cleaning -- get more GPU ;)
-                del docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id
-                torch.cuda.ipc_collect()
-                torch.cuda.empty_cache()
+                    # do some cleaning -- get more GPU ;)
+                    del docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id
+                    torch.cuda.ipc_collect()
+                    torch.cuda.empty_cache()
             # end of epoch
             print("+"*35)
             epoch_loss_avgbatch[dsettype].append(epoch_loss/len(data_loader))
-            epoch_loss_avgsamples[dsettype].append(epoch_loss/len(data_loader.dataset))
+            epoch_loss_avgsamples[dsettype].append(epoch_loss_deavrg/len(data_loader.dataset))
             
             modelscore = perfmetric_report(pred_class, ref_class, epoch+1, flog_out[dsettype])
             perf = modelscore.macro_f1
@@ -408,13 +439,14 @@ def get_random_question_fold_per_hyperparam_exp(questions, random_seed=42):
 
 def hyperparam_model_search(q_docpartitions, bertmodel, 
                             sents_embed_dir, root_dir,
-                            fdtype=torch.float32, 
+                            fdtype=torch.float32,
+                            num_epochs=15,
                             prob_interval_truemax=0.05, 
                             prob_estim=0.95, random_seed=42):
     questions = list(q_docpartitions.keys())
-    questions = [4]
+    # questions = [4]  # TODO: update this
     q_fold_map = get_random_question_fold_per_hyperparam_exp(questions, random_seed=random_seed)
-    dsettypes = ['train', 'validation']  # TODO: this should be train and validation
+    dsettypes = ['train', 'validation']
     for q, fold_num in q_fold_map.items():
         # get list of hyperparam configs
         hyperparam_options = get_hyperparam_options(prob_interval_truemax, prob_estim)
@@ -470,17 +502,37 @@ def get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_
                 exist_flag = True
         if(exist_flag):
             argmax_indx = get_index_argmax(scores, metric_indx)
-            q_fold_config_map[question] = get_saved_config(os.path.join(fold_dir, 'config_{}'.format(argmax_indx), 'config'))
+            mconfig, options = get_saved_config(os.path.join(fold_dir, 'config_{}'.format(argmax_indx), 'config'))
+            q_fold_config_map[question] = (mconfig, options, argmax_indx)
     return q_fold_config_map
 
 
-def train_val_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, sents_embed_dir):    
+def train_val_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, sents_embed_dir, num_epochs=25):    
     dsettypes = ['train', 'validation']
     for question in q_fold_config_map:
-        mconfig, options = q_fold_config_map[question]
+        mconfig, options, __ = q_fold_config_map[question]
+        options['num_epochs'] = num_epochs  # override number of epochs using user specified value
         for fold_num in q_docpartitions[question]:
             # update options fold num to the current fold
             options['fold_num'] = fold_num
             data_partition = q_docpartitions[question][fold_num]
             wrk_dir = create_directory(os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num)))
-            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir=sents_embed_dir)
+            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir)
+
+
+def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, num_epochs=1):    
+    dsettypes = ['test']
+    for question in q_fold_config_map:
+        mconfig, options, __ = q_fold_config_map[question]
+        options['num_epochs'] = num_epochs  # overrid number of epochs using user specified value
+        for fold_num in q_docpartitions[question]:
+            # update options fold num to the current fold
+            options['fold_num'] = fold_num
+            data_partition = q_docpartitions[question][fold_num]
+            train_dir = create_directory(os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num)))
+            # load state_dict pth
+            state_dict_pth = os.path.join(train_dir, 'model_statedict')
+
+            test_wrk_dir = create_directory(os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num)))
+
+            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir, sents_embed_dir, state_dict_dir=state_dict_pth)

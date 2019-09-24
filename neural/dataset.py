@@ -10,9 +10,9 @@ from sklearn.utils.class_weight import compute_class_weight
 class DocDataTensor(Dataset):
     
     def __init__(self, docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, indx_doc_map):
-        self.docs_batch = docs_batch  # tensor.long, (docs, num_sents, sents_len)
-        self.docs_len = docs_len  # tensor.uint8 (docs,), number of sentences in each doc
-        self.docs_sents_len = docs_sents_len  # tensor.uint8, (docs, num_sents)
+        self.docs_batch = docs_batch  # tensor.int64, (docs, num_sents, sents_len)
+        self.docs_len = docs_len  # tensor.int16 (docs,), number of sentences in each doc
+        self.docs_sents_len = docs_sents_len  # tensor.int16, (docs, num_sents)
         self.docs_attn_mask = docs_attn_mask  # tensor.uint8, (docs, num_sents, sents_len)
         self.docs_labels = docs_labels  # tensor.uint8, (docs, num_questions)
         self.indx_doc_map = indx_doc_map  # dict, {indx:doc_id}
@@ -36,7 +36,7 @@ class PartitionDataTensor(Dataset):
         self.partition_ids = partition_ids  # list of doc ids
         self.dsettype = dsettype  # string, dataset type (i.e. train, validation, test)
         self.fold_num = fold_num  # int, fold number
-        self.num_samples = len(self.partition_ids)  # int, number of docs in the partition TODO: update this part
+        self.num_samples = len(self.partition_ids)  # int, number of docs in the partition
         
     def __getitem__(self, indx):
         doc_id = self.partition_ids[indx]
@@ -70,7 +70,7 @@ def construct_load_dataloaders(dataset_fold, dsettypes, config, wrk_dir):
     score_dict = {}
     class_weights = {}
     for dsettype in dsettypes:
-        if(dsettype == 'train' or dsettype == 'validation'):
+        if(dsettype == 'train'):
             shuffle = True
             class_weights[dsettype] = dataset_fold['class_weights']
         else:
@@ -78,7 +78,7 @@ def construct_load_dataloaders(dataset_fold, dsettypes, config, wrk_dir):
             class_weights[dsettype] = None
         data_loaders[dsettype] = DataLoader(dataset_fold[dsettype],
                                             batch_size=config['batch_size'],
-                                            shuffle=False,  # TODO: update this
+                                            shuffle=shuffle,
                                             num_workers=config['num_workers'])
 
         epoch_loss_avgbatch[dsettype] = []

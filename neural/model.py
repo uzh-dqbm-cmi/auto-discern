@@ -193,6 +193,7 @@ class SentenceEncoder(nn.Module):
         encoder_approach = self.config.get('encoder_approach')
         lastlayer_indx = -1
         batch_size = hidden.size(1)
+        
         hn = hidden.view(self.num_hiddenlayers, self.num_directions, batch_size, self.hidden_dim)
         if(encoder_approach == '[h_f]'):  # keep only the last forward hidden state vector
             return hn[lastlayer_indx]  # (1, num_sents, hidden_dim)
@@ -220,6 +221,43 @@ class SentenceEncoder(nn.Module):
         # unpacked_output, out_seqlen = pad_packed_sequence(packed_rnn_out, batch_first=True)
         # return unpacked_output, hidden
         return self._process_rnn_hidden_output(hidden)
+
+    # def _process_rnn_hidden_output(self, unpacked_out, hidden):
+    #     encoder_approach = self.config.get('encoder_approach')
+    #     lastlayer_indx = -1
+    #     batch_size = hidden.size(1)
+    #     hn = hidden.view(self.num_hiddenlayers, self.num_directions, batch_size, self.hidden_dim)
+    #     if(encoder_approach == '[h_f]'):  # keep only the last forward hidden state vector
+    #         return hn[lastlayer_indx]  # (1, num_sents, hidden_dim)
+    #     else:
+    #         # num_sents, max_num_tokens, num_directions, hidden_dim
+    #         rnn_out = unpacked_out.view(unpacked_out.size(0), unpacked_out.size(1), self.num_directions, self.hidden_dim)
+    #         frwd_indx = 0
+    #         bckwd_indx = 1
+    #         t0 = 0
+    #         if(encoder_approach == '[h_f+h_b]'):
+    #             res = hn[lastlayer_indx, frwd_indx, :, :] + rnn_out[:, t0, bckwd_indx, :]
+    #             return res.unsqueeze(0)  # (1, num_sents, hidden_dim)
+    #         elif(encoder_approach == '[h_f;h_b]'):
+    #             # (1, num_sents, 2*hidden_dim)
+    #             hn = torch.cat([hn[lastlayer_indx, frwd_indx, :, :],  rnn_out[:, t0, bckwd_indx, :]], dim=-1)
+    #             return hn.unsqueeze(0)
+
+    # def _run_rnn(self, embed_sents, doc_sents_len, num_sents):
+    #     # apply dropout
+    #     embed_sents = self.dropout_layer(embed_sents)
+    #     # init hidden
+    #     hidden = self.init_hidden(num_sents)
+    #     # pack the batch
+    #     packed_embeds = pack_padded_sequence(embed_sents, doc_sents_len[:num_sents], batch_first=True, enforce_sorted=False)
+    #     # print("packed_embeds", "\n", packed_embeds)
+    #     packed_rnn_out, hidden = self.rnn(packed_embeds, hidden)
+    #     # print("packed_rnn_out", "\n", packed_rnn_out)
+    #     # print("hidden", "\n", hidden)
+    #     # we need to unpack sequences
+    #     unpacked_output, out_seqlen = pad_packed_sequence(packed_rnn_out, batch_first=True)
+    #     # return unpacked_output, hidden
+    #     return self._process_rnn_hidden_output(unpacked_output, hidden)
 
     def forward(self, embed_sents, doc_sents_len, num_sents):
         """ perform forward computation
