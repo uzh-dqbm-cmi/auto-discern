@@ -96,7 +96,7 @@ class DataDictProcessor(object):
         if(max_sent_len > 510):  # BERT tokenizer has max len equal to 512 (i.e. number of tokens)
             max_sent_len = 510  # make sure to leave two tokens for the CLS and SEP
             
-        sents_ids = [torch.tensor([0]*max_sent_len+2, dtype=torch.long)]  # placeholder when padding sentences with different lengths
+        sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)]  # placeholder when padding sentences with different lengths
         num_sents = article_repr['num_sents']
         attn_mask = torch.zeros((num_sents, max_sent_len+2), dtype=torch.uint8)  # binary mask
         
@@ -106,7 +106,7 @@ class DataDictProcessor(object):
 
             toks = tokenizer.tokenize(sent)
             # sandwich the sentence with [CLS] and [SEP] symbols
-            toks = ['CLS'] + toks[:max_sent_len] + ['SEP']
+            toks = ['[CLS]'] + toks[:max_sent_len] + ['[SEP]']
             sents_tok.append(toks)
             num_toks = len(toks)
             attn_mask[sent_indx, :num_toks] = 1  # set 1 for tokens that are not padding
