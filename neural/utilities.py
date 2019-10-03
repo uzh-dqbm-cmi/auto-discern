@@ -3,8 +3,7 @@ import shutil
 import pickle
 import torch
 import numpy as np
-from sklearn.metrics import classification_report, f1_score, roc_auc_score, roc_curve, \
-                            precision_recall_curve, average_precision_score, accuracy_score
+from sklearn.metrics import classification_report, f1_score, roc_curve, precision_recall_curve, accuracy_score
 from matplotlib import pyplot as plt
 
 
@@ -17,11 +16,8 @@ class ModelScore:
         self.auc = auc
 
     def __repr__(self):
-        desc = " best_epoch_indx:{}\n micro_f1:{} \n macro_f1:{} \n accuracy:{} \n auc:{} \n".format(self.best_epoch_indx, 
-                                                                                                     self.micro_f1,
-                                                                                                     self.macro_f1,
-                                                                                                     self.accuracy,
-                                                                                                     self.auc)
+        desc = " best_epoch_indx:{}\n micro_f1:{} \n macro_f1:{} \n accuracy:{} \n auc:{} \n" \
+               "".format(self.best_epoch_indx, self.micro_f1, self.macro_f1, self.accuracy, self.auc)
         return desc
 
 
@@ -32,20 +28,20 @@ class ReaderWriter(object):
 
     @staticmethod
     def dump_data(data, file_name, mode="wb"):
-        """dump data by pickling 
-        
+        """dump data by pickling
+
            Args:
                data: data to be pickled
                file_name: file path where data will be dumped
                mode: specify writing options i.e. binary or unicode
         """
         with open(file_name, mode) as f:
-            pickle.dump(data, f) 
+            pickle.dump(data, f)
 
     @staticmethod
     def read_data(file_name, mode="rb"):
         """read dumped/pickled data
-        
+
            Args:
                file_name: file path where data will be dumped
                mode: specify writing options i.e. binary or unicode
@@ -78,11 +74,11 @@ class ReaderWriter(object):
         """
         data = torch.load(file_name, map_location=device)
         return data
-    
+
     @staticmethod
     def write_log(line, outfile, mode="a"):
         """write data to a file
-        
+
            Args:
                line: string representing data to be written out
                outfile: file path where data will be written/logged
@@ -94,7 +90,7 @@ class ReaderWriter(object):
     @staticmethod
     def read_log(file_name, mode="r"):
         """write data to a file
-        
+
            Args:
                line: string representing data to be written out
                outfile: file path where data will be written/logged
@@ -107,10 +103,10 @@ class ReaderWriter(object):
 
 def create_directory(folder_name, directory="current"):
     """create directory/folder (if it does not exist) and returns the path of the directory
-    
+
        Args:
            folder_name: string representing the name of the folder to be created
-       
+
        Keyword Arguments:
            directory: string representing the directory where to create the folder
                       if `current` then the folder will be created in the current directory
@@ -154,11 +150,11 @@ def get_cuda_device_stats(device):
 
 def perfmetric_report(pred_target, ref_target, epoch, outlog, plot_roc=True):
 
-#     print(ref_target.shape)
-#     print(pred_target.shape)
-
-#     print("ref_target \n", ref_target)
-#     print("pred_target \n", pred_target)
+    # print(ref_target.shape)
+    # print(pred_target.shape)
+    #
+    # print("ref_target \n", ref_target)
+    # print("pred_target \n", pred_target)
 
     outcome_lst = []
     for arr in (ref_target, pred_target):
@@ -179,28 +175,29 @@ def perfmetric_report(pred_target, ref_target, epoch, outlog, plot_roc=True):
     report += str(accuracy) + lsep
     report += "-"*30 + lsep
 
-    modelscore = ModelScore(epoch, micro_f1, macro_f1, accuracy, 0)  # for now we are not computing auc values -- set to 0
+    # for now we are not computing auc values -- set to 0
+    modelscore = ModelScore(epoch, micro_f1, macro_f1, accuracy, 0)
     ReaderWriter.write_log(report, outlog)
     return modelscore
 
 
 def plot_precision_recall_curve(ref_target, prob_poslabel, figname, outdir):
     pr, rec, thresholds = precision_recall_curve(ref_target, prob_poslabel)
-    thresholds[0]=1
+    thresholds[0] = 1
     plt.figure(figsize=(9, 6))
     plt.plot(pr, rec, 'bo', label='Precision vs Recall')
-#     plt.plot(np.arange(0,len(thresholds)), thresholds, 'r-', label='thresholds')
+    # plt.plot(np.arange(0,len(thresholds)), thresholds, 'r-', label='thresholds')
     plt.xlabel('Precision')
     plt.ylabel('Recall')
     plt.title('Precision vs. recall curve')
     plt.legend(loc='best')
     plt.savefig(os.path.join(outdir, os.path.join('precisionrecall_curve_{}'.format(figname) + ".pdf")))
     plt.close()
-    
+
 
 def plot_roc_curve(ref_target, prob_poslabel, figname, outdir):
     fpr, tpr, thresholds = roc_curve(ref_target, prob_poslabel)
-    thresholds[0]=1
+    thresholds[0] = 1
     plt.figure(figsize=(9, 6))
     plt.plot(fpr, tpr, 'bo', label='TPR vs FPR')
     plt.plot(fpr, thresholds, 'r-', label='thresholds')
@@ -216,8 +213,7 @@ def plot_loss(epoch_loss_avgbatch, epoch_loss_avgsamples, wrk_dir):
     dsettypes = epoch_loss_avgbatch.keys()
     for dsettype in dsettypes:
         plt.figure(figsize=(9, 6))
-        plt.plot(epoch_loss_avgbatch[dsettype], 'r', 
-                 epoch_loss_avgsamples[dsettype], 'b')
+        plt.plot(epoch_loss_avgbatch[dsettype], 'r', epoch_loss_avgsamples[dsettype], 'b')
         plt.xlabel("number of epochs")
         plt.ylabel("negative loglikelihood cost")
         plt.legend(['epoch batch average loss', 'epoch training samples average loss'])

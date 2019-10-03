@@ -8,7 +8,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 
 class DocDataTensor(Dataset):
-    
+
     def __init__(self, docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, indx_doc_map):
         self.docs_batch = docs_batch  # tensor.int64, (docs, num_sents, sents_len)
         self.docs_len = docs_len  # tensor.int16 (docs,), number of sentences in each doc
@@ -18,31 +18,30 @@ class DocDataTensor(Dataset):
         self.indx_doc_map = indx_doc_map  # dict, {indx:doc_id}
         self.doc_indx_map = {doc_id: indx for indx, doc_id in self.indx_doc_map.items()}  # dict, indx_doc_map reversed
         self.num_samples = docs_batch.size(0)  # int, number of docs
-        
+
     def __getitem__(self, indx):
-        
-        return(self.docs_batch[indx], self.docs_len[indx], 
-               self.docs_sents_len[indx], self.docs_attn_mask[indx],
+
+        return(self.docs_batch[indx], self.docs_len[indx], self.docs_sents_len[indx], self.docs_attn_mask[indx],
                self.docs_labels[indx], self.indx_doc_map[indx])
-  
+
     def __len__(self):
         return(self.num_samples)
-    
-    
+
+
 class PartitionDataTensor(Dataset):
-    
+
     def __init__(self, doc_data_tensor, partition_ids, dsettype, fold_num):
         self.docs_data_tensor = doc_data_tensor  # instance of :class:`DocDataTensor`
         self.partition_ids = partition_ids  # list of doc ids
         self.dsettype = dsettype  # string, dataset type (i.e. train, validation, test)
         self.fold_num = fold_num  # int, fold number
         self.num_samples = len(self.partition_ids)  # int, number of docs in the partition
-        
+
     def __getitem__(self, indx):
         doc_id = self.partition_ids[indx]
         upd_indx = self.docs_data_tensor.doc_indx_map[doc_id]
         return self.docs_data_tensor[upd_indx]
-  
+
     def __len__(self):
         return(self.num_samples)
 
@@ -92,15 +91,16 @@ def construct_load_dataloaders(dataset_fold, dsettypes, config, wrk_dir):
     return (data_loaders, epoch_loss_avgbatch, epoch_loss_avgsamples, score_dict, class_weights, flog_out)
 
 
-def get_stratified_partitions(docs_data_tensor, questions=(4, 5, 9, 10, 11), num_folds=5, valid_set_portion=0.1, random_state=42):
+def get_stratified_partitions(docs_data_tensor, questions=(4, 5, 9, 10, 11), num_folds=5, valid_set_portion=0.1,
+                              random_state=42):
     """Generate 5-fold stratified sample of document ids based on the question label
-    
+
     Args:
         docs_data_tensor: instance of :class:`DocDataTensor`
-    
     """
     skf_trte = StratifiedKFold(n_splits=num_folds, random_state=random_state, shuffle=True)  # split train and test
-    sss_trv = StratifiedShuffleSplit(n_splits=1, random_state=random_state, test_size=valid_set_portion)  # split train and validation
+    # split train and validation
+    sss_trv = StratifiedShuffleSplit(n_splits=1, random_state=random_state, test_size=valid_set_portion)
     docs_labels = docs_data_tensor.docs_labels  # tensor (docs, num_questions)
     get_docs_id = np.vectorize(docs_data_tensor.indx_doc_map.get)  # vectorized lookup
     q_partitions = {}
@@ -117,7 +117,7 @@ def get_stratified_partitions(docs_data_tensor, questions=(4, 5, 9, 10, 11), num
             x_train = np.zeros(len(q_train_labels))
             train_doc_ids = get_docs_id(train_index)
             test_doc_ids = get_docs_id(test_index)
-            
+
             for tr_index, validation_index in sss_trv.split(x_train, q_train_labels):  # loop runs once
                 tr_doc_ids = train_doc_ids[list(tr_index)]
                 val_doc_ids = train_doc_ids[list(validation_index)]
@@ -160,10 +160,11 @@ def validate_partitions(q_partitions, docs_id, valid_set_portion=0.1, test_set_p
             tr_val = set(tr_ids).intersection(val_ids)
             tr_te = set(tr_ids).intersection(te_ids)
             te_val = set(te_ids).intersection(val_ids)
-            
+
             tr_size = len(tr_ids) + len(val_ids)
             num_docs = tr_size + len(te_ids)
-            print('expected validation set size:', valid_set_portion*tr_size, '; actual validation set size:', len(val_ids))
+            print('expected validation set size:', valid_set_portion*tr_size, '; actual validation set size:',
+                  len(val_ids))
             print('expected test set size:', test_set_portion*num_docs, '; actual test set size:', len(te_ids))
             print()
             assert np.abs(valid_set_portion*tr_size - len(val_ids)) <= 2  # valid difference range
@@ -228,7 +229,7 @@ def validate_q_docpartitions(q_docpartitions, q_partitions):
             for dsettype in q_docpartitions[question][fold_num]:
                 pdtensor = q_docpartitions[question][fold_num][dsettype]  # partition data tensor instance
                 print(id(pdtensor.docs_data_tensor))
-                assert np.all(np.equal(np.array(pdtensor.partition_ids), 
+                assert np.all(np.equal(np.array(pdtensor.partition_ids),
                                        np.array(q_partitions[question][fold_num][dsettype])))
     print("passed test!!")
 
@@ -245,8 +246,9 @@ def compute_class_weights_per_fold_(q_docpartitions):
     """computes inverse class weights and updates the passed dictionary
 
     Args:
-        q_docpartitions: dictionary, {question, int: {fold_num, int: {datasettype, string:{qdocpartition, instance of :class:`PartitionDataTensor`}}}}
-    
+        q_docpartitions: dictionary, {question, int: {fold_num, int: {datasettype, string:{qdocpartition, instance of
+        :class:`PartitionDataTensor`}}}}
+
     Example:
         q_docpartitions
             {4: {0: {'train': <neural.dataset.PartitionDataTensor at 0x1cec95c96a0>,

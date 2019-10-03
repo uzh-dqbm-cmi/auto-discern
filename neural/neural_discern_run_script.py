@@ -8,17 +8,16 @@ import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
 
 import os
+import datetime
 import pandas as pd
 import torch
 from pytorch_pretrained_bert import BertModel
 
 from neural.data_processor import DataDictProcessor
-from neural.dataset import generate_docpartition_per_question, \
-    validate_q_docpartitions, compute_class_weights_per_fold_
-from neural.model import BertEmbedder, \
-    generate_sents_embeds_from_docs
+from neural.dataset import generate_docpartition_per_question, validate_q_docpartitions, compute_class_weights_per_fold_
+from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
-    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run, validate_doc_attnw
+    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run
 from neural.utilities import ReaderWriter, create_directory
 
 
@@ -40,7 +39,8 @@ def read_pickles(directory):
     return q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config
 
 
-def build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config, docs_data_tensor, q_partitions):
+def build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config, docs_data_tensor, q_partitions,
+                         validate=False):
     processor = DataDictProcessor(proc_config)
     # reassign updated articles_dict and articles_repr to processor instance
     processor.set_instance_attr(proc_articles_repr, proc_articles_dict, proc_config)
@@ -50,8 +50,8 @@ def build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc
     for question in questions:
         q_docpartitions.update(generate_docpartition_per_question(docs_data_tensor, q_partitions, question))
 
-    # TODO: uncomment
-    # validate_q_docpartitions(q_docpartitions, q_partitions)
+    if validate:
+        validate_q_docpartitions(q_docpartitions, q_partitions)
 
     # add class weights in q_docpartitions
     # we will use the weights to emphasize less occuring class during training phase
@@ -98,7 +98,7 @@ def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmode
 
 
 def run_training_parallel(questions_to_run, directory, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
-                              question_gpu_map, num_epochs, max_folds):
+                          question_gpu_map, num_epochs, max_folds):
     train_val_dir = create_directory('train_validation', directory)
     queue = mp.Queue()
     q_processes = []
@@ -118,6 +118,7 @@ def run_training_parallel(questions_to_run, directory, q_docpartitions, q_config
         print("<<< joined process")
 
     return train_val_dir
+
 
 def run_training(directory, q_docpartitions, q_config_map, bertmodel, sents_embed_dir, question_gpu_map, num_epochs,
                  max_folds):
@@ -195,7 +196,6 @@ def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5
 
 
 if __name__ == '__main__':
-    # mp.set_start_method("spawn")
 
     rewrite_sentence_embeddings = False
     run_hyper_param_search = True
@@ -214,7 +214,9 @@ if __name__ == '__main__':
     }
     print("Running questions: {} | folds: {} | epochs: {}".format(questions_to_run, max_folds, num_epochs))
 
-    curr_dir = '/opt/data/autodiscern/aa_neural'
+    base_dir = '/opt/data/autodiscern/aa_neural'
+    time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    curr_dir = os.path.join(base_dir, 'experiments', time_stamp)
     bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
     sents_embed_dir_name = 'sents_bert_embed_uncased'
 
@@ -222,8 +224,8 @@ if __name__ == '__main__':
         print("Loading objects...")
 
     q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(curr_dir)
-    q_docpartitions = build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config, docs_data_tensor,
-                                           q_partitions)
+    q_docpartitions = build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config,
+                                           docs_data_tensor, q_partitions)
 
     bertmodel = BertModel.from_pretrained(bert_model_dir)
 
@@ -243,7 +245,8 @@ if __name__ == '__main__':
             print("Running hyper-parameter search...")
         run_hyperparam_search(questions_to_run, curr_dir, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map)
         hyperparam_search_dir = create_directory('hyperparam_search', curr_dir)
-        q_config_map = get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_trials=60, metric_indx=2)
+        q_config_map = get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_trials=60,
+                                                             metric_indx=2)
     else:
         if verbose:
             print("Creating custom hyper-parameter config...")
@@ -261,7 +264,7 @@ if __name__ == '__main__':
         print("Training...")
 
     train_val_dir = run_training_parallel(questions_to_run, curr_dir, q_docpartitions, q_config_map, bertmodel,
-                                              sents_embed_dir, question_gpu_map, num_epochs, max_folds)
+                                          sents_embed_dir, question_gpu_map, num_epochs, max_folds)
 
     # train_val_dir = run_training(curr_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
     #                              question_gpu_map, num_epochs, max_folds)
@@ -272,7 +275,8 @@ if __name__ == '__main__':
     build_accuracy_dfs(q_docpartitions, test_dir)
 
     # extra results
-    # docid_attnw_map_val = ReaderWriter.read_data(os.path.join(test_dir, 'question_10', 'fold_2', 'docid_attnw_map_test.pkl')
+    # docid_attnw_map_val = ReaderWriter.read_data(os.path.join(test_dir, 'question_10', 'fold_2',
+    #                                                           'docid_attnw_map_test.pkl')
     #                                              )
     # highlight_attnw_over_sents(docid_attnw_map_val, proc_articles_repr, topk=5)
     # validate_doc_attnw(docid_attnw_map_val)

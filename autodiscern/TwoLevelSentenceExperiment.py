@@ -47,7 +47,7 @@ class TwoLevelSentenceExperiment(ade.PartitionedExperiment):
 
 
 class SentenceLevelModelRun(ade.ModelRun):
-    
+
     @classmethod
     def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
                                                                                   List, Dict]:

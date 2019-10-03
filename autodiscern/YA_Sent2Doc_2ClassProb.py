@@ -10,7 +10,7 @@ from autodiscern.hierarchical_sent_doc_experiment import SentenceLevelModelRun
 class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
     doc_level_info = {}
 
-    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict, 
+    def __init__(self, name: str, data_dict: Dict, model, hyperparams: Dict,
                  doc_level_info: Dict, n_partitions: int = 5, stratified=True,
                  verbose=False):
         super().__init__(name, data_dict, model, hyperparams, n_partitions, stratified, verbose)
@@ -30,7 +30,7 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
                                       data_dict=data_dict, doc_level_info=cls.doc_level_info)
 
         sl_mr.run()
-        
+
         print("len(sl_mr.train_set_upd): ", len(sl_mr.train_set_upd))
         # use predictions from SentenceLevelModel to create training set for SentenceToDocModel
         data_set_train = cls.create_sent_to_doc_data_set(sl_mr.model, sl_mr.x_train, sl_mr.train_set_upd)
@@ -56,7 +56,7 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
             'label': [d['label'] for d in data_set],
         })
         return new_data_set
-        
+
     def show_feature_importances(self, level):
         all_feature_importances = pd.DataFrame()
         for partition_id in self.model_runs:
@@ -66,6 +66,7 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
                                                left_index=True, right_index=True)
         all_feature_importances['median'] = all_feature_importances.median(axis=1)
         return all_feature_importances.sort_values('median', ascending=False)
+
 
 class SentenceToDocProbaModelRun(ade.ModelRun):
 

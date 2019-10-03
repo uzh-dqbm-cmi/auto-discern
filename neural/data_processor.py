@@ -18,7 +18,7 @@ class DataDictProcessor(object):
         self.config = config
         self.articles_repr = None
         self.articles_dict = None
-    
+
     def get_artid_label_map(self, article_id, cutoff=3, method='round_mean'):
         articles_dict = self.articles_dict
         # every sentence has same labels associated with the doc comprising them
@@ -32,18 +32,18 @@ class DataDictProcessor(object):
         mask = labels >= cutoff
         labels[mask] = 1
         labels[~mask] = 0
-        
+
         return(labels)
-    
+
     def generate_doctensor_from_articles(self, tokenizer):
         '''Generate tensor representation of the docs in the processed data dictionary 
-        
+
         Args:
             tokenizer: instance of :class:`BertTokenizer`
-        
-        
+
+
         .. Note::
-            
+
             this function is called after having `self.articles_repr` created using :func:`self.generate_articles_repr` 
             or setting it through :func:`self.set_instance_attr`
         '''
@@ -59,10 +59,11 @@ class DataDictProcessor(object):
         cutoff = self.config.get('label_cutoff', 3)
         avg_method = self.config.get('label_avgmethod', 'round_mean')
         labels = []
-        
+
         for doc_id in articles_id:
             article_repr = articles_repr[doc_id]
-            batched_sents_ids, sents_tok, sents_len, attn_mask = self._generate_doctensor_from_article(article_repr, tokenizer)
+            batched_sents_ids, sents_tok, sents_len, attn_mask = self._generate_doctensor_from_article(article_repr,
+                                                                                                       tokenizer)
             docs_batch.append(batched_sents_ids)
             docs_sents_len.append(sents_len)
             docs_attn_mask.append(attn_mask)
@@ -73,7 +74,7 @@ class DataDictProcessor(object):
             responses = torch.from_numpy(responses).unsqueeze(0).type(torch.uint8)
             labels.append(responses)
             docs_len.append(article_repr['num_sents'])
-            
+
         # (docs, num_sents, max_sent_len)
         docs_batch = pad_sequence(docs_batch, batch_first=True, padding_value=0)
         # (docs, num_sents)
@@ -84,19 +85,20 @@ class DataDictProcessor(object):
         docs_labels = torch.cat(labels, dim=0)
         # (docs, )
         docs_len = torch.tensor(docs_len, dtype=torch.int16)
-        
+
         return DocDataTensor(docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, indx_doc_map)
     
     def _generate_doctensor_from_article(self, article_repr, tokenizer):
         '''generate tensor representation of a processed article'''
-        
+
         sents_tok = []
         sents_len = []
         max_sent_len = self.config.get('tokenizer_max_sent_len', 256)
         if(max_sent_len > 510):  # BERT tokenizer has max len equal to 512 (i.e. number of tokens)
             max_sent_len = 510  # make sure to leave two tokens for the CLS and SEP
-            
-        sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)]  # placeholder when padding sentences with different lengths
+
+        # placeholder when padding sentences with different lengths
+        sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)]
         num_sents = article_repr['num_sents']
         attn_mask = torch.zeros((num_sents, max_sent_len+2), dtype=torch.uint8)  # binary mask
         
@@ -116,7 +118,8 @@ class DataDictProcessor(object):
             # TODO: intervene here with BertModel to generate embedded representation (i.e. as feature extractor)
         
         # padd sequences to obtain (sents, max_sent_len); sents here refers to number of sents in the article
-        batched_sents_ids = pad_sequence(sents_ids, batch_first=True, padding_value=0)  # padd sequences to get BxTx* shape
+        # padd sequences to get BxTx* shape
+        batched_sents_ids = pad_sequence(sents_ids, batch_first=True, padding_value=0)
         # remove first sentence placeholder
         batched_sents_ids = batched_sents_ids[1:, :]
         # print(batched_sents_ids, '\n', batched_sents_ids.size())
@@ -146,8 +149,9 @@ class DataDictProcessor(object):
         self.articles_dict = articles_dict
     
     def _generate_article_repr(self, article_id, data_dict):
-        '''Remove pseudo-sentences (i.e. ones that have only full-stop or one character) and generate new representaiton from a parsed article
-        
+        '''Remove pseudo-sentences (i.e. ones that have only full-stop or one character) and generate new representaiton
+         from a parsed article
+
         Args:
             article_id: int/string, representing article/doc number
             data_dict: dict, pre-processed representation of articles/docs
@@ -157,9 +161,10 @@ class DataDictProcessor(object):
             article_info: dict, {article_id:{'content': article text,
                                              'sents': list of sentences,
                                              'num_sents': number of sentences}}
-        
+
         .. Note::
-            Period or single character senteneces are generally generated due to having links/images that have no content between the tags
+            Period or single character senteneces are generally generated due to having links/images that have no
+            content between the tags
         '''
         counter = 0
         article_info = {article_id: {}}
@@ -173,7 +178,8 @@ class DataDictProcessor(object):
                 if(sent == '.' or len(sent) == 1):
                     print("Removing: ", sent)
                 else:
-                    article_dict['{}-{}'.format(article_id, upd_counter)] = deepcopy(data_dict['{}-{}'.format(article_id, counter)])
+                    dict_key = '{}-{}'.format(article_id, upd_counter)
+                    article_dict[dict_key] = deepcopy(data_dict['{}-{}'.format(article_id, counter)])
                     curr_dict = article_dict['{}-{}'.format(article_id, upd_counter)]
                     # update sub_id
                     curr_dict['sub_id'] = upd_counter

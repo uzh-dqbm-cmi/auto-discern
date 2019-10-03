@@ -19,19 +19,19 @@ class Attention(nn.Module):
         self.input_dim = input_dim
         self.nonlinear_func = nonlinear_func
         self.device = get_device(to_gpu, gpu_index)
-        
+
         # print("Modified attention model")
         # print("method: ", self.attn_method)
         # print("input dim:", self.input_dim)
         # print("generic config:", config)
-        
+
         self.fdtype = config.get('fdtype', torch.float32)
         self.bidirectional_concat_flag = config.get('bidirectional_concat_flag', False)
         if(self.bidirectional_concat_flag):
             input_divider = 2
         else:
             input_divider = 1
-        
+
         # print("input divider:", input_divider)
         if(self.attn_method == 'additive'):
             self.attnW = nn.Linear(self.input_dim, self.input_dim//input_divider)
@@ -42,14 +42,14 @@ class Attention(nn.Module):
                 self.scaler = torch.sqrt(torch.tensor(queryv_dim, dtype=self.fdtype, device=self.device))
         # use this as query vector against the encoder outputs
         self.queryv = nn.Parameter(torch.randn(queryv_dim, dtype=self.fdtype, device=self.device), requires_grad=True)
-    
+
     def forward(self, encoder_outputs):
         '''Performs forward computation
-        
+
         Args:
             encoder_outputs: torch.Tensor, (1, sents, encoding_dim), dtype=torch.float32
         '''
-        
+
         if(self.attn_method == 'additive'):
             # do the mapping using one-layer mlp network, followed by nonlinear element-wise operation
             encoder_map = self.nonlinear_func(self.attnW(encoder_outputs))
@@ -71,7 +71,7 @@ class Attention(nn.Module):
 
 
 class BertEmbedder(nn.Module):
-    
+
     def __init__(self, bertmodel, proc_config):
         super(BertEmbedder, self).__init__()
         self.bertmodel = bertmodel.float()
@@ -105,7 +105,7 @@ class BertEmbedder(nn.Module):
         
     #     # print("finished embedding sents using BERT!")
     #     return encoded_layers
-    
+
     def forward(self, doc_tensor, attention_mask, num_sents):
         '''
         
@@ -125,9 +125,9 @@ class BertEmbedder(nn.Module):
             bertmodel.eval()
         else:
             bertmodel.train()
-            
+
         embed_layers_lst = []
-            
+
         for sent_indx in range(num_sents):  # going over each sentenece one by one due to GPU limit :((
             # print('sent_indx', sent_indx)
             with torch.set_grad_enabled(bert_train_flag):
@@ -135,7 +135,7 @@ class BertEmbedder(nn.Module):
                                                attention_mask=attention_mask[sent_indx:sent_indx+1],
                                                output_all_encoded_layers=bert_all_output)
                 embed_layers_lst.append(encoded_layers)
-        
+
         # concat everything 
         out = torch.cat(embed_layers_lst, dim=0)
         # print("finished embedding sents using BERT!")
@@ -173,22 +173,22 @@ class SentenceEncoder(nn.Module):
 
     def init_hidden(self, batch_size):
         """initialize hidden vectors at t=0
-        
+
         Args:
             batch_size: int, the size of the current evaluated batch
         """
         # a hidden vector has the shape (num_layers*num_directions, batch, hidden_dim)
-    
+
         h0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
                                                                                                   dtype=self.fdtype)
         if(isinstance(self.rnn, nn.LSTM)):
-            c0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
-                                                                                                      dtype=self.fdtype)
+            c0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
+                             ).to(device=self.device, dtype=self.fdtype)
             hiddenvec = (h0,c0)
         else:
             hiddenvec = h0
         return(hiddenvec)
-    
+
     def _process_rnn_hidden_output(self, hidden):
         encoder_approach = self.config.get('encoder_approach')
         lastlayer_indx = -1
@@ -212,7 +212,8 @@ class SentenceEncoder(nn.Module):
         # init hidden
         hidden = self.init_hidden(num_sents)
         # pack the batch
-        packed_embeds = pack_padded_sequence(embed_sents, doc_sents_len[:num_sents], batch_first=True, enforce_sorted=False)
+        packed_embeds = pack_padded_sequence(embed_sents, doc_sents_len[:num_sents], batch_first=True,
+                                             enforce_sorted=False)
         # print("packed_embeds", "\n", packed_embeds)
         packed_rnn_out, hidden = self.rnn(packed_embeds, hidden)
         # print("packed_rnn_out", "\n", packed_rnn_out)
@@ -231,7 +232,8 @@ class SentenceEncoder(nn.Module):
     #         return hn[lastlayer_indx]  # (1, num_sents, hidden_dim)
     #     else:
     #         # num_sents, max_num_tokens, num_directions, hidden_dim
-    #         rnn_out = unpacked_out.view(unpacked_out.size(0), unpacked_out.size(1), self.num_directions, self.hidden_dim)
+    #         rnn_out = unpacked_out.view(unpacked_out.size(0), unpacked_out.size(1), self.num_directions,
+    #                                     self.hidden_dim)
     #         frwd_indx = 0
     #         bckwd_indx = 1
     #         t0 = 0
@@ -249,7 +251,8 @@ class SentenceEncoder(nn.Module):
     #     # init hidden
     #     hidden = self.init_hidden(num_sents)
     #     # pack the batch
-    #     packed_embeds = pack_padded_sequence(embed_sents, doc_sents_len[:num_sents], batch_first=True, enforce_sorted=False)
+    #     packed_embeds = pack_padded_sequence(embed_sents, doc_sents_len[:num_sents], batch_first=True,
+    #                                          enforce_sorted=False)
     #     # print("packed_embeds", "\n", packed_embeds)
     #     packed_rnn_out, hidden = self.rnn(packed_embeds, hidden)
     #     # print("packed_rnn_out", "\n", packed_rnn_out)
@@ -261,21 +264,22 @@ class SentenceEncoder(nn.Module):
 
     def forward(self, embed_sents, doc_sents_len, num_sents):
         """ perform forward computation
-        
+
             Args:
-                embed_sents: torch.Tensor, (sents, max_sent_len, embed_dim), dtype=torch.float32 or torch.float64 depending on fdtype
+                embed_sents: torch.Tensor, (sents, max_sent_len, embed_dim), dtype=torch.float32 or torch.float64
+                    depending on fdtype.
                 doc_sents_len: torch.Tensor, (sents, ), dtype=torch.int64
                 num_sents: int, actual number of sentences in the doc
         """
-        
+
         return self._run_rnn(embed_sents, doc_sents_len, num_sents)
-        
+
 
 class DocEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, attn_model,
                  num_hiddenlayers=1, bidirection=False, pdropout=0.1,
                  rnn_class=nn.GRU, nonlinear_func=torch.relu, config={}, to_gpu=True, gpu_index=0):
-        
+
         super(DocEncoder, self).__init__()
         self.device = get_device(to_gpu, gpu_index)
         self.input_dim = input_dim
@@ -284,7 +288,7 @@ class DocEncoder(nn.Module):
         self.num_hiddenlayers = num_hiddenlayers
         self.pdropout = pdropout
         self.dropout_layer = nn.Dropout(pdropout)
-        
+
         self.config = config
         # to get options for the attention module
         self.fdtype = self.config.get('fdtype', torch.float32)
@@ -299,15 +303,15 @@ class DocEncoder(nn.Module):
             rnn_dropout = 0
         else:
             rnn_dropout = self.pdropout
-            
+
         self.rnn = rnn_class(self.input_dim, self.hidden_dim, num_layers=self.num_hiddenlayers, 
                              dropout=rnn_dropout, bidirectional=bidirection, batch_first=True)
-        
+
         self.nonlinear_func = nonlinear_func    
 
     def init_hidden(self, batch_size):
         """initialize hidden vectors at t=0
-        
+
         Args:
             batch_size: int, the size of the current evaluated batch
         """
@@ -315,13 +319,13 @@ class DocEncoder(nn.Module):
         h0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device, 
                                                                                                   dtype= self.fdtype)
         if(isinstance(self.rnn, nn.LSTM)):
-            c0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
-                                                                                                      dtype= self.fdtype)
+            c0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
+                           ).to(device=self.device, dtype= self.fdtype)
             hiddenvec = (h0,c0)
         else:
             hiddenvec = h0
         return(hiddenvec)
-    
+
     def _reshape_rnn_output(self, rnn_out):
         """
         Args:
@@ -356,7 +360,7 @@ class DocEncoder(nn.Module):
         doc_vec = attn_weights_norm.unsqueeze(1).bmm(rnn_out)  # (docs, 1, num_sents) * (docs, num_sents, embed_dim)
         doc_vec = self.dropout_layer(doc_vec.squeeze(1))  # turning (docs, 1, embed_dim) to (docs, embed_dim)
         return doc_vec, attn_weights_norm
-        
+
 
 class DocCategScorer(nn.Module):
     def __init__(self, input_dim, num_labels):
@@ -366,7 +370,7 @@ class DocCategScorer(nn.Module):
         # TODO: do multiple mappings using Sequential or ModuleList
         self.classifier = nn.Linear(input_dim, num_labels)
         self.logsoftmax = nn.LogSoftmax(dim=1)
-    
+
     def forward(self, doc_tensor):
         """ perform forward computation
         
@@ -374,7 +378,7 @@ class DocCategScorer(nn.Module):
                 doc_tensor: torch.Tensor, (1, encoding_dim), dtype=torch.float32
                             currently, it accepts one batch (i.e. one doc at a time due to GPU memory limit)
         """
-        
+
         # init hidden
         out = self.classifier(doc_tensor)
         # print('classifier ', out)
@@ -429,7 +433,7 @@ def restrict_grad_(mparams, mode, limit):
 
 def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fdtype, gpu_index=0):
     """Generate token embedding for sentences in docs
-    
+
     Args:
         docs_data_tensor: instance of :class:`DocsDataTensor`
         bertembeder: instance of :class:`BertEmbedder`

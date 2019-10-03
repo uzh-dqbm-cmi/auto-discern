@@ -13,7 +13,7 @@ class SentenceLevelModelRun(ade.ModelRun):
     train_set_upd = None
     test_set_upd = None
 
-    def __init__(self, train_set: List[Dict], test_set: List[Dict], model, hyperparams: Dict, 
+    def __init__(self, train_set: List[Dict], test_set: List[Dict], model, hyperparams: Dict,
                  data_dict: Dict, doc_level_info: Dict):
         super().__init__(train_set, test_set, model, hyperparams)
         SentenceLevelModelRun._assign_vars(data_dict, doc_level_info)
@@ -48,7 +48,7 @@ class SentenceLevelModelRun(ade.ModelRun):
     @classmethod
     def build_features(cls, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
                                                                                   List, Dict]:
-                                                           
+
         doc_level_info = SentenceLevelModelRun.doc_level_info
         document_ids = list(doc_level_info.keys())
         document_ids.sort()
@@ -56,10 +56,10 @@ class SentenceLevelModelRun(ade.ModelRun):
         data_dict = SentenceLevelModelRun.data_dict
         train_ids = list(set([int(entity_dict['entity_id']) for entity_dict in train_set]))
         test_ids = list(set([int(entity_dict['entity_id']) for entity_dict in test_set]))
-        
+
         train_ids.sort()
         test_ids.sort()
-        
+
         print('build_features method..')
         print(train_ids)
         print(test_ids)
@@ -67,11 +67,11 @@ class SentenceLevelModelRun(ade.ModelRun):
 
         corpus_train = [doc_level_info[doc_id]['content'] for doc_id in train_ids]
         corpus_test = [doc_level_info[doc_id]['content'] for doc_id in test_ids]
-        
+
         # update train set and test set lists to reflect the above order
         train_set = cls._extract_dset(train_ids, doc_level_info, data_dict)
         test_set = cls._extract_dset(test_ids, doc_level_info, data_dict)
-        
+
         # set the updated train/test sets
         cls.train_set_upd = train_set
         cls.test_set_upd = test_set
