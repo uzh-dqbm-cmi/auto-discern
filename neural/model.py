@@ -6,7 +6,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class Attention(nn.Module):
-    def __init__(self, attn_method, input_dim, nonlinear_func=torch.tanh, config={}, to_gpu=True):
+    def __init__(self, attn_method, input_dim, nonlinear_func=torch.tanh, config={}, to_gpu=True, gpu_index=0):
         '''
         Args:
             attn_method: string, {'additive', 'dot', 'dot_scaled'}
@@ -18,7 +18,7 @@ class Attention(nn.Module):
         self.attn_method = attn_method
         self.input_dim = input_dim
         self.nonlinear_func = nonlinear_func
-        self.device = get_device(to_gpu)
+        self.device = get_device(to_gpu, gpu_index)
         
         # print("Modified attention model")
         # print("method: ", self.attn_method)
@@ -145,11 +145,11 @@ class BertEmbedder(nn.Module):
 class SentenceEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_hiddenlayers=1, 
                  bidirection=False, pdropout=0.1, rnn_class=nn.GRU,
-                 nonlinear_func=torch.relu, config={}, to_gpu=True):
+                 nonlinear_func=torch.relu, config={}, to_gpu=True, gpu_index=0):
         
         super(SentenceEncoder, self).__init__()
         self.input_dim = input_dim  # embedding dimension as input to RNN
-        self.device = get_device(to_gpu)
+        self.device = get_device(to_gpu, gpu_index)
         self.hidden_dim = hidden_dim  # dimension of RNN output
         self.num_hiddenlayers = num_hiddenlayers
         self.pdropout = pdropout
@@ -274,10 +274,10 @@ class SentenceEncoder(nn.Module):
 class DocEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, attn_model,
                  num_hiddenlayers=1, bidirection=False, pdropout=0.1,
-                 rnn_class=nn.GRU, nonlinear_func=torch.relu, config={}, to_gpu=True):
+                 rnn_class=nn.GRU, nonlinear_func=torch.relu, config={}, to_gpu=True, gpu_index=0):
         
         super(DocEncoder, self).__init__()
-        self.device = get_device(to_gpu)
+        self.device = get_device(to_gpu, gpu_index)
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim  # dimension of the hidden vector from rnn
         self.attn_model = attn_model  # instance of :class:`Attention`
@@ -427,7 +427,7 @@ def restrict_grad_(mparams, mode, limit):
                 param.grad.data.clamp_(minl, maxl)
 
 
-def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fdtype):
+def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fdtype, gpu_index=0):
     """Generate token embedding for sentences in docs
     
     Args:
@@ -438,7 +438,7 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
     
     """
     bert_proc_docs = {}
-    gpu_device = get_device(to_gpu=True)
+    gpu_device = get_device(to_gpu=True, gpu_index=gpu_index)
     # move bertembedder to gpu
     bertembeder.type(fdtype).to(gpu_device)
     samples_counter = 0

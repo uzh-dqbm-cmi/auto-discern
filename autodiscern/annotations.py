@@ -1,5 +1,3 @@
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
-from allennlp.predictors.predictor import Predictor
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 import re
@@ -8,6 +6,8 @@ from autodiscern.data_manager import DataManager
 
 
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
+    from allennlp.predictors.predictor import Predictor
     tok = WordTokenizer()
     for id in inputs:
         # have to convert tokens to text because spacy tokens are not pickleable

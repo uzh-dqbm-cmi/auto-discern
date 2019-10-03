@@ -53,6 +53,31 @@ class ReaderWriter(object):
         with open(file_name, mode) as f:
             data = pickle.load(f)
         return(data)
+
+    @staticmethod
+    def dump_tensor(data, file_name):
+        """
+        Dump a tensor using PyTorch's custom serialization. Enables re-loading the tensor on a specific gpu later.
+
+        Args:
+            data: Tensor
+            file_name: file path where data will be dumped
+
+        Returns:
+
+        """
+        torch.save(data, file_name)
+
+    @staticmethod
+    def read_tensor(file_name, device):
+        """read dumped/pickled data
+
+           Args:
+               file_name: file path where data will be dumped
+               device: the gpu to load the tensor on to
+        """
+        data = torch.load(file_name, map_location=device)
+        return data
     
     @staticmethod
     def write_log(line, outfile, mode="a"):
@@ -100,10 +125,10 @@ def create_directory(folder_name, directory="current"):
     return(path_new_dir)
 
 
-def get_device(to_gpu):
+def get_device(to_gpu, index=0):
     is_cuda = torch.cuda.is_available()
     if(is_cuda and to_gpu):
-        target_device = 'cuda'
+        target_device = 'cuda:{}'.format(index)
     else:
         target_device = 'cpu'
     return torch.device(target_device)

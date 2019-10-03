@@ -109,14 +109,15 @@ def dump_dict_content(dsettype_content_map, dsettypes, desc, wrk_dir):
         ReaderWriter.dump_data(dsettype_content_map[dsettype], os.path.join(wrk_dir, '{}_{}.pkl'.format(desc, dsettype)))
 
 
-def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wrk_dir, sents_embed_dir, state_dict_dir=None, to_gpu=True):
+def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wrk_dir, sents_embed_dir,
+                       state_dict_dir=None, to_gpu=True, gpu_index=0):
     pid = "{}".format(os.getpid())  # process id description
     # get data loader config
     dataloader_config = config['dataloader_config']
     cld = construct_load_dataloaders(data_partition, dsettypes, dataloader_config, wrk_dir)
     data_loaders, epoch_loss_avgbatch, epoch_loss_avgsamples, score_dict, class_weights, flog_out = cld  # dictionaries by dsettypes
     # print(class_weights)
-    device = get_device(to_gpu)  # gpu device
+    device = get_device(to_gpu, gpu_index)  # gpu device
     generic_config = config['generic_config']
     fdtype = generic_config['fdtype']
     if('train' in class_weights):
@@ -154,12 +155,14 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                                    num_hiddenlayers=sentencoder_config['num_hiddenlayers'], 
                                    bidirection=sentencoder_config['bidirection'], 
                                    pdropout=sentencoder_config['pdropout'],
-                                   config=sentencoder_config['generic_config'])
+                                   config=sentencoder_config['generic_config'],
+                                   gpu_index=gpu_index)
     
     # doc encoder model
     attn_model = Attention(attnmodel_config['attn_method'],
                            attnmodel_config['attn_input_dim'],
-                           config=attnmodel_config['generic_config'])
+                           config=attnmodel_config['generic_config'],
+                           gpu_index=gpu_index)
 
     doc_encoder = DocEncoder(docencoder_config['input_dim'], 
                              docencoder_config['hidden_dim'], 
@@ -167,7 +170,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                              num_hiddenlayers=docencoder_config['num_hiddenlayers'],
                              bidirection=docencoder_config['bidirection'],
                              pdropout=docencoder_config['pdropout'],
-                             config=docencoder_config['generic_config'])
+                             config=docencoder_config['generic_config'],
+                             gpu_index=gpu_index)
 
     # doc category scorer
     num_labels = len(class_weights)
@@ -182,7 +186,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     if(state_dict_dir):  # load state dictionary of saved models
         for m, m_name in models:
-            m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name))))
+            m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name)), map_location=device))
 
     # update models fdtype and move to device
     for m, m_name in models:
@@ -227,7 +231,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     for epoch in range(num_epochs):
         print("-"*35)
-        print("epoch: {}, pid: {}".format(epoch, pid))
+        print("device: {} question: {} fold_num: {} epoch: {} pid: {}".format(device, options.get('question'), fold_num,
+                                                                              epoch, pid))
         for dsettype in dsettypes:
             print("dsettype:", dsettype)
             pred_class = []
@@ -459,6 +464,49 @@ def hyperparam_model_search(q_docpartitions, bertmodel,
             run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir)
 
 
+def run_one_questions_hyperparam_search(queue, q, fold_num, data_partition, bertmodel, sents_embed_dir, root_dir,
+                                        gpu_index, fdtype=torch.float32, num_epochs=15, prob_interval_truemax=0.05,
+                                        prob_estim=0.95, random_seed=42):
+    # get list of hyperparam configs
+    hyperparam_options = get_hyperparam_options(prob_interval_truemax, prob_estim)
+    dsettypes = ['train', 'validation']
+    # encoder_dim, num_layers, encoder_approach, attn_method, p_dropout, l2_reg, batch_size, num_epochs
+    for counter, hyperparam_config in enumerate(hyperparam_options):
+        mconfig, options = generate_models_config(hyperparam_config, q, fold_num, fdtype)
+        wrk_dir = create_directory(os.path.join(root_dir, 'question_{}'.format(q), 'fold_{}'.format(fold_num),
+                                                'config_{}'.format(counter)))
+        run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir, gpu_index=gpu_index)
+
+
+def hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir, root_dir,
+                                     question_gpu_map, fdtype=torch.float32, num_epochs=15, prob_interval_truemax=0.05,
+                                     prob_estim=0.95, random_seed=42):
+    q_fold_map = get_random_question_fold_per_hyperparam_exp(questions_to_run, random_seed=random_seed)
+    queue = mp.Queue()
+    q_processes = []
+
+    # create a process for each question's hyperparam search
+    for q, fold_num in q_fold_map.items():
+        data_partition = q_docpartitions[q][fold_num]
+        q_processes.append(mp.Process(target=run_one_questions_hyperparam_search, args=(queue, q, fold_num,
+                                                                                        data_partition, bertmodel,
+                                                                                        sents_embed_dir, root_dir,
+                                                                                        question_gpu_map[q],
+                                                                                        fdtype, num_epochs,
+                                                                                        prob_interval_truemax,
+                                                                                        prob_estim, random_seed)))
+
+    for q_process in q_processes:
+        print(">>> spawning hyperparam search process")
+        q_process.start()
+
+    for q_process in q_processes:
+        q_process.join()
+        print("<<< joined hyperparam search process")
+
+    return
+
+
 def get_saved_config(config_dir):
     options = ReaderWriter.read_data(os.path.join(config_dir, 'exp_options.pkl'))
     mconfig = ReaderWriter.read_data(os.path.join(config_dir, 'mconfig.pkl'))
@@ -507,17 +555,36 @@ def get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_
     return q_fold_config_map
 
 
-def train_val_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, sents_embed_dir, num_epochs=25):    
+def train_val_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, sents_embed_dir, question_gpu_map,
+                  num_epochs=25, max_folds=None):
     dsettypes = ['train', 'validation']
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
         options['num_epochs'] = num_epochs  # override number of epochs using user specified value
         for fold_num in q_docpartitions[question]:
+            if max_folds is None or fold_num < max_folds:
+                # update options fold num to the current fold
+                options['fold_num'] = fold_num
+                data_partition = q_docpartitions[question][fold_num]
+                wrk_dir = create_directory(os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num)))
+                run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir,
+                                   gpu_index=question_gpu_map[question])
+
+
+def train_val_run_one_question(queue, question, q_docpartitions, q_fold_config_map, bertmodel, train_val_dir,
+                               sents_embed_dir, gpu_index, num_epochs=25, max_folds=None):
+    dsettypes = ['train', 'validation']
+    mconfig, options, __ = q_fold_config_map[question]
+    options['num_epochs'] = num_epochs  # override number of epochs using user specified value
+    for fold_num in q_docpartitions[question]:
+        print("question: {} | fold: {}/{} | gpu_index: {}".format(question, fold_num, max_folds, gpu_index))
+        if max_folds is None or fold_num < max_folds:
             # update options fold num to the current fold
             options['fold_num'] = fold_num
             data_partition = q_docpartitions[question][fold_num]
             wrk_dir = create_directory(os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num)))
-            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir)
+            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, wrk_dir, sents_embed_dir,
+                               gpu_index=gpu_index)
 
 
 def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, num_epochs=1):    
