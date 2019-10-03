@@ -128,9 +128,11 @@ def run_training(directory, q_docpartitions, q_config_map, bertmodel, sents_embe
     return train_val_dir
 
 
-def evaluate_on_test_set(directory, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir):
+def evaluate_on_test_set(directory, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir,
+                         gpu_index):
     test_dir = create_directory('test', directory)
-    test_run(q_docpartitions, q_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, num_epochs=1)
+    test_run(q_docpartitions, q_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, gpu_index,
+             num_epochs=1)
     return test_dir
 
 
@@ -192,6 +194,11 @@ def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5
             print(proc_articles_repr[docid]['sents'][target_indx])
         print()
 
+
+def verbose_print(text, print_yn):
+    if print_yn:
+        print(text)
+
 # ============================================================
 
 
@@ -203,6 +210,7 @@ if __name__ == '__main__':
     max_folds = 5
     num_epochs = 25
     verbose = True
+    experiment_to_rerun = None
 
     questions = (4, 5, 9, 10, 11)
     question_gpu_map = {
@@ -215,41 +223,41 @@ if __name__ == '__main__':
     print("Running questions: {} | folds: {} | epochs: {}".format(questions_to_run, max_folds, num_epochs))
 
     base_dir = '/opt/data/autodiscern/aa_neural'
-    time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    curr_dir = os.path.join(base_dir, 'experiments', time_stamp)
+    if experiment_to_rerun is None:
+        time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        exp_dir = os.path.join(base_dir, 'experiments', time_stamp)
+        create_directory(exp_dir)
+    else:
+        exp_dir = os.path.join(base_dir, 'experiments', experiment_to_rerun)
+
     bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
     sents_embed_dir_name = 'sents_bert_embed_uncased'
 
-    if verbose:
-        print("Loading objects...")
+    # ---
 
-    q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(curr_dir)
+    verbose_print("Loading objects...", verbose)
+
+    q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(base_dir)
     q_docpartitions = build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config,
                                            docs_data_tensor, q_partitions)
 
     bertmodel = BertModel.from_pretrained(bert_model_dir)
 
-    # QUESTION: can skip once written once?
     if rewrite_sentence_embeddings:
-        if verbose:
-            print("Writing sentence embeddings...")
-        write_sents_embeddings(curr_dir, bertmodel, sents_embed_dir_name, docs_data_tensor)
+        verbose_print("Writing sentence embeddings...", verbose)
+        write_sents_embeddings(base_dir, bertmodel, sents_embed_dir_name, docs_data_tensor)
 
-    # QUESTION: don't even need to do this? just passing path on subsequent functions?
-    if verbose:
-        print("Reading sentence embeddings...")
-    bert_proc_docs, sents_embed_dir = read_sents_embeddings(curr_dir, sents_embed_dir_name)
+    verbose_print("Reading sentence embeddings...", verbose)
+    bert_proc_docs, sents_embed_dir = read_sents_embeddings(base_dir, sents_embed_dir_name)
 
     if run_hyper_param_search:
-        if verbose:
-            print("Running hyper-parameter search...")
-        run_hyperparam_search(questions_to_run, curr_dir, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map)
-        hyperparam_search_dir = create_directory('hyperparam_search', curr_dir)
+        verbose_print("Running hyper-parameter search...", verbose)
+        run_hyperparam_search(questions_to_run, exp_dir, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map)
+        hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
         q_config_map = get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_trials=60,
                                                              metric_indx=2)
     else:
-        if verbose:
-            print("Creating custom hyper-parameter config...")
+        verbose_print("Creating custom hyper-parameter config...", verbose)
         # using custom hyperparam configuration for all questions
         # encoder_dim, num_layers, encoder_approach, attn_method, p_dropout, l2_reg, batch_size, num_epochs
         hyperparam_config = HyperparamConfig(256, 2, '[h_f+h_b]', 'additive', 0.3, 0.01, 16, 25)
@@ -260,19 +268,22 @@ if __name__ == '__main__':
                 mconfig, options = generate_models_config(hyperparam_config, q, fold_num, torch.float32)
                 q_config_map[q] = (mconfig, options, -1)
 
-    if verbose:
-        print("Training...")
+    verbose_print("Training...", verbose)
 
-    train_val_dir = run_training_parallel(questions_to_run, curr_dir, q_docpartitions, q_config_map, bertmodel,
+    train_val_dir = run_training_parallel(questions_to_run, exp_dir, q_docpartitions, q_config_map, bertmodel,
                                           sents_embed_dir, question_gpu_map, num_epochs, max_folds)
 
-    # train_val_dir = run_training(curr_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
+    # train_val_dir = run_training(exp_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
     #                              question_gpu_map, num_epochs, max_folds)
 
-    if verbose:
-        print("Evaluating on test set...")
-    test_dir = evaluate_on_test_set(curr_dir, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir)
-    build_accuracy_dfs(q_docpartitions, test_dir)
+    verbose_print("Evaluating on test set...", verbose)
+    test_dir = evaluate_on_test_set(exp_dir, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir,
+                                    gpu_index=1)
+
+    micro_f1_df, macro_f1_df, accuracy_df = build_accuracy_dfs(q_docpartitions, test_dir)
+    print("micro_f1_df: {}".format(micro_f1_df))
+    print("macro_f1_df: {}".format(macro_f1_df))
+    print("accuracy_df: {}".format(accuracy_df))
 
     # extra results
     # docid_attnw_map_val = ReaderWriter.read_data(os.path.join(test_dir, 'question_10', 'fold_2',

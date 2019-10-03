@@ -595,11 +595,12 @@ def train_val_run_one_question(queue, question, q_docpartitions, q_fold_config_m
                                gpu_index=gpu_index)
 
 
-def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, num_epochs=1):
+def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, gpu_index,
+             num_epochs=1):
     dsettypes = ['test']
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
-        options['num_epochs'] = num_epochs  # overrid number of epochs using user specified value
+        options['num_epochs'] = num_epochs  # override number of epochs using user specified value
         for fold_num in q_docpartitions[question]:
             # update options fold num to the current fold
             options['fold_num'] = fold_num
@@ -613,4 +614,4 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
             test_wrk_dir = create_directory(path)
 
             run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir, sents_embed_dir,
-                               state_dict_dir=state_dict_pth)
+                               state_dict_dir=state_dict_pth, gpu_index=gpu_index)
