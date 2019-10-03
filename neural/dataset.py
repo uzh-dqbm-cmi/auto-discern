@@ -235,8 +235,8 @@ def validate_q_docpartitions(q_docpartitions, q_partitions):
 
 def compute_class_weights(labels_tensor):
     classes, counts = np.unique(labels_tensor, return_counts=True)
-    print("classes", classes)
-    print("counts", counts)
+    # print("classes", classes)
+    # print("counts", counts)
     class_weights = compute_class_weight('balanced', classes, labels_tensor.numpy())
     return class_weights
 

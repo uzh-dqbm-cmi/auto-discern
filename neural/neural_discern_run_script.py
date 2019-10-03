@@ -17,7 +17,7 @@ from neural.dataset import generate_docpartition_per_question, \
     validate_q_docpartitions, compute_class_weights_per_fold_
 from neural.model import BertEmbedder, \
     generate_sents_embeds_from_docs
-from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search, \
+from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
     get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run, validate_doc_attnw
 from neural.utilities import ReaderWriter, create_directory
 
@@ -85,15 +85,16 @@ def read_sents_embeddings(directory, sents_embed_dir_name):
     return bert_proc_docs, sents_embed_dir
 
 
-def run_hyperparam_search(directory, q_docpartitions, bertmodel, sents_embed_dir):
+def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map):
     # TODO: parallelize first!
     hyperparam_search_dir = create_directory('hyperparam_search', directory)
-    hyperparam_model_search(q_docpartitions, bertmodel, sents_embed_dir,
-                            hyperparam_search_dir,
-                            fdtype=torch.float32,
-                            num_epochs=15,
-                            prob_interval_truemax=0.05,
-                            prob_estim=0.95, random_seed=42)
+    hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir,
+                                     hyperparam_search_dir,
+                                     question_gpu_map,
+                                     fdtype=torch.float32,
+                                     num_epochs=15,
+                                     prob_interval_truemax=0.05,
+                                     prob_estim=0.95, random_seed=42)
 
 
 def run_training_parallel(questions_to_run, directory, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
@@ -197,10 +198,10 @@ if __name__ == '__main__':
     # mp.set_start_method("spawn")
 
     rewrite_sentence_embeddings = False
-    run_hyper_param_search = False
-    questions_to_run = [4]
-    max_folds = 2
-    num_epochs = 2
+    run_hyper_param_search = True
+    questions_to_run = [4, 5, 9, 10, 11]
+    max_folds = 5
+    num_epochs = 25
     verbose = True
 
     questions = (4, 5, 9, 10, 11)
@@ -211,6 +212,7 @@ if __name__ == '__main__':
         10: 4,
         11: 5
     }
+    print("Running questions: {} | folds: {} | epochs: {}".format(questions_to_run, max_folds, num_epochs))
 
     curr_dir = '/opt/data/autodiscern/aa_neural'
     bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
@@ -239,7 +241,8 @@ if __name__ == '__main__':
     if run_hyper_param_search:
         if verbose:
             print("Running hyper-parameter search...")
-        run_hyperparam_search(curr_dir, q_docpartitions, bertmodel, sents_embed_dir)
+        run_hyperparam_search(questions_to_run, curr_dir, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map)
+        hyperparam_search_dir = create_directory('hyperparam_search', curr_dir)
         q_config_map = get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_trials=60, metric_indx=2)
     else:
         if verbose:
