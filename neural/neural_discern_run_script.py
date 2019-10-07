@@ -5,7 +5,6 @@
 # % autoreload 2
 
 import torch.multiprocessing as mp
-mp.set_start_method("spawn", force=True)
 
 import os
 import datetime
@@ -19,6 +18,10 @@ from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
     get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run
 from neural.utilities import ReaderWriter, create_directory
+
+
+# might have to be immediately after import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 
 
 def read_pickles(directory):

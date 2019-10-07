@@ -36,7 +36,7 @@ class DataDictProcessor(object):
         return(labels)
 
     def generate_doctensor_from_articles(self, tokenizer):
-        '''Generate tensor representation of the docs in the processed data dictionary 
+        '''Generate tensor representation of the docs in the processed data dictionary
 
         Args:
             tokenizer: instance of :class:`BertTokenizer`
@@ -44,7 +44,7 @@ class DataDictProcessor(object):
 
         .. Note::
 
-            this function is called after having `self.articles_repr` created using :func:`self.generate_articles_repr` 
+            this function is called after having `self.articles_repr` created using :func:`self.generate_articles_repr`
             or setting it through :func:`self.set_instance_attr`
         '''
         articles_repr = self.articles_repr
@@ -87,7 +87,7 @@ class DataDictProcessor(object):
         docs_len = torch.tensor(docs_len, dtype=torch.int16)
 
         return DocDataTensor(docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, indx_doc_map)
-    
+
     def _generate_doctensor_from_article(self, article_repr, tokenizer):
         '''generate tensor representation of a processed article'''
 
@@ -101,7 +101,7 @@ class DataDictProcessor(object):
         sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)]
         num_sents = article_repr['num_sents']
         attn_mask = torch.zeros((num_sents, max_sent_len+2), dtype=torch.uint8)  # binary mask
-        
+
         for sent_indx, sent in enumerate(article_repr['sents']):
             # sandw_sent = '[CLS] ' + sent + ' [SEP]'
             # toks = tokenizer.tokenize(sandw_sent)
@@ -116,7 +116,7 @@ class DataDictProcessor(object):
             toks_ids = tokenizer.convert_tokens_to_ids(toks)
             sents_ids.append(torch.tensor(toks_ids, dtype=torch.long))
             # TODO: intervene here with BertModel to generate embedded representation (i.e. as feature extractor)
-        
+
         # padd sequences to obtain (sents, max_sent_len); sents here refers to number of sents in the article
         # padd sequences to get BxTx* shape
         batched_sents_ids = pad_sequence(sents_ids, batch_first=True, padding_value=0)
@@ -127,14 +127,14 @@ class DataDictProcessor(object):
         # tensorize!!
         # (batch_size, max_sent_len)
         sents_len = torch.tensor(sents_len, dtype=torch.int16)  # (num_sents,)
-        
+
         return batched_sents_ids, sents_tok, sents_len, attn_mask
 
     def set_instance_attr(self, articles_repr, articles_dict, config):
         self.articles_repr = articles_repr
         self.articles_dict = articles_dict
         self.config = config
-        
+
     def generate_articles_repr(self, data_dict):
         articles_repr = {}
         articles_dict = {}
@@ -147,7 +147,7 @@ class DataDictProcessor(object):
         # set the instance variables
         self.articles_repr = articles_repr
         self.articles_dict = articles_dict
-    
+
     def _generate_article_repr(self, article_id, data_dict):
         '''Remove pseudo-sentences (i.e. ones that have only full-stop or one character) and generate new representaiton
          from a parsed article
@@ -155,7 +155,7 @@ class DataDictProcessor(object):
         Args:
             article_id: int/string, representing article/doc number
             data_dict: dict, pre-processed representation of articles/docs
-        
+
         Returns:
             article_dict: dict, updated/cleaned version data_dict for the specified article id
             article_info: dict, {article_id:{'content': article text,

@@ -50,8 +50,7 @@ class PartitionedExperiment:
             self.report_partition_stats(self.partitions_by_ids, self.data_dict)
 
     def set_partitions_by_ids(self, partitions_by_ids: List[List[int]]):
-        '''set the test set ids as partitions for model development
-        '''
+        """set the test set ids as partitions for model development"""
         self.partitions_by_ids = partitions_by_ids
         # update number of partitions based on the provided list of ids
         self.n_partitions = len(self.partitions_by_ids)

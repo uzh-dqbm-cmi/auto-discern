@@ -2,7 +2,7 @@ import os
 from .utilities import get_device, ReaderWriter
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence
 
 
 class Attention(nn.Module):
@@ -79,12 +79,12 @@ class BertEmbedder(nn.Module):
 
     # def forward_batch_sents(self, doc_tensor, attention_mask, num_sents):
     #     '''
-        
+
     #     Args:
     #         doc_tenosr: tensor, (sents, max_sent_len)
     #         attention_mask: tensor, (sents, max_sent_len)
     #         num_sents: int, actual number of sentences in the document
-            
+
     #     TODO: add flags and logic to handle multiple layers embedding (i.e. 12 layers embedding)
     #     '''
     #     # use BertModel as word embedder
@@ -96,24 +96,24 @@ class BertEmbedder(nn.Module):
     #         bertmodel.eval()
     #     else:
     #         bertmodel.train()
-                        
+
     #     with torch.set_grad_enabled(bert_train_flag):
     #         encoded_layers, __ = bertmodel(doc_tensor[:num_sents],
     #                                        attention_mask=attention_mask[:num_sents],
     #                                        output_all_encoded_layers=bert_all_output)
     #         print('encoded_layers shape', encoded_layers.shape)
-        
+
     #     # print("finished embedding sents using BERT!")
     #     return encoded_layers
 
     def forward(self, doc_tensor, attention_mask, num_sents):
         '''
-        
+
         Args:
             doc_tenosr: tensor, (sents, max_sent_len)
             attention_mask: tensor, (sents, max_sent_len)
             num_sents: int, actual number of sentences in the document
-            
+
         TODO: add flags and logic to handle multiple layers embedding (i.e. 12 layers embedding)
         '''
         # use BertModel as word embedder
@@ -136,17 +136,17 @@ class BertEmbedder(nn.Module):
                                                output_all_encoded_layers=bert_all_output)
                 embed_layers_lst.append(encoded_layers)
 
-        # concat everything 
+        # concat everything
         out = torch.cat(embed_layers_lst, dim=0)
         # print("finished embedding sents using BERT!")
         return out
 
 
 class SentenceEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_hiddenlayers=1, 
+    def __init__(self, input_dim, hidden_dim, num_hiddenlayers=1,
                  bidirection=False, pdropout=0.1, rnn_class=nn.GRU,
                  nonlinear_func=torch.relu, config={}, to_gpu=True, gpu_index=0):
-        
+
         super(SentenceEncoder, self).__init__()
         self.input_dim = input_dim  # embedding dimension as input to RNN
         self.device = get_device(to_gpu, gpu_index)
@@ -179,12 +179,12 @@ class SentenceEncoder(nn.Module):
         """
         # a hidden vector has the shape (num_layers*num_directions, batch, hidden_dim)
 
-        h0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
-                                                                                                  dtype=self.fdtype)
+        h0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
+                                                                                                    dtype=self.fdtype)
         if(isinstance(self.rnn, nn.LSTM)):
             c0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
                              ).to(device=self.device, dtype=self.fdtype)
-            hiddenvec = (h0,c0)
+            hiddenvec = (h0, c0)
         else:
             hiddenvec = h0
         return(hiddenvec)
@@ -193,7 +193,7 @@ class SentenceEncoder(nn.Module):
         encoder_approach = self.config.get('encoder_approach')
         lastlayer_indx = -1
         batch_size = hidden.size(1)
-        
+
         hn = hidden.view(self.num_hiddenlayers, self.num_directions, batch_size, self.hidden_dim)
         if(encoder_approach == '[h_f]'):  # keep only the last forward hidden state vector
             return hn[lastlayer_indx]  # (1, num_sents, hidden_dim)
@@ -304,10 +304,10 @@ class DocEncoder(nn.Module):
         else:
             rnn_dropout = self.pdropout
 
-        self.rnn = rnn_class(self.input_dim, self.hidden_dim, num_layers=self.num_hiddenlayers, 
-                             dropout=rnn_dropout, bidirectional=bidirection, batch_first=True)
+        self.rnn = rnn_class(self.input_dim, self.hidden_dim, num_layers=self.num_hiddenlayers, dropout=rnn_dropout,
+                             bidirectional=bidirection, batch_first=True)
 
-        self.nonlinear_func = nonlinear_func    
+        self.nonlinear_func = nonlinear_func
 
     def init_hidden(self, batch_size):
         """initialize hidden vectors at t=0
@@ -316,12 +316,12 @@ class DocEncoder(nn.Module):
             batch_size: int, the size of the current evaluated batch
         """
         # a hidden vector has the shape (num_layers*num_directions, batch, hidden_dim)
-        h0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device, 
-                                                                                                  dtype= self.fdtype)
+        h0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
+                                                                                                    dtype=self.fdtype)
         if(isinstance(self.rnn, nn.LSTM)):
-            c0=torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
-                           ).to(device=self.device, dtype= self.fdtype)
-            hiddenvec = (h0,c0)
+            c0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
+                             ).to(device=self.device, dtype=self.fdtype)
+            hiddenvec = (h0, c0)
         else:
             hiddenvec = h0
         return(hiddenvec)
@@ -339,7 +339,7 @@ class DocEncoder(nn.Module):
 
     def forward(self, doc_tensor):
         """ perform forward computation
-        
+
             Args:
                 doc_tensor: torch.Tensor, (1, sents, encoding_dim), dtype=torch.float32
                             currently, it accepts one batch (i.e. one doc at a time due to GPU memory limit)
@@ -364,7 +364,7 @@ class DocEncoder(nn.Module):
 
 class DocCategScorer(nn.Module):
     def __init__(self, input_dim, num_labels):
-        
+
         super(DocCategScorer, self).__init__()
         self.input_dim = input_dim  # dimension of the output from :class:`DocEncoder`
         # TODO: do multiple mappings using Sequential or ModuleList
@@ -373,7 +373,7 @@ class DocCategScorer(nn.Module):
 
     def forward(self, doc_tensor):
         """ perform forward computation
-        
+
             Args:
                 doc_tensor: torch.Tensor, (1, encoding_dim), dtype=torch.float32
                             currently, it accepts one batch (i.e. one doc at a time due to GPU memory limit)
@@ -439,7 +439,7 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
         bertembeder: instance of :class:`BertEmbedder`
         embed_dir: string, path to directory where to dump embedding per document
         fdtype: torch dtype, {torch.float32 or torch.float64}
-    
+
     """
     bert_proc_docs = {}
     gpu_device = get_device(to_gpu=True, gpu_index=gpu_index)
