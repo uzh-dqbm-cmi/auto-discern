@@ -420,24 +420,25 @@ There are several types of antidepressants available to treat depression."""
         output = transformer.apply(test_input)
         self.assertEqual(output, self.expected_output)
 
-    def test_html_to_text_to_words(self):
-        transformer = adt.Transformer(leave_some_html=False, segment_into='words')
-
-        test_input = self.test_input_1
-        self.expected_output[0]['content'] = [
-            "Antidepressants", ".",
-            "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
-            "What", "Are", "Antidepressants", "?",
-            "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
-            "Some", "of", "these", "medications", "are", "blue", ".",
-            "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
-            "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")", ".",
-            "Types", "of", "Antidepressants", ".",
-            "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
-        ]
-
-        output = transformer.apply(test_input)
-        self.assertEqual(output, self.expected_output)
+    # skipping test because requires allennlp, which is slow on travis
+    # def test_html_to_text_to_words(self):
+    #     transformer = adt.Transformer(leave_some_html=False, segment_into='words')
+    #
+    #     test_input = self.test_input_1
+    #     self.expected_output[0]['content'] = [
+    #         "Antidepressants", ".",
+    #         "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
+    #         "What", "Are", "Antidepressants", "?",
+    #         "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
+    #         "Some", "of", "these", "medications", "are", "blue", ".",
+    #         "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
+    #         "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")", ".",
+    #         "Types", "of", "Antidepressants", ".",
+    #         "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
+    #     ]
+    #
+    #     output = transformer.apply(test_input)
+    #     self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_sentences(self):
         transformer = adt.Transformer(leave_some_html=False, segment_into='sentences')
