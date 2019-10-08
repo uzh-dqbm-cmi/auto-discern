@@ -6,11 +6,12 @@
 
 import torch.multiprocessing as mp
 
+import argparse
 import os
 import datetime
 import pandas as pd
 import torch
-from pytorch_pretrained_bert import BertModel
+from pytorch_pretrained_bert import BertModel, BertForPreTraining, BertConfig
 
 from neural.data_processor import DataDictProcessor
 from neural.dataset import generate_docpartition_per_question, validate_q_docpartitions, compute_class_weights_per_fold_
@@ -61,6 +62,20 @@ def build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc
     compute_class_weights_per_fold_(q_docpartitions)
 
     return q_docpartitions
+
+
+def load_biobert_model(biobert_pth):
+    """Read saved state dict for biobert model on disk
+
+    Args:
+        biobert_pth: str, folder path where model state dictionary and config file are saved
+    """
+    bert_config_file = os.path.join(biobert_pth, 'bert_config.json')
+    config = BertConfig.from_json_file(bert_config_file)
+    print("Building PyTorch model from configuration: {}".format(str(config)))
+    model = BertForPreTraining(config)
+    model.load_state_dict(torch.load(os.path.join(biobert_pth, 'biobert_statedict.pkl')))
+    return model
 
 
 def write_sents_embeddings(directory, bertmodel, sents_embed_dir_name, docs_data_tensor):
@@ -207,57 +222,83 @@ def verbose_print(text, print_yn):
 
 if __name__ == '__main__':
 
-    rewrite_sentence_embeddings = False
-    run_hyper_param_search = True
-    questions_to_run = [4, 5, 9, 10, 11]
-    max_folds = 5
-    num_epochs = 25
-    verbose = True
-    experiment_to_rerun = None
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test-mode", action="store_true", default=False, help="run in abbreviated test mode")
+    parser.add_argument("--biobert", default=True, help="Use the BioBERT embeddings, or the normal BERT")
+    parser.add_argument("--rewrite-sentence-embeddings", action="store_true", default=False, help="(Re-)compute the "
+                                                                                                  "sentence embeddings")
+    parser.add_argument("--run-hyper-param-search", default=True, help="Run the hyper parameter search")
+    args = parser.parse_args()
 
-    questions = (4, 5, 9, 10, 11)
-    question_gpu_map = {
-        4: 1,
-        5: 2,
-        9: 3,
-        10: 4,
-        11: 5
+    config = {
+        'test_mode': args.test_mode,
+        'biobert': args.biobert,
+        'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
+        'run_hyper_param_search': args.run_hyper_param_search,
+        'questions_to_run': [4, 5, 9, 10, 11],
+        'max_folds': 5,
+        'num_epochs': 25,
+        'verbose': True,
+        'experiment_to_rerun': None,
+        'questions': (4, 5, 9, 10, 11),
+        'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
     }
-    print("Running questions: {} | folds: {} | epochs: {}".format(questions_to_run, max_folds, num_epochs))
+
+    if config['test_mode']:
+        config['max_folds'] = 2
+        config['num_epochs'] = 2
+        config['run_hyper_param_search'] = False
+
+    # print config to screen
+    print("{0} RUNNING WITH CONFIG {0}".format('='*10))
+    for c in config:
+        print("{}: {}".format(c, config[c]))
+    print("{0}".format('='*10*4))
 
     base_dir = '/opt/data/autodiscern/aa_neural'
-    if experiment_to_rerun is None:
+    if config['experiment_to_rerun'] is None:
         time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         exp_dir = os.path.join(base_dir, 'experiments', time_stamp)
         create_directory(exp_dir)
     else:
-        exp_dir = os.path.join(base_dir, 'experiments', experiment_to_rerun)
+        exp_dir = os.path.join(base_dir, 'experiments', config['experiment_to_rerun'])
 
-    bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
-    sents_embed_dir_name = 'sents_bert_embed_uncased'
+    if config['biobert']:
+        bert_model_dir = '/opt/data/autodiscern/aa_neural/pytorch_biobert'
+        sents_embed_dir_name = 'sents_bert_embed_cased'
+    else:
+        bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
+        sents_embed_dir_name = 'sents_bert_embed_uncased'
 
     # ---
 
+    verbose = config['verbose']
     verbose_print("Loading objects...", verbose)
 
     q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(base_dir)
-    q_docpartitions = build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc_config,
+    q_docpartitions = build_doc_partitions(config['questions'], proc_articles_repr, proc_articles_dict, proc_config,
                                            docs_data_tensor, q_partitions)
 
-    bertmodel = BertModel.from_pretrained(bert_model_dir)
+    if config['biobert']:
+        pytorch_dump_path = create_directory('pytorch_biobert', base_dir)
+        bert_for_pretrain = load_biobert_model(pytorch_dump_path)
+        bertmodel = bert_for_pretrain.bert
+    else:
+        bertmodel = BertModel.from_pretrained(bert_model_dir)
 
-    if rewrite_sentence_embeddings:
+    if config['rewrite_sentence_embeddings']:
         verbose_print("Writing sentence embeddings...", verbose)
         write_sents_embeddings(base_dir, bertmodel, sents_embed_dir_name, docs_data_tensor)
 
     verbose_print("Reading sentence embeddings...", verbose)
     bert_proc_docs, sents_embed_dir = read_sents_embeddings(base_dir, sents_embed_dir_name)
 
-    if run_hyper_param_search:
+    if config['run_hyper_param_search']:
         verbose_print("Running hyper-parameter search...", verbose)
-        run_hyperparam_search(questions_to_run, exp_dir, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map)
+        run_hyperparam_search(config['questions_to_run'], exp_dir, q_docpartitions, bertmodel, sents_embed_dir,
+                              config['question_gpu_map'])
         hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
-        q_config_map = get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_trials=60,
+        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], hyperparam_search_dir, num_trials=60,
                                                              metric_indx=2)
     else:
         verbose_print("Creating custom hyper-parameter config...", verbose)
@@ -266,18 +307,15 @@ if __name__ == '__main__':
         hyperparam_config = HyperparamConfig(256, 2, '[h_f+h_b]', 'additive', 0.3, 0.01, 16, 25)
         q_config_map = {}
         fold_num = -1
-        for q in questions:
-            if q in questions_to_run:
+        for q in config['questions']:
+            if q in config['questions_to_run']:
                 mconfig, options = generate_models_config(hyperparam_config, q, fold_num, torch.float32)
                 q_config_map[q] = (mconfig, options, -1)
 
     verbose_print("Training...", verbose)
-
-    train_val_dir = run_training_parallel(questions_to_run, exp_dir, q_docpartitions, q_config_map, bertmodel,
-                                          sents_embed_dir, question_gpu_map, num_epochs, max_folds)
-
-    # train_val_dir = run_training(exp_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
-    #                              question_gpu_map, num_epochs, max_folds)
+    train_val_dir = run_training_parallel(config['questions_to_run'], exp_dir, q_docpartitions, q_config_map, bertmodel,
+                                          sents_embed_dir, config['question_gpu_map'], config['num_epochs'],
+                                          config['max_folds'])
 
     verbose_print("Evaluating on test set...", verbose)
     test_dir = evaluate_on_test_set(exp_dir, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir,
@@ -287,10 +325,3 @@ if __name__ == '__main__':
     print("micro_f1_df: {}".format(micro_f1_df))
     print("macro_f1_df: {}".format(macro_f1_df))
     print("accuracy_df: {}".format(accuracy_df))
-
-    # extra results
-    # docid_attnw_map_val = ReaderWriter.read_data(os.path.join(test_dir, 'question_10', 'fold_2',
-    #                                                           'docid_attnw_map_test.pkl')
-    #                                              )
-    # highlight_attnw_over_sents(docid_attnw_map_val, proc_articles_repr, topk=5)
-    # validate_doc_attnw(docid_attnw_map_val)

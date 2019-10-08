@@ -136,6 +136,12 @@ class BertEmbedder(nn.Module):
                                                output_all_encoded_layers=bert_all_output)
                 embed_layers_lst.append(encoded_layers)
 
+        # TODO: see if this works
+        # with torch.set_grad_enabled(bert_train_flag):
+        #     encoded_layers, __ = bertmodel(doc_tensor, attention_mask=attention_mask,
+        #                                    output_all_encoded_layers=bert_all_output)
+        # return encoded_layers
+
         # concat everything
         out = torch.cat(embed_layers_lst, dim=0)
         # print("finished embedding sents using BERT!")
@@ -442,18 +448,19 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
 
     """
     bert_proc_docs = {}
-    gpu_device = get_device(to_gpu=True, gpu_index=gpu_index)
+    gpu_device = get_device(to_gpu=True, index=gpu_index)
     # move bertembedder to gpu
     bertembeder.type(fdtype).to(gpu_device)
     samples_counter = 0
     num_iter = len(docs_data_tensor)  # number of samples
     for doc_indx in range(num_iter):
+        print(doc_indx)
         doc_batch, doc_len, doc_sents_len, doc_attn_mask, doc_labels, doc_id = docs_data_tensor[doc_indx]
         # push to gpu
         embed_sents = bertembeder(doc_batch.to(gpu_device), doc_attn_mask.to(gpu_device), doc_len.item())
         # write to disk for now
         embed_fpath = os.path.join(embed_dir, '{}.pkl'.format(doc_id))
-        ReaderWriter.dump_data(embed_sents, embed_fpath)
+        ReaderWriter.dump_tensor(embed_sents, embed_fpath)
         # add embedding to dict
         bert_proc_docs[doc_id] = embed_fpath
         # clean stuff
