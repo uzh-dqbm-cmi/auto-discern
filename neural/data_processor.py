@@ -98,7 +98,7 @@ class DataDictProcessor(object):
             max_sent_len = 510  # make sure to leave two tokens for the CLS and SEP
 
         # placeholder when padding sentences with different lengths
-        sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)] 
+        sents_ids = [torch.tensor([0]*(max_sent_len+2), dtype=torch.long)]
         num_sents = article_repr['num_sents']
         attn_mask = torch.zeros((num_sents, max_sent_len+2), dtype=torch.uint8)  # binary mask
 
