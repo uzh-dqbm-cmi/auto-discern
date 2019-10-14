@@ -25,9 +25,7 @@ from neural.utilities import ReaderWriter, create_directory
 mp.set_start_method("spawn", force=True)
 
 
-def read_pickles(directory):
-    # processed data directory
-    data_dir = create_directory('proc_data_uncased', directory)
+def read_pickles(data_dir):
 
     # Read stored data structures
     # {question:{fold_num:{dsettype:np.array(list of doc_ids)}}}
@@ -228,6 +226,10 @@ if __name__ == '__main__':
     parser.add_argument("--rewrite-sentence-embeddings", action="store_true", default=False, help="(Re-)compute the "
                                                                                                   "sentence embeddings")
     parser.add_argument("--run-hyper-param-search", default=True, help="Run the hyper parameter search")
+    parser.add_argument("--hyperparam-search-dir", default=None, help="Re-use the results of a pre-run hyperparam "
+                                                                      "search")
+    parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
+                                                                                      "autodiscern/aa_neural/")
     args = parser.parse_args()
 
     config = {
@@ -235,6 +237,7 @@ if __name__ == '__main__':
         'biobert': args.biobert,
         'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
         'run_hyper_param_search': args.run_hyper_param_search,
+        'hyperparam_search_dir': args.hyperparam_search_dir,
         'questions_to_run': [4, 5, 9, 10, 11],
         'max_folds': 5,
         'num_epochs': 25,
@@ -242,12 +245,34 @@ if __name__ == '__main__':
         'experiment_to_rerun': None,
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
+        'base_dir': args.base_dir,
     }
+
+    if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
+        print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
+              "The pre-built hyperparam search dir will be used. Hyperparam search will not be run.")
 
     if config['test_mode']:
         config['max_folds'] = 2
         config['num_epochs'] = 2
         config['run_hyper_param_search'] = False
+
+    if config['experiment_to_rerun'] is None:
+        time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        exp_dir = os.path.join(config['base_dir'], 'experiments', time_stamp)
+        create_directory(exp_dir)
+    else:
+        exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+    config['exp_dir'] = exp_dir
+
+    if config['biobert']:
+        config['bert_model_dir'] = os.path.join(config['base_dir'], 'pytorch_biobert')
+        config['sents_embed_dir_name'] = 'sents_bert_embed_cased'
+        config['data_dir'] = os.path.join(config['base_dir'], 'proc_data_cased')
+    else:
+        config['bert_model_dir'] = os.path.join(config['base_dir'], 'aws_downloads/bert-base-uncased.tar.gz')
+        config['sents_embed_dir_name'] = 'sents_bert_embed_uncased'
+        config['data_dir'] = os.path.join(config['base_dir'], 'proc_data_uncased')
 
     # print config to screen
     print("{0} RUNNING WITH CONFIG {0}".format('='*10))
@@ -255,51 +280,41 @@ if __name__ == '__main__':
         print("{}: {}".format(c, config[c]))
     print("{0}".format('='*10*4))
 
-    base_dir = '/opt/data/autodiscern/aa_neural'
-    if config['experiment_to_rerun'] is None:
-        time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        exp_dir = os.path.join(base_dir, 'experiments', time_stamp)
-        create_directory(exp_dir)
-    else:
-        exp_dir = os.path.join(base_dir, 'experiments', config['experiment_to_rerun'])
-
-    if config['biobert']:
-        bert_model_dir = '/opt/data/autodiscern/aa_neural/pytorch_biobert'
-        sents_embed_dir_name = 'sents_bert_embed_cased'
-    else:
-        bert_model_dir = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased.tar.gz'
-        sents_embed_dir_name = 'sents_bert_embed_uncased'
-
     # ---
 
     verbose = config['verbose']
-    verbose_print("Loading objects...", verbose)
 
-    q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(base_dir)
+    verbose_print("Loading objects...", verbose)
+    data_dir = config['data_dir']
+    q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(data_dir)
     q_docpartitions = build_doc_partitions(config['questions'], proc_articles_repr, proc_articles_dict, proc_config,
                                            docs_data_tensor, q_partitions)
 
     if config['biobert']:
-        pytorch_dump_path = create_directory('pytorch_biobert', base_dir)
+        pytorch_dump_path = create_directory('pytorch_biobert', config['base_dir'])
         bert_for_pretrain = load_biobert_model(pytorch_dump_path)
         bertmodel = bert_for_pretrain.bert
     else:
-        bertmodel = BertModel.from_pretrained(bert_model_dir)
+        bertmodel = BertModel.from_pretrained(config['bert_model_dir'])
 
     if config['rewrite_sentence_embeddings']:
         verbose_print("Writing sentence embeddings...", verbose)
-        write_sents_embeddings(base_dir, bertmodel, sents_embed_dir_name, docs_data_tensor)
+        write_sents_embeddings(config['base_dir'], bertmodel, config['sents_embed_dir_name'], docs_data_tensor)
 
     verbose_print("Reading sentence embeddings...", verbose)
-    bert_proc_docs, sents_embed_dir = read_sents_embeddings(base_dir, sents_embed_dir_name)
+    bert_proc_docs, sents_embed_dir = read_sents_embeddings(config['base_dir'], config['sents_embed_dir_name'])
 
-    if config['run_hyper_param_search']:
+    if config['run_hyper_param_search'] and not config['hyperparam_search_dir']:
         verbose_print("Running hyper-parameter search...", verbose)
         run_hyperparam_search(config['questions_to_run'], exp_dir, q_docpartitions, bertmodel, sents_embed_dir,
                               config['question_gpu_map'])
         hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
         q_config_map = get_best_config_from_hyperparamsearch(config['questions'], hyperparam_search_dir, num_trials=60,
                                                              metric_indx=2)
+    elif config['hyperparam_search_dir']:
+        verbose_print("Using hyper-parameter search results from {}".format(config['hyperparam_search_dir']), verbose)
+        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], config['hyperparam_search_dir'],
+                                                             num_trials=60, metric_indx=2)
     else:
         verbose_print("Creating custom hyper-parameter config...", verbose)
         # using custom hyperparam configuration for all questions

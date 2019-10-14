@@ -345,7 +345,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
                     # do some cleaning -- get more GPU ;)
                     del docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id
-                    # TODO: is this ok to be removed? - yes
                     # torch.cuda.ipc_collect()
                     # torch.cuda.empty_cache()
             # end of epoch
