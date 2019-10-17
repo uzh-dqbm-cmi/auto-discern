@@ -13,16 +13,22 @@ from neural.neural_discern_run_script import load_biobert_model
 from typing import Dict, List
 
 
-BASE_DIR = '/somewhere/goodness/knows/where'
+BASE_DIR = '/opt/data/autodiscern'
+questions = [4, 5, 9, 10, 11]
 
 
 def retrieve_predictions(dir):
+    results = {}
+    for q in questions:
+        # path = os.path.join(dir, 'question_{}'.format(q), 'fold_0', 'predictions.csv')
+        # results[q] = pd.read_csv(path)
+        results[q] = 'not implemented'
     # TODO: are the predictions saved anywhere?
-    return {}
+    return results
 
 
-def run_predict(q_docpartitions, q_fold_config_map, bertmodel, state_dict_path, test_dir, sents_embed_dir, to_gpu,
-                gpu_index, num_epochs=1):
+def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, results_dir, sents_embed_dir,
+                to_gpu, gpu_index, num_epochs=1):
     fold_num = 0
     dsettypes = ['test']
     for question in q_fold_config_map:
@@ -33,12 +39,12 @@ def run_predict(q_docpartitions, q_fold_config_map, bertmodel, state_dict_path, 
         options['fold_num'] = fold_num
         data_partition = q_docpartitions[question][fold_num]
 
-        path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
-        test_wrk_dir = create_directory(path)
+        results_path = os.path.join(results_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
+        results_wrk_dir = create_directory(results_path)
 
-        run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir, sents_embed_dir,
-                           state_dict_dir=state_dict_path, to_gpu=to_gpu, gpu_index=gpu_index)
-        return retrieve_predictions(test_wrk_dir)
+        run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, results_wrk_dir, sents_embed_dir,
+                           state_dict_dir=q_state_dict_path_map[question], to_gpu=to_gpu, gpu_index=gpu_index)
+        return retrieve_predictions(results_wrk_dir)
 
 
 def retrieve_page_from_internet(url: str):
@@ -80,32 +86,40 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config):
     return sents_embed_path
 
 
-def predict(url: str):
+def biobert_predict(data_dict: dict):
+    """
+    Make a prediction for an article data_dict
+
+    Args:
+        data_dict: dictionary with keys ['url', 'content', 'id']
+
+    Returns: autodiscern predictions for the article
+
+    """
+
     base_dir = BASE_DIR
     to_gpu = False
     gpu_index = 0
-    questions = [4, 5, 9, 10, 11]
     fold_num = 0
     working_dir = ''  # TODO
+    experiment_dir = '2019-10-14_14-41-53'
 
-    vocab_path = '/opt/data/autodiscern/aa_neural/aws_downloads/bert-base-uncased-vocab.txt'
+    vocab_path = os.path.join(base_dir, '/aa_neural/aws_downloads/bert-base-uncased-vocab.txt')
     # TODO: load config from filesystem?
     processor_config = {'tokenizer_max_sent_len': 300,
                         'label_cutoff': 3,
                         'label_avgmethod': 'round_mean'}
 
-    sents_embed_dir = ''  # TODO
+    sents_embed_dir = os.path.join(base_dir, 'aa_neural/sents_bert_embed_cased')  # TODO
     # TODO: load from filesystem?
     bert_config = {'bert_train_flag': False,
                    'bert_all_output': False}
 
-    state_dict_path = ''  # TODO a la 'train_validation/question_{}/fold_{}/model_state_dict/'
-    config_path = '{}'  # TODO a la 'train_validation/question_{}/fold_{}/config/'
+    state_dict_path_form = 'test/question_{}/fold_0/model_state_dict/'
+    config_path_form = 'test/question_{}/fold_0/config/'
 
     # ---
 
-    html_page = retrieve_page_from_internet(url)
-    data_dict = {'content': html_page, 'url': url, 'id': 0}
     q_partitions = create_prediction_qdoc_partitions(questions, fold_num)
 
     # run data processing
@@ -120,7 +134,7 @@ def predict(url: str):
     transformed_data = html_to_sentence_transformer.apply(data_dict)
 
     # load BERT model
-    pytorch_dump_path = create_directory('pytorch_biobert', base_dir)
+    pytorch_dump_path = os.path.join(base_dir, 'pytorch_biobert')
     bert_for_pretrain = load_biobert_model(pytorch_dump_path)
     bertmodel = bert_for_pretrain.bert
 
@@ -137,10 +151,33 @@ def predict(url: str):
     # load model configs
     q_fold_config_map = {}
     for q in questions:
-        mconfig, options = get_saved_config(config_path.format(q))
+        config_path = os.path.join(base_dir, 'experiments', experiment_dir, config_path_form.format(q))
+        mconfig, options = get_saved_config(config_path)
         argmax_indx = 'ignored'
         q_fold_config_map[q] = (mconfig, options, argmax_indx)
 
-    results = run_predict(q_docpartitions, q_fold_config_map, bertmodel, state_dict_path, working_dir, sents_embed_dir,
-                          to_gpu, gpu_index, num_epochs=1)
+    # load model state_dicts
+    q_state_dict_path_map = {}
+    for q in questions:
+        state_dict_path = os.path.join(base_dir, 'experiments', experiment_dir, state_dict_path_form.format(q))
+        q_state_dict_path_map[q] = state_dict_path
+
+    results = run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, working_dir,
+                          sents_embed_dir, to_gpu, gpu_index, num_epochs=1)
     return results
+
+
+def make_prediction(url: str):
+    html_page = retrieve_page_from_internet(url)
+    data_dict = {'content': html_page, 'url': url, 'id': 0}
+    return biobert_predict(data_dict)
+
+
+def test_make_prediction():
+    test_data_path = os.path.join(BASE_DIR, 'data', 'test.html')
+    test_article_url = 'https://www.nhs.uk/conditions/tendonitis/'
+
+    with open(test_data_path, 'r') as f:
+        html_content = f.read()
+    data_dict = {'content': html_content, 'url': test_article_url, 'id': 0}
+    return biobert_predict(data_dict)
