@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from pytorch_pretrained_bert import BertTokenizer
 import requests
 import torch
@@ -56,6 +57,7 @@ def retrieve_page_from_internet(url: str):
 def create_prediction_qdoc_partitions(questions: List[int], fold_num: int):
     q_docpartitions = {}
     for q in questions:
+        q_docpartitions[q] = {}
         q_docpartitions[q][fold_num] = {'train': [], 'validation': [], 'test': [0]}  # output of np.vectorize() ?!
     return q_docpartitions
 
@@ -91,7 +93,7 @@ def biobert_predict(data_dict: dict):
     Make a prediction for an article data_dict
 
     Args:
-        data_dict: dictionary with keys ['url', 'content', 'id']
+        data_dict: dictionary of {id: sib-dict}, with sub-dictionary with keys ['url', 'content', 'id']
 
     Returns: autodiscern predictions for the article
 
@@ -99,12 +101,12 @@ def biobert_predict(data_dict: dict):
 
     base_dir = BASE_DIR
     to_gpu = False
-    gpu_index = 0
+    gpu_index = 2
     fold_num = 0
     working_dir = ''  # TODO
     experiment_dir = '2019-10-14_14-41-53'
 
-    vocab_path = os.path.join(base_dir, '/aa_neural/aws_downloads/bert-base-uncased-vocab.txt')
+    vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
     # TODO: load config from filesystem?
     processor_config = {'tokenizer_max_sent_len': 300,
                         'label_cutoff': 3,
@@ -134,7 +136,7 @@ def biobert_predict(data_dict: dict):
     transformed_data = html_to_sentence_transformer.apply(data_dict)
 
     # load BERT model
-    pytorch_dump_path = os.path.join(base_dir, 'pytorch_biobert')
+    pytorch_dump_path = os.path.join(base_dir, 'aa_neural', 'pytorch_biobert')
     bert_for_pretrain = load_biobert_model(pytorch_dump_path)
     bertmodel = bert_for_pretrain.bert
 
@@ -167,9 +169,20 @@ def biobert_predict(data_dict: dict):
     return results
 
 
+def build_data_dict(url, content):
+    fake_responses = pd.DataFrame({'fake responses': [0, 0, 0, 0, 0]})
+    data_dict = {0: {'id': 0,
+                     'url': url,
+                     'content': content,
+                     'responses': fake_responses,
+                     }
+                 }
+    return data_dict
+
+
 def make_prediction(url: str):
-    html_page = retrieve_page_from_internet(url)
-    data_dict = {'content': html_page, 'url': url, 'id': 0}
+    html_content = retrieve_page_from_internet(url)
+    data_dict = build_data_dict(url, html_content)
     return biobert_predict(data_dict)
 
 
@@ -179,5 +192,5 @@ def test_make_prediction():
 
     with open(test_data_path, 'r') as f:
         html_content = f.read()
-    data_dict = {'content': html_content, 'url': test_article_url, 'id': 0}
+    data_dict = build_data_dict(test_article_url, html_content)
     return biobert_predict(data_dict)
