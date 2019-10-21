@@ -465,8 +465,8 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
         bert_proc_docs[doc_id] = embed_fpath
         # clean stuff
         del embed_sents
-        torch.cuda.ipc_collect()
-        torch.cuda.empty_cache()
+        # torch.cuda.ipc_collect()
+        # torch.cuda.empty_cache()
         samples_counter += 1
         print("processed doc id: {}, {}/{}".format(doc_id, samples_counter, num_iter))
     return bert_proc_docs

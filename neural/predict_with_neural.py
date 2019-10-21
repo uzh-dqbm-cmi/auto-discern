@@ -32,6 +32,7 @@ def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path
                 to_gpu, gpu_index, num_epochs=1):
     fold_num = 0
     dsettypes = ['test']
+    q_predictions = {}
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
         options['num_epochs'] = num_epochs  # override number of epochs using user specified value
@@ -43,9 +44,11 @@ def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path
         results_path = os.path.join(results_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
         results_wrk_dir = create_directory(results_path)
 
-        run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, results_wrk_dir, sents_embed_dir,
-                           state_dict_dir=q_state_dict_path_map[question], to_gpu=to_gpu, gpu_index=gpu_index)
-        return retrieve_predictions(results_wrk_dir)
+        q_predictions[question] = run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options,
+                                                     results_wrk_dir, sents_embed_dir,
+                                                     state_dict_dir=q_state_dict_path_map[question], to_gpu=to_gpu,
+                                                     gpu_index=gpu_index)
+    return q_predictions
 
 
 def retrieve_page_from_internet(url: str):
@@ -75,14 +78,15 @@ def build_docs_data_tensor(data_dict, vocab_path: str, processor_config: Dict):
     return docs_data_tensor
 
 
-def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config):
+def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, gpu_index):
     # from the second notebook
 
     bertembeder = BertEmbedder(bertmodel, bert_config)
     fdtype = torch.float32
 
     # generate and dump bert embedding for the tokens inside the specificed embedding directory
-    bert_proc_docs = generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, sents_embed_path, fdtype)
+    bert_proc_docs = generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, sents_embed_path, fdtype,
+                                                     gpu_index=gpu_index)
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_path, 'bert_proc_docs.pkl'))
 
     return sents_embed_path
@@ -100,10 +104,10 @@ def biobert_predict(data_dict: dict):
     """
 
     base_dir = BASE_DIR
-    to_gpu = False
-    gpu_index = 2
+    to_gpu = True
+    gpu_index = 3
     fold_num = 0
-    working_dir = ''  # TODO
+    working_dir = 'predict'  # TODO
     experiment_dir = '2019-10-14_14-41-53'
 
     vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
@@ -117,7 +121,7 @@ def biobert_predict(data_dict: dict):
     bert_config = {'bert_train_flag': False,
                    'bert_all_output': False}
 
-    state_dict_path_form = 'test/question_{}/fold_0/model_state_dict/'
+    state_dict_path_form = 'train_validation/question_{}/fold_0/model_statedict/'  # TODO QUESTION:  why not in test?
     config_path_form = 'test/question_{}/fold_0/config/'
 
     # ---
@@ -148,12 +152,14 @@ def biobert_predict(data_dict: dict):
         q_docpartitions.update(generate_docpartition_per_question(docs_data_tensor, q_partitions, question))
 
     # embed sentences
-    sents_embed_dir = embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config)
+    print("Embedding sentences...")
+    sents_embed_dir = embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config, gpu_index)
+    print(" ... Finished embedding sentences")
 
     # load model configs
     q_fold_config_map = {}
     for q in questions:
-        config_path = os.path.join(base_dir, 'experiments', experiment_dir, config_path_form.format(q))
+        config_path = os.path.join(base_dir, 'aa_neural', 'experiments', experiment_dir, config_path_form.format(q))
         mconfig, options = get_saved_config(config_path)
         argmax_indx = 'ignored'
         q_fold_config_map[q] = (mconfig, options, argmax_indx)
@@ -161,16 +167,19 @@ def biobert_predict(data_dict: dict):
     # load model state_dicts
     q_state_dict_path_map = {}
     for q in questions:
-        state_dict_path = os.path.join(base_dir, 'experiments', experiment_dir, state_dict_path_form.format(q))
+        state_dict_path = os.path.join(base_dir, 'aa_neural', 'experiments', experiment_dir,
+                                       state_dict_path_form.format(q))
         q_state_dict_path_map[q] = state_dict_path
 
+    print("Running predict")
     results = run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, working_dir,
                           sents_embed_dir, to_gpu, gpu_index, num_epochs=1)
     return results
 
 
 def build_data_dict(url, content):
-    fake_responses = pd.DataFrame({'fake responses': [0, 0, 0, 0, 0]})
+    fake_responses = pd.DataFrame({'fake responses': [0]*12})  # is this supposed to be a len 5 or 11 list?
+    # TODO: Q:question is used as index, not sure if that means list needs to be 11 long, or questions are actually 0-4
     data_dict = {0: {'id': 0,
                      'url': url,
                      'content': content,
