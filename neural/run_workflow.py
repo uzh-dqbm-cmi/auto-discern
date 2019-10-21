@@ -372,6 +372,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     if(dump_embed_dict_flag):
         print(bert_proc_docs)
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
+    return pred_class
 
 
 def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5):
