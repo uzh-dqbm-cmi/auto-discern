@@ -18,7 +18,7 @@ from neural.dataset import generate_docpartition_per_question, validate_q_docpar
 from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
     get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run
-from neural.utilities import ReaderWriter, create_directory
+from neural.utilities import ReaderWriter, create_directory, get_device
 
 
 # might have to be immediately after import torch.multiprocessing as mp
@@ -62,7 +62,7 @@ def build_doc_partitions(questions, proc_articles_repr, proc_articles_dict, proc
     return q_docpartitions
 
 
-def load_biobert_model(biobert_pth):
+def load_biobert_model(biobert_pth, device):
     """Read saved state dict for biobert model on disk
 
     Args:
@@ -72,7 +72,7 @@ def load_biobert_model(biobert_pth):
     config = BertConfig.from_json_file(bert_config_file)
     print("Building PyTorch model from configuration: {}".format(str(config)))
     model = BertForPreTraining(config)
-    model.load_state_dict(torch.load(os.path.join(biobert_pth, 'biobert_statedict.pkl')))
+    model.load_state_dict(torch.load(os.path.join(biobert_pth, 'biobert_statedict.pkl')), map_location=device)
     return model
 
 
@@ -252,8 +252,9 @@ if __name__ == '__main__':
         print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
               "The pre-built hyperparam search dir will be used. Hyperparam search will not be run.")
 
+    # under test mode (for faster debugging), run a smaller set of partitions and epochs, and no hyper param search
     if config['test_mode']:
-        config['max_folds'] = 2
+        config['max_folds'] = 2  # max number of data partition folds to run (for faster testing)
         config['num_epochs'] = 2
         config['run_hyper_param_search'] = False
 
@@ -284,6 +285,9 @@ if __name__ == '__main__':
 
     verbose = config['verbose']
 
+    # get the gpu index for the first question that is to be run
+    default_device = get_device(to_gpu=True, index=config['question_gpu_map'][config['questions_to_run'][0]])
+
     verbose_print("Loading objects...", verbose)
     data_dir = config['data_dir']
     q_partitions, docs_data_tensor, proc_articles_dict, proc_articles_repr, proc_config = read_pickles(data_dir)
@@ -292,7 +296,7 @@ if __name__ == '__main__':
 
     if config['biobert']:
         pytorch_dump_path = create_directory('pytorch_biobert', config['base_dir'])
-        bert_for_pretrain = load_biobert_model(pytorch_dump_path)
+        bert_for_pretrain = load_biobert_model(pytorch_dump_path, default_device)
         bertmodel = bert_for_pretrain.bert
     else:
         bertmodel = BertModel.from_pretrained(config['bert_model_dir'])
