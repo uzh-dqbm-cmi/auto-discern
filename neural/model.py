@@ -126,26 +126,25 @@ class BertEmbedder(nn.Module):
         else:
             bertmodel.train()
 
-        embed_layers_lst = []
-
-        for sent_indx in range(num_sents):  # going over each sentenece one by one due to GPU limit :((
-            # print('sent_indx', sent_indx)
-            with torch.set_grad_enabled(bert_train_flag):
-                encoded_layers, __ = bertmodel(doc_tensor[sent_indx:sent_indx+1],
-                                               attention_mask=attention_mask[sent_indx:sent_indx+1],
-                                               output_all_encoded_layers=bert_all_output)
-                embed_layers_lst.append(encoded_layers)
+        # embed_layers_lst = []
+        # for sent_indx in range(num_sents):  # going over each sentenece one by one due to GPU limit :((
+        #     # print('sent_indx', sent_indx)
+        #     with torch.set_grad_enabled(bert_train_flag):
+        #         encoded_layers, __ = bertmodel(doc_tensor[sent_indx:sent_indx+1],
+        #                                        attention_mask=attention_mask[sent_indx:sent_indx+1],
+        #                                        output_all_encoded_layers=bert_all_output)
+        #         embed_layers_lst.append(encoded_layers)
 
         # TODO: see if this works
-        # with torch.set_grad_enabled(bert_train_flag):
-        #     encoded_layers, __ = bertmodel(doc_tensor, attention_mask=attention_mask,
-        #                                    output_all_encoded_layers=bert_all_output)
-        # return encoded_layers
+        with torch.set_grad_enabled(bert_train_flag):
+            encoded_layers, __ = bertmodel(doc_tensor, attention_mask=attention_mask,
+                                           output_all_encoded_layers=bert_all_output)
+        return encoded_layers
 
-        # concat everything
-        out = torch.cat(embed_layers_lst, dim=0)
-        # print("finished embedding sents using BERT!")
-        return out
+        # # concat everything
+        # out = torch.cat(embed_layers_lst, dim=0)
+        # # print("finished embedding sents using BERT!")
+        # return out
 
 
 class SentenceEncoder(nn.Module):

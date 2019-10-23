@@ -391,6 +391,22 @@ def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5
         print()
 
 
+def return_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5):
+    attended_sents = {}
+    for docid in docid_attnweights_map:
+        attended_sents[docid] = []
+        attnw = docid_attnweights_map[docid]
+        print('docid_attnweights_map: {}'.format(docid_attnweights_map))
+        print('attnw: {}'.format(attnw))
+        topk = topk if attnw.size(-1) > topk else attnw.size(-1)  # get top
+        max_val, max_indx = torch.topk(attnw, topk, dim=1)
+        for i in range(max_indx.size(-1)):
+            target_indx = max_indx[0][i].item()
+            sentence = proc_articles_repr[docid]['sents'][target_indx]
+            attended_sents[docid].append({'sentence': sentence, 'weight': max_val[0][i].item()})
+    return attended_sents
+
+
 def validate_doc_attnw(docid_attnweights_map):
     for docid in docid_attnweights_map:
         attnw = docid_attnweights_map[docid]
@@ -615,3 +631,158 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
 
             run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir, sents_embed_dir,
                                state_dict_dir=state_dict_pth, gpu_index=gpu_index)
+
+# ==================================================
+
+
+def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, sents_embed_dir,
+                           state_dict_dir=None, to_gpu=True, gpu_index=0):
+    dsettype = 'test'
+    pid = "{}".format(os.getpid())  # process id description
+    # get data loader config
+    dataloader_config = config['dataloader_config']
+    cld = construct_load_dataloaders(data_partition, [dsettype], dataloader_config, wrk_dir)
+    # dictionaries by dsettypes
+    data_loaders, epoch_loss_avgbatch, epoch_loss_avgsamples, score_dict, class_weights, flog_out = cld
+    # print(class_weights)
+    device = get_device(to_gpu, gpu_index)  # gpu device
+    generic_config = config['generic_config']
+    fdtype = generic_config['fdtype']
+
+    class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all casess equally
+
+    print("class weights", class_weights)
+
+    fold_num = options.get('fold_num')
+
+    # parse config dict
+    bertencoder_config = config['bert_encoder_config']
+    sentencoder_config = config['sent_encoder_config']
+    docencoder_config = config['doc_encoder_config']
+    attnmodel_config = config['attnmodel_config']
+    docscorer_config = config['doc_scorer_config']
+
+    # setup the models
+    # bert model
+    bert_encoder = BertEmbedder(bertmodel, bertencoder_config)
+    bert_encoder.type(fdtype).to(device)
+
+    # sentence encoder model
+    sent_encoder = SentenceEncoder(sentencoder_config['input_dim'],
+                                   sentencoder_config['hidden_dim'],
+                                   num_hiddenlayers=sentencoder_config['num_hiddenlayers'],
+                                   bidirection=sentencoder_config['bidirection'],
+                                   pdropout=sentencoder_config['pdropout'],
+                                   config=sentencoder_config['generic_config'],
+                                   gpu_index=gpu_index)
+
+    # doc encoder model
+    attn_model = Attention(attnmodel_config['attn_method'],
+                           attnmodel_config['attn_input_dim'],
+                           config=attnmodel_config['generic_config'],
+                           gpu_index=gpu_index)
+
+    doc_encoder = DocEncoder(docencoder_config['input_dim'],
+                             docencoder_config['hidden_dim'],
+                             attn_model,
+                             num_hiddenlayers=docencoder_config['num_hiddenlayers'],
+                             bidirection=docencoder_config['bidirection'],
+                             pdropout=docencoder_config['pdropout'],
+                             config=docencoder_config['generic_config'],
+                             gpu_index=gpu_index)
+
+    # doc category scorer
+    num_labels = len(class_weights)
+    doc_categ_scorer = DocCategScorer(docscorer_config['input_dim'], num_labels)
+
+    # define optimizer and group parameters
+    models = [(sent_encoder, 'sent_encoder'), (doc_encoder, 'doc_encoder'), (doc_categ_scorer, 'doc_categ_scorer')]
+
+    if(state_dict_dir):  # load state dictionary of saved models
+        for m, m_name in models:
+            m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name)), map_location=device))
+
+    # update models fdtype and move to device
+    for m, m_name in models:
+        m.type(fdtype).to(device)
+
+    # store attention weights for validation and test set
+    docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
+    # store sentences' attention weights
+
+    if(os.path.isfile(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))):
+        bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
+    else:
+        bert_proc_docs = {}
+
+    print("device: {} | question: {} | fold_num: {} | dsettype: {} | pid: {}"
+          "".format(device, options.get('question'), fold_num, dsettype, pid))
+    pred_class = []
+
+    data_loader = data_loaders[dsettype]
+
+    for m, m_name in models:
+        m.eval()
+
+    sample_counter = 0
+    for i_batch, samples_batch in enumerate(data_loader):
+
+        logprob_scores = []
+
+        docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id = samples_batch
+
+        docs_batch = docs_batch.to(device)
+        docs_attn_mask = docs_attn_mask.to(device)
+        docs_sents_len = docs_sents_len.type(torch.int64).numpy()  # to feed this in RNN
+        docs_labels = docs_labels.type(torch.int64).to(device)
+
+        with torch.set_grad_enabled(dsettype == 'train'):
+            # print("number of examples in batch:", docs_batch.size(0))
+            num_docs_perbatch = docs_batch.size(0)
+            for doc_indx in range(num_docs_perbatch):
+                # print('doc_indx', doc_indx)
+                doc_id = docs_id[doc_indx].item()
+                if(doc_id in bert_proc_docs):
+                    # due to GPU limit
+                    embed_sents = torch.load(bert_proc_docs[doc_id], map_location=device)
+                else:
+                    embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx],
+                                               docs_len[doc_indx].item())
+                    # add embedding to dict
+                    embed_fpath = os.path.join(sents_embed_dir, '{}.pkl'.format(doc_id))
+                    ReaderWriter.dump_data(embed_sents, embed_fpath)
+                    bert_proc_docs[doc_id] = embed_fpath
+
+                sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx],
+                                                docs_len[doc_indx].item())
+
+                # # remove the embedding from GPU
+                # bert_proc_docs[doc_id].to(cpu_device)
+                # print('sents_rnn_hidden', sents_rnn_hidden.shape)
+                enc_sents = sents_rnn_hidden
+                # print('enc_sents', enc_sents.shape)
+                doc_out, doc_attn_weights = doc_encoder(enc_sents)
+                # print('doc_out', doc_out.shape)
+                # print('doc_attn_weights', doc_attn_weights.shape)
+                # tracking attention weight for validation and test examples
+                if(dsettype in docid_attnweights_map):
+                    docid_attnweights_map[dsettype][doc_id] = doc_attn_weights
+
+                logsoftmax_scores = doc_categ_scorer(doc_out)
+                __, pred_classindx = torch.max(logsoftmax_scores, 1)  # apply max on row level
+
+                pred_class.append(pred_classindx.item())
+
+                logprob_scores.append(logsoftmax_scores)
+                sample_counter += 1
+
+            # log probabilities
+            b_logprob_scores = torch.cat(logprob_scores, dim=0)
+
+            # do some cleaning -- get more GPU ;)
+            del docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id
+
+    # end of epoch
+    return {'pred_class': pred_class,
+            'prob_scores': b_logprob_scores,
+            'attention_weight_map': docid_attnweights_map['test']}
