@@ -8,7 +8,7 @@ import autodiscern.transformations as adt
 from neural.data_processor import DataDictProcessor
 from neural.dataset import generate_docpartition_per_question
 from neural.model import BertEmbedder, generate_sents_embeds_from_docs
-from neural.run_workflow import run_neural_discern, get_saved_config
+from neural.run_workflow import predict_neural_discern, get_saved_config, return_attnw_over_sents
 from neural.utilities import create_directory, ReaderWriter
 from neural.neural_discern_run_script import load_biobert_model
 from typing import Dict, List
@@ -18,20 +18,14 @@ BASE_DIR = '/opt/data/autodiscern'
 questions = [4, 5, 9, 10, 11]
 
 
-def retrieve_predictions(dir):
-    results = {}
-    for q in questions:
-        # path = os.path.join(dir, 'question_{}'.format(q), 'fold_0', 'predictions.csv')
-        # results[q] = pd.read_csv(path)
-        results[q] = 'not implemented'
-    # TODO: are the predictions saved anywhere?
-    return results
+def identify_attended_senteces(docid_attnweights_map, proc_articles_repr, topk=5):
+    attended_sents = return_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk)
+    return attended_sents
 
 
 def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, results_dir, sents_embed_dir,
                 to_gpu, gpu_index, num_epochs=1):
     fold_num = 0
-    dsettypes = ['test']
     q_predictions = {}
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
@@ -44,10 +38,10 @@ def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path
         results_path = os.path.join(results_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
         results_wrk_dir = create_directory(results_path)
 
-        q_predictions[question] = run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options,
-                                                     results_wrk_dir, sents_embed_dir,
-                                                     state_dict_dir=q_state_dict_path_map[question], to_gpu=to_gpu,
-                                                     gpu_index=gpu_index)
+        q_predictions[question] = predict_neural_discern(data_partition, bertmodel, mconfig, options,
+                                                         results_wrk_dir, sents_embed_dir,
+                                                         state_dict_dir=q_state_dict_path_map[question], to_gpu=to_gpu,
+                                                         gpu_index=gpu_index)
     return q_predictions
 
 
@@ -65,17 +59,12 @@ def create_prediction_qdoc_partitions(questions: List[int], fold_num: int):
     return q_docpartitions
 
 
-def build_docs_data_tensor(data_dict, vocab_path: str, processor_config: Dict):
+def build_DataDictProcessor(data_dict, vocab_path: str, processor_config: Dict):
     # from the first notebook
 
     processor = DataDictProcessor(processor_config)
     processor.generate_articles_repr(data_dict)
-
-    tokenizer = BertTokenizer.from_pretrained(vocab_path, do_lower_case=True)  # on LeoMed
-
-    # generate docs data tensor from the articles i.e. instance of class DocDataTensor
-    docs_data_tensor = processor.generate_doctensor_from_articles(tokenizer)
-    return docs_data_tensor
+    return processor
 
 
 def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, gpu_index):
@@ -108,7 +97,8 @@ def biobert_predict(data_dict: dict):
     gpu_index = 3
     fold_num = 0
     working_dir = 'predict'  # TODO
-    experiment_dir = '2019-10-14_14-41-53'
+    # experiment_dir = '2019-10-14_14-41-53'
+    experiment_dir = '2019-10-08_14-54-50'
 
     vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
     # TODO: load config from filesystem?
@@ -144,7 +134,11 @@ def biobert_predict(data_dict: dict):
     bert_for_pretrain = load_biobert_model(pytorch_dump_path)
     bertmodel = bert_for_pretrain.bert
 
-    docs_data_tensor = build_docs_data_tensor(transformed_data, vocab_path, processor_config)
+    processor = build_DataDictProcessor(transformed_data, vocab_path, processor_config)
+    tokenizer = BertTokenizer.from_pretrained(vocab_path, do_lower_case=True)  # on LeoMed
+
+    # generate docs data tensor from the articles i.e. instance of class DocDataTensor
+    docs_data_tensor = processor.generate_doctensor_from_articles(tokenizer)
 
     # create q_docpartitions
     q_docpartitions = {}
@@ -174,6 +168,11 @@ def biobert_predict(data_dict: dict):
     print("Running predict")
     results = run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, working_dir,
                           sents_embed_dir, to_gpu, gpu_index, num_epochs=1)
+
+    proc_articles_repr = processor.articles_repr
+    for q in results:
+        results[q]['attended_sentences'] = identify_attended_senteces(results[q]['attention_weight_map'],
+                                                                      proc_articles_repr)
     return results
 
 
