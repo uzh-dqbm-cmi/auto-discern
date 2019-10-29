@@ -72,7 +72,7 @@ def load_biobert_model(biobert_pth, device):
     config = BertConfig.from_json_file(bert_config_file)
     print("Building PyTorch model from configuration: {}".format(str(config)))
     model = BertForPreTraining(config)
-    model.load_state_dict(torch.load(os.path.join(biobert_pth, 'biobert_statedict.pkl')), map_location=device)
+    model.load_state_dict(torch.load(os.path.join(biobert_pth, 'biobert_statedict.pkl'), map_location=device))
     return model
 
 
@@ -102,7 +102,6 @@ def read_sents_embeddings(directory, sents_embed_dir_name):
 
 
 def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map):
-    # TODO: parallelize first!
     hyperparam_search_dir = create_directory('hyperparam_search', directory)
     hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir,
                                      hyperparam_search_dir,
@@ -230,6 +229,7 @@ if __name__ == '__main__':
                                                                       "search")
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
                                                                                       "autodiscern/aa_neural/")
+    parser.add_argument("--num_threads", type=int, default=5, help="limit to number of threads PyTorch uses")
     args = parser.parse_args()
 
     config = {
@@ -246,6 +246,7 @@ if __name__ == '__main__':
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
         'base_dir': args.base_dir,
+        'num_threads': args.num_threads,
     }
 
     if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
@@ -260,7 +261,10 @@ if __name__ == '__main__':
 
     if config['experiment_to_rerun'] is None:
         time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        exp_dir = os.path.join(config['base_dir'], 'experiments', time_stamp)
+        if config['test_mode']:
+            exp_dir = os.path.join(config['base_dir'], 'experiments', 'tests', time_stamp)
+        else:
+            exp_dir = os.path.join(config['base_dir'], 'experiments', time_stamp)
         create_directory(exp_dir)
     else:
         exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
@@ -283,10 +287,14 @@ if __name__ == '__main__':
 
     # ---
 
+    # torch.set_num_threads(config['num_threads'])
+
     verbose = config['verbose']
 
     # get the gpu index for the first question that is to be run
-    default_device = get_device(to_gpu=True, index=config['question_gpu_map'][config['questions_to_run'][0]])
+    default_gpu_index = config['question_gpu_map'][config['questions_to_run'][0]]
+    default_gpu_index = 0
+    default_device = get_device(to_gpu=False, index=default_gpu_index)
 
     verbose_print("Loading objects...", verbose)
     data_dir = config['data_dir']
