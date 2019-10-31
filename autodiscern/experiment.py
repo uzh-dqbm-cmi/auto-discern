@@ -3,8 +3,11 @@ import pandas as pd
 import random
 from scipy.sparse import coo_matrix
 from sklearn.base import clone
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_selection import RFECV
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.metrics import f1_score
+from sklearn.svm import SVC
 from typing import Dict, List, Tuple, Callable
 from autodiscern.predictor import Predictor
 
@@ -20,7 +23,7 @@ class PartitionedExperiment:
 
     def __init__(self, name: str, data_dict: Dict, label_key: str, preprocessing_func: Callable,
                  model_run_class: "ModelRun", model, hyperparams: Dict, n_partitions: int = 5, stratify_by='label',
-                 verbose=False):
+                 feature_subset=None, reduce_features=False, verbose=False):
         """
 
         Args:
@@ -33,6 +36,8 @@ class PartitionedExperiment:
             hyperparams: Dictionary of hyperparamters to search for the best model.
             n_partitions: Number of partitions to split the data on and run the experiment on.
             stratify_by: Whether to stratify the partitions by label, disease category, or None.
+            feature_subset: Subset of features to use. If not used, None is passed.
+            reduce_features: Whether to use recursive feature elimination to reduce features.
             verbose: Whether to display verbose messages.
         """
 
@@ -47,6 +52,8 @@ class PartitionedExperiment:
         self.model_run_class = model_run_class
         self.model = model
         self.hyperparams = hyperparams
+        self.feature_subset = feature_subset
+        self.reduce_features = reduce_features
 
         self.n_partitions = n_partitions
 
@@ -93,7 +100,9 @@ class PartitionedExperiment:
                                                                  model_run_class=self.model_run_class,
                                                                  model=self.model,
                                                                  hyperparams=self.hyperparams,
-                                                                 run_hyperparam_search=run_hyperparam_search)
+                                                                 run_hyperparam_search=run_hyperparam_search,
+                                                                 feature_subset=self.feature_subset,
+                                                                 reduce_features=self.reduce_features)
                 self.model_runs[partition_name] = model_run
 
         print("Compiling results")
@@ -103,10 +112,12 @@ class PartitionedExperiment:
     @classmethod
     def run_experiment_on_one_partition(cls, data_dict: Dict, label_key: str, partition_ids: List[int],
                                         preprocessing_func: Callable, model_run_class: "ModelRun", model,
-                                        hyperparams: Dict, run_hyperparam_search: bool):
+                                        hyperparams: Dict, run_hyperparam_search: bool, feature_subset: List[str],
+                                        reduce_features: bool):
         train_set, test_set = cls.materialize_partition(partition_ids, data_dict)
         mr = model_run_class(train_set=train_set, test_set=test_set, label_key=label_key, model=model,
-                             preprocessing_func=preprocessing_func, hyperparams=hyperparams)
+                             preprocessing_func=preprocessing_func, hyperparams=hyperparams,
+                             feature_subset=feature_subset, reduce_features=reduce_features)
         mr.run(run_hyperparam_search=run_hyperparam_search)
         return mr
 
@@ -215,6 +226,11 @@ class PartitionedExperiment:
         all_feature_importances = pd.DataFrame()
         for partition_id in self.model_runs:
             partition_feature_importances = self.model_runs[partition_id].get_feature_importances()
+
+            # if the model has no feature importances, just exit now
+            if partition_feature_importances.shape[0] == 0:
+                return pd.DataFrame()
+
             partition_feature_importances.columns = [partition_id]
             all_feature_importances = pd.merge(all_feature_importances, partition_feature_importances, how='outer',
                                                left_index=True, right_index=True)
@@ -255,13 +271,15 @@ class PartitionedExperiment:
 class ModelRun:
 
     def __init__(self, train_set: List[Dict], test_set: List[Dict], label_key: str, model, hyperparams: Dict,
-                 preprocessing_func: Callable):
+                 preprocessing_func: Callable, feature_subset=None, reduce_features=False):
         self.train_set = train_set
         self.test_set = test_set
         self.label_key = label_key
         self.encoders = {}
         self.model = clone(model)
         self.hyperparams = hyperparams
+        self.feature_subset = feature_subset
+        self.reduce_features = reduce_features
 
         self.x_train = None
         self.x_test = None
@@ -271,22 +289,40 @@ class ModelRun:
         self.y_test_predicted = None
         self.feature_cols = []
         self.evaluation = None
+        self.rfecv = None
 
         self.preprocessing_func = preprocessing_func
 
     def run(self, run_hyperparam_search: bool = True):
         self.x_train, self.x_test, self.y_train, self.y_test, self.feature_cols, self.encoders = self.build_data(
-            self.train_set, self.test_set, self.label_key)
+            self.train_set, self.test_set, self.label_key, self.feature_subset)
         if run_hyperparam_search:
             self.model = self.search_hyperparameters(self.model, self.hyperparams, self.x_train, self.y_train)
-        self.model.fit(self.x_train, self.y_train)
-        self.y_train_predicted = self.model.predict(self.x_train)
-        self.y_test_predicted = self.model.predict(self.x_test)
-        self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test, self.y_test_predicted)
+            if self.reduce_features:
+                self.rfecv = self.train_feature_reducer(self.model, self.x_train, self.y_train)
+                self.model = self.rfecv.estimator_
+                self.feature_cols = self.rebuild_feature_cols_from_rfecv(self.feature_cols, self.rfecv.support_)
+        if self.reduce_features:
+            self.y_train_predicted = self.rfecv.predict(self.x_train)
+            self.y_test_predicted = self.rfecv.predict(self.x_test)
+            self.evaluation = self.evaluate_model(self.rfecv, self.x_test, self.y_test, self.y_test_predicted)
+        else:
+            self.model.fit(self.x_train, self.y_train)
+            self.y_train_predicted = self.model.predict(self.x_train)
+            self.y_test_predicted = self.model.predict(self.x_test)
+            self.evaluation = self.evaluate_model(self.model, self.x_test, self.y_test, self.y_test_predicted)
         return self.evaluation
 
     @classmethod
-    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str) -> \
+    def rebuild_feature_cols_from_rfecv(cls, feature_cols, support):
+        new_feature_cols = []
+        for i, val in enumerate(support):
+            if val:
+                new_feature_cols.append(feature_cols[i])
+        return new_feature_cols
+
+    @classmethod
+    def build_data(cls, train_set: List[Dict], test_set: List[Dict], label_key: str, feature_subset: List[str]) -> \
             Tuple[coo_matrix, coo_matrix, List, List, List, Dict]:
         """Orchestrates the construction of train and test x matrices, and train and test y vectors.
 
@@ -294,6 +330,7 @@ class ModelRun:
             - train_set: List
             - test_set: List
             - label_key: str. key to use in data dicts for label
+            - feature_subset: List of str, or None if NA. Subset of features to use.
 
         `build_data` returns a Tuple of the following:
             - x_train: Matrix
@@ -311,10 +348,30 @@ class ModelRun:
         x_train, feature_cols = cls.build_x_features(train_set, encoders)
         x_test, feature_cols = cls.build_x_features(test_set, encoders)
 
+        if feature_subset:
+            x_train = cls.restrict_features_to_subset(x_train, feature_cols, feature_subset)
+            x_test = cls.restrict_features_to_subset(x_test, feature_cols, feature_subset)
+            feature_cols = feature_subset
+
         y_train = cls.build_y_vector(train_set, label_key)
         y_test = cls.build_y_vector(test_set, label_key)
 
         return x_train, x_test, y_train, y_test, feature_cols, encoders
+
+    @classmethod
+    def restrict_features_to_subset(cls, df, old_columns, feature_subset):
+        # column_mask = [col in feature_subset for col in old_columns]
+        column_mask = []
+        for i, col_name in enumerate(old_columns):
+            if col_name in feature_subset:
+                column_mask.append(i)
+        df = df.tocsr()
+        print("type: {}".format(type(df)))
+        # df = df[:,column_mask].todense().copy()
+        df = pd.DataFrame(df[:, column_mask].todense())
+        df.columns = feature_subset
+        print(df.shape)
+        return df
 
     @classmethod
     def train_encoders(cls, train_set: List[Dict]):
@@ -359,13 +416,20 @@ class ModelRun:
         return [entity_dict[label_key] for entity_dict in data_set]
 
     @classmethod
-    def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
+    def search_hyperparameters(cls, model, hyperparams, x_train, y_train, reduce_features=False):
         random_search = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=5, cv=2, verbose=2,
-                                           random_state=42, n_jobs=-1)
-        # Fit the random search model
+                                           random_state=42, n_jobs=-1, scoring='f1_macro')
         random_search.fit(x_train, y_train)
         print(random_search.best_params_)
         return random_search.best_estimator_
+
+    @classmethod
+    def train_feature_reducer(cls, model, x_train, y_train):
+        rfecv = RFECV(estimator=model, step=0.05, scoring='f1_macro', n_jobs=-1)  # , cv=StratifiedKFold)
+        rfecv.fit(x_train, y_train)
+        print("Optimal number of features : %d" % rfecv.n_features_)
+        print("Params: {}".format(rfecv.get_params()))
+        return rfecv
 
     @classmethod
     def evaluate_model(cls, model: Callable, x_test, y_test, y_test_predicted) -> Dict:
@@ -396,11 +460,25 @@ class ModelRun:
         Returns: pd.DataFrame of feature importances in descending order.
 
         """
-        fi = pd.DataFrame(self.model.feature_importances_, index=self.feature_cols)
-        fi = fi.sort_values(0, ascending=False)
-        return fi
+        if hasattr(self.model, 'feature_importances_'):
+            fi = pd.DataFrame(self.model.feature_importances_, index=self.feature_cols)
+            fi = fi.sort_values(0, ascending=False)
+            return fi
+        else:
+            return pd.DataFrame()
 
     def get_selected_hyperparams(self, identifier) -> pd.DataFrame:
+        model_hyperparam_func_map = {
+            RandomForestClassifier: self.get_selected_random_forest_hyperparams,
+            SVC: self.get_selected_svc_hyperparams
+        }
+        model_type = type(self.model)
+        model_hyperparam_func = model_hyperparam_func_map[model_type]
+        chosen_hyperparams = model_hyperparam_func()
+        chosen_hyperparams['num_features'] = len(self.feature_cols)
+        return pd.DataFrame(chosen_hyperparams, index=[identifier])
+
+    def get_selected_random_forest_hyperparams(self) -> Dict:
         chosen_hyperparams = {
             'n_estimators': self.model.n_estimators,
             'max_features': self.model.max_features,
@@ -409,7 +487,11 @@ class ModelRun:
             'min_samples_leaf': self.model.min_samples_leaf,
             'class_weight': self.model.class_weight,
         }
-        return pd.DataFrame(chosen_hyperparams, index=[identifier])
+        return chosen_hyperparams
+
+    def get_selected_svc_hyperparams(self) -> Dict:
+        chosen_hyperparams = self.model.get_params()
+        return chosen_hyperparams
 
     def generate_predictor(self) -> Predictor:
         """

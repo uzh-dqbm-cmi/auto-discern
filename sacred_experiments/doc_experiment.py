@@ -1,6 +1,7 @@
 from autodiscern import DataManager, model
 from autodiscern.experiment import PartitionedExperiment
 from autodiscern.experiments.DocExperiment import DocLevelModelRun
+import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 from sacred import Experiment
@@ -46,7 +47,8 @@ def my_config():
     model_class = RandomForestClassifier
     n_estimators = [50, 100, 500]
     # Number of features to consider at every split
-    max_features = ['sqrt']
+    # None means consider all
+    max_features = ['sqrt', None, 0.5]
     # Maximum number of levels in tree
     max_depth = [10, 50, 100]
     # Minimum number of samples required to split a node
@@ -69,10 +71,39 @@ def my_config():
     n_partitions = 5
     stratify_by = 'label'
 
+    feature_subset_all = None
+    feature_subset_custom_7 = ['et', 'al', 'thisisalink', 'external_link_cnt', 'internal_link_cnt', 'spacy_ner_date',
+                             'bibliography_feature', ]
+    feature_subset_5 = ['al', 'thisisalink', 'external_link_cnt', 'spacy_ner_date', 'et']
+    feature_subset_19 = ['al', 'thisisalink', 'et', 'spacy_ner_date', 'external_link_cnt', 'bibliography_feature',
+                         'new', 'american', 'national', 'available', 'severe', 'information', 'internal_link_cnt',
+                         'MM-Disorders', 'causes', 'type', 'cause', 'try', 'spacy_ner_ordinal']
+    feature_subset_50 = ['thisisalink', 'mmconceptdisorders', 'sentiment_pos', 'life', 'experience', 'course',
+                         'different', 'et', 'sentiment_neg', 'html_h4', 'mmconceptprocedures', 'need', 'discuss',
+                         'american', 'child', 'inflammatory', 'especially', 'include', 'way', 'anti', 'important',
+                         'MM-Disorders', 'new', 'spacy_ner_time', 'develop', 'mmconceptphysiology', 'national',
+                         'patient', 'try', 'effective', 'type', 'causes', 'certain', 'stop', 'al', 'sentiment_compound',
+                         'work', 'example', 'MM-Physiology', 'number', 'MM-Anatomy', 'spacy_ner_cardinal',
+                         'internal_link_cnt', 'make', 'group', 'pain', 'reviewed', 'doctor', 'know']
+    feature_subset_86 = ['al', 'thisisalink', 'et', 'spacy_ner_date', 'external_link_cnt', 'american', 'new',
+                         'national', 'MM-Disorders', 'use', 'internal_link_cnt', 'bibliography_feature', 'information',
+                         'available', 'causes', 'severe', 'sentiment_compound', 'type', 'cause', 'mmconceptdisorders',
+                         'avoid', 'loss', 'spacy_ner_gpe', 'spacy_ner_cardinal', 'pain', 'rheumatoid',
+                         'spacy_ner_date_no_digit', 'improve', 'help', 'inline_citation_cnt', 'mmconceptanatomy',
+                         'child', 'spacy_ner_ordinal', 'clinical', 'effective', 'include', 'sentiment_neu', 'way',
+                         'know', 'health', 'patient', 'mmconceptphysiology', 'develop', 'different', 'people', 'course',
+                         'therapy', 'try', 'increase', 'ask', 'time', 'doctor', 'reviewed', 'need', 'important', 'life',
+                         'MM-Anatomy', 'anti', 'stop', 'make', 'affect', 'mmconceptchemicalsdrugs', 'risk', 'long',
+                         'sentiment_pos', 'MM-Procedures', 'example', 'inflammatory', 'mmconceptprocedures', 'start',
+                         'especially', 'term', 'mmconceptdevices', 'html_h4', 'experience', 'feel', 'work', 'want',
+                         'group', 'number', 'discuss', 'MM-Physiology', 'spacy_ner_time', 'certain', 'sentiment_neg']
+    feature_subset = None
+    reduce_features = False
+
 
 @ex.automain
 def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, model_run_class, n_partitions,
-            stratify_by, run_hyperparam_search, num_partitions_to_run, test_mode):
+            stratify_by, run_hyperparam_search, num_partitions_to_run, feature_subset, reduce_features, test_mode):
 
     # convert hyperparams from a sacred.config.ReadOnlyDict to a regular Dictionary,
     #   otherwise pickling of the experiment fails
@@ -90,7 +121,8 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
                                                           model_run_class=model_run_class,
                                                           model=model_obj, preprocessing_func=data_processor.func,
                                                           hyperparams=hyperparams_dict, n_partitions=n_partitions,
-                                                          stratify_by=stratify_by, verbose=True)
+                                                          stratify_by=stratify_by, feature_subset=feature_subset,
+                                                          reduce_features=reduce_features, verbose=True)
 
     # run the experiments
     for q in question_models:
@@ -101,7 +133,7 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
         print(question_models[q].show_feature_importances().head(10))
         feature_path = Path(dm.data_path, 'results/{}_feature_importances.txt'.format(q))
         with open(feature_path, 'w') as f:
-            f.write(question_models[q].show_feature_importances().head(20).to_string())
+            f.write(question_models[q].show_feature_importances().head(100).to_string())
         ex.add_artifact(feature_path)
 
         # save hyperparams
@@ -139,6 +171,29 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
         fig = plot.get_figure()
         fig.savefig(conf_matrix_path)
         ex.add_artifact(conf_matrix_path)
+
+        # save feature reduction graph, if applicable
+        if reduce_features:
+            fig, ax = plt.subplots()
+            plt.xlabel("Number of features selected (but actually this axis is not right)")
+            plt.ylabel("Cross validation score (nb of correct classifications)")
+            num_features = []
+            score = []
+            model_run_id = []
+            for p in question_models[q].model_runs:
+                grid_scores = question_models[q].model_runs[p].rfecv.grid_scores_
+                # num_features.extend(range(1, len(grid_scores)+1))
+                # score.extend(grid_scores)
+                # model_run_id.extend([p]*len(grid_scores))
+
+                label = '{}: {} features'.format(p, question_models[q].model_runs[p].rfecv.n_features_)
+                plt.plot(range(1, len(grid_scores) + 1), grid_scores, label=label)
+            # plt.show()
+            plt.legend()
+            fig = ax.get_figure()
+            conf_matrix_path = Path(dm.data_path, 'results/{}_feature_reduction.png'.format(q))
+            fig.savefig(conf_matrix_path)
+            ex.add_artifact(conf_matrix_path)
 
     # save F1 and accuracy scores as artifacts
     for metric in ['f1', 'accuracy']:
