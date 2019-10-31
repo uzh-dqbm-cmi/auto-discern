@@ -229,7 +229,6 @@ if __name__ == '__main__':
                                                                       "search")
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
                                                                                       "autodiscern/aa_neural/")
-    parser.add_argument("--num_threads", type=int, default=5, help="limit to number of threads PyTorch uses")
     args = parser.parse_args()
 
     config = {
@@ -246,7 +245,6 @@ if __name__ == '__main__':
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
         'base_dir': args.base_dir,
-        'num_threads': args.num_threads,
     }
 
     if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
@@ -286,8 +284,6 @@ if __name__ == '__main__':
     print("{0}".format('='*10*4))
 
     # ---
-
-    # torch.set_num_threads(config['num_threads'])
 
     verbose = config['verbose']
 
