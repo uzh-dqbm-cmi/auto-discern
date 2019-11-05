@@ -77,6 +77,16 @@ class BertEmbedder(nn.Module):
         self.bertmodel = bertmodel.float()
         self.config = proc_config
 
+        # use BertModel as word embedder
+        self.bert_train_flag = self.config.get('bert_train_flag', False)
+        # for now we are taking the last layer hidden vectors
+        self.bert_all_output = self.config.get('bert_all_output', False)
+
+        if not self.bert_train_flag:
+            self.bertmodel.eval()
+        else:
+            self.bertmodel.train()
+
     # def forward_batch_sents(self, doc_tensor, attention_mask, num_sents):
     #     '''
 
@@ -116,24 +126,15 @@ class BertEmbedder(nn.Module):
 
         TODO: add flags and logic to handle multiple layers embedding (i.e. 12 layers embedding)
         '''
-        # use BertModel as word embedder
-        bert_train_flag = self.config.get('bert_train_flag', False)
-        # for now we are taking the last layer hidden vectors
-        bert_all_output = self.config.get('bert_all_output', False)
-        bertmodel = self.bertmodel
-        if(not bert_train_flag):
-            bertmodel.eval()
-        else:
-            bertmodel.train()
 
         embed_layers_lst = []
 
         for sent_indx in range(num_sents):  # going over each sentenece one by one due to GPU limit :((
             # print('sent_indx', sent_indx)
-            with torch.set_grad_enabled(bert_train_flag):
-                encoded_layers, __ = bertmodel(doc_tensor[sent_indx:sent_indx+1],
-                                               attention_mask=attention_mask[sent_indx:sent_indx+1],
-                                               output_all_encoded_layers=bert_all_output)
+            with torch.set_grad_enabled(self.bert_train_flag):
+                encoded_layers, __ = self.bertmodel(doc_tensor[sent_indx:sent_indx+1],
+                                                    attention_mask=attention_mask[sent_indx:sent_indx+1],
+                                                    output_all_encoded_layers=self.bert_all_output)
                 embed_layers_lst.append(encoded_layers)
 
         # TODO: see if this works
