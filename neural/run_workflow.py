@@ -604,12 +604,14 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
             options['fold_num'] = fold_num
             data_partition = q_docpartitions[question][fold_num]
             path = os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
-            train_dir = create_directory(path)
-            # load state_dict pth
-            state_dict_pth = os.path.join(train_dir, 'model_statedict')
+            # only run testing on question and folds that were run (may not all have been run in code test mode)
+            if os.path.exists(path):
+                train_dir = create_directory(path)
+                # load state_dict pth
+                state_dict_pth = os.path.join(train_dir, 'model_statedict')
 
-            path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
-            test_wrk_dir = create_directory(path)
+                path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
+                test_wrk_dir = create_directory(path)
 
-            run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir, sents_embed_dir,
-                               state_dict_dir=state_dict_pth, gpu_index=gpu_index)
+                run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir,
+                                   sents_embed_dir, state_dict_dir=state_dict_pth, gpu_index=gpu_index)

@@ -92,15 +92,6 @@ def write_sents_embeddings(directory, bertmodel, sents_embed_dir_name, docs_data
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
 
 
-def read_sents_embeddings(directory, sents_embed_dir_name):
-    ''' read the 3-dimensional doc tensors
-    doc x sent x embedding'''
-
-    sents_embed_dir = create_directory(sents_embed_dir_name, directory)
-    bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
-    return bert_proc_docs, sents_embed_dir
-
-
 def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map):
     hyperparam_search_dir = create_directory('hyperparam_search', directory)
     hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir,
@@ -112,9 +103,8 @@ def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmode
                                      prob_estim=0.95, random_seed=42)
 
 
-def run_training_parallel(questions_to_run, directory, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
+def run_training_parallel(questions_to_run, train_val_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
                           question_gpu_map, num_epochs, max_folds):
-    train_val_dir = create_directory('train_validation', directory)
     queue = mp.Queue()
     q_processes = []
     # create a process for each question model
@@ -257,15 +247,26 @@ if __name__ == '__main__':
         config['num_epochs'] = 2
         config['run_hyper_param_search'] = False
 
-    if config['experiment_to_rerun'] is None:
-        time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    if config['experiment_to_rerun']:
+        if config['copy_exp_dir']:
+            from distutils.dir_util import copy_tree
+            rerun_dir_name = '{}_{}_{}'.format(config['experiment_to_rerun'], 'rerun', time_stamp)
+            orig_exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            exp_dir = os.path.join(config['base_dir'], 'experiments', rerun_dir_name)
+            create_directory(exp_dir)
+            # copy contents of original exp dir so experiment re-run has everything it needs
+            print("copying experiment for re-run in {}...".format(exp_dir))
+            copy_tree(orig_exp_dir, exp_dir)
+            print("... complete")
+        else:
+            exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+    else:
         if config['test_mode']:
             exp_dir = os.path.join(config['base_dir'], 'experiments', 'tests', time_stamp)
         else:
             exp_dir = os.path.join(config['base_dir'], 'experiments', time_stamp)
         create_directory(exp_dir)
-    else:
-        exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
     config['exp_dir'] = exp_dir
 
     if config['biobert']:
@@ -276,6 +277,7 @@ if __name__ == '__main__':
         config['bert_model_dir'] = os.path.join(config['base_dir'], 'aws_downloads/bert-base-uncased.tar.gz')
         config['sents_embed_dir_name'] = 'sents_bert_embed_uncased'
         config['data_dir'] = os.path.join(config['base_dir'], 'proc_data_uncased')
+    config['sents_embed_dir'] = os.path.join(config['base_dir'], config['sents_embed_dir_name'])
 
     # print config to screen
     print("{0} RUNNING WITH CONFIG {0}".format('='*10))
@@ -286,11 +288,7 @@ if __name__ == '__main__':
     # ---
 
     verbose = config['verbose']
-
-    # get the gpu index for the first question that is to be run
-    default_gpu_index = config['question_gpu_map'][config['questions_to_run'][0]]
-    default_gpu_index = 0
-    default_device = get_device(to_gpu=False, index=default_gpu_index)
+    default_device = get_device(to_gpu=False)
 
     verbose_print("Loading objects...", verbose)
     data_dir = config['data_dir']
@@ -299,8 +297,7 @@ if __name__ == '__main__':
                                            docs_data_tensor, q_partitions)
 
     if config['biobert']:
-        pytorch_dump_path = create_directory('pytorch_biobert', config['base_dir'])
-        bert_for_pretrain = load_biobert_model(pytorch_dump_path, default_device)
+        bert_for_pretrain = load_biobert_model(config['bert_model_dir'], default_device)
         bertmodel = bert_for_pretrain.bert
     else:
         bertmodel = BertModel.from_pretrained(config['bert_model_dir'])
@@ -309,20 +306,17 @@ if __name__ == '__main__':
         verbose_print("Writing sentence embeddings...", verbose)
         write_sents_embeddings(config['base_dir'], bertmodel, config['sents_embed_dir_name'], docs_data_tensor)
 
-    verbose_print("Reading sentence embeddings...", verbose)
-    bert_proc_docs, sents_embed_dir = read_sents_embeddings(config['base_dir'], config['sents_embed_dir_name'])
-
-    if config['run_hyper_param_search'] and not config['hyperparam_search_dir']:
-        verbose_print("Running hyper-parameter search...", verbose)
-        run_hyperparam_search(config['questions_to_run'], exp_dir, q_docpartitions, bertmodel, sents_embed_dir,
-                              config['question_gpu_map'])
-        hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
-        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], hyperparam_search_dir, num_trials=60,
-                                                             metric_indx=2)
-    elif config['hyperparam_search_dir']:
+    if config['hyperparam_search_dir']:
         verbose_print("Using hyper-parameter search results from {}".format(config['hyperparam_search_dir']), verbose)
         q_config_map = get_best_config_from_hyperparamsearch(config['questions'], config['hyperparam_search_dir'],
                                                              num_trials=60, metric_indx=2)
+    elif config['run_hyper_param_search']:
+        verbose_print("Running hyper-parameter search...", verbose)
+        run_hyperparam_search(config['questions_to_run'], config['exp_dir'], q_docpartitions, bertmodel,
+                              config['sents_embed_dir'], config['question_gpu_map'])
+        hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
+        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], hyperparam_search_dir, num_trials=60,
+                                                             metric_indx=2)
     else:
         verbose_print("Creating custom hyper-parameter config...", verbose)
         # using custom hyperparam configuration for all questions
@@ -336,13 +330,14 @@ if __name__ == '__main__':
                 q_config_map[q] = (mconfig, options, -1)
 
     verbose_print("Training...", verbose)
-    train_val_dir = run_training_parallel(config['questions_to_run'], exp_dir, q_docpartitions, q_config_map, bertmodel,
-                                          sents_embed_dir, config['question_gpu_map'], config['num_epochs'],
-                                          config['max_folds'])
+    train_val_dir = create_directory('train_validation', exp_dir)
+    train_val_dir = run_training_parallel(config['questions_to_run'], train_val_dir, q_docpartitions, q_config_map,
+                                          bertmodel, config['sents_embed_dir'], config['question_gpu_map'],
+                                          config['num_epochs'], config['max_folds'])
 
     verbose_print("Evaluating on test set...", verbose)
-    test_dir = evaluate_on_test_set(exp_dir, q_docpartitions, q_config_map, bertmodel, train_val_dir, sents_embed_dir,
-                                    gpu_index=1)
+    test_dir = evaluate_on_test_set(config['exp_dir'], q_docpartitions, q_config_map, bertmodel, train_val_dir,
+                                    config['sents_embed_dir'], gpu_index=1)
 
     micro_f1_df, macro_f1_df, accuracy_df = build_accuracy_dfs(q_docpartitions, test_dir)
     print("micro_f1_df: {}".format(micro_f1_df))
