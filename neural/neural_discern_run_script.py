@@ -217,6 +217,10 @@ if __name__ == '__main__':
     parser.add_argument("--run-hyper-param-search", default=True, help="Run the hyper parameter search")
     parser.add_argument("--hyperparam-search-dir", default=None, help="Re-use the results of a pre-run hyperparam "
                                                                       "search")
+    parser.add_argument("--experiment-to-rerun", default=None, help="Experiment directory to use as a basis for a "
+                                                                    "re-run")
+    parser.add_argument("--copy-exp-dir", default=True, help='Whether to make a copy of the experiment dir to re-run, '
+                                                             'so as not to overwrite the current one. ')
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
                                                                                       "autodiscern/aa_neural/")
     args = parser.parse_args()

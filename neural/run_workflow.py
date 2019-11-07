@@ -281,15 +281,14 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                         doc_id = docs_id[doc_indx].item()
                         if(doc_id in bert_proc_docs):
                             # due to GPU limit
-                            # TODO: refactor away need for `.replace('.pkl', '_torch.pkl')` in uncased (normal bert) run
-                            embed_sents = torch.load(bert_proc_docs[doc_id], map_location=device)
+                            embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device=device)
                             # embed_sents = embed_sents.to(device)  # send to gpu device
                         else:
                             embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx],
                                                        docs_len[doc_indx].item())
                             # add embedding to dict
                             embed_fpath = os.path.join(sents_embed_dir, '{}.pkl'.format(doc_id))
-                            ReaderWriter.dump_data(embed_sents, embed_fpath)
+                            ReaderWriter.dump_tensor(embed_sents, embed_fpath)
                             bert_proc_docs[doc_id] = embed_fpath
 
                         sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx],
