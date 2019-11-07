@@ -141,6 +141,7 @@ class BertEmbedder(nn.Module):
         with torch.set_grad_enabled(self.bert_train_flag):
             encoded_layers, __ = self.bertmodel(doc_tensor, attention_mask=attention_mask,
                                                 output_all_encoded_layers=self.bert_all_output)
+
         return encoded_layers
 
         # # concat everything
