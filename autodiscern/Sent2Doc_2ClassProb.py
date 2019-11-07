@@ -43,6 +43,7 @@ class Sent2Doc_2ClassProb_Experiment(ade.PartitionedExperiment):
         })
         return new_data_set
 
+
 class SentenceToDocProbaModelRun(ade.ModelRun):
 
     @classmethod

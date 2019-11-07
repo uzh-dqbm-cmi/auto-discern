@@ -48,10 +48,9 @@ class PartitionedExperiment:
 
         if verbose:
             self.report_partition_stats(self.partitions_by_ids, self.data_dict)
-    
+
     def set_partitions_by_ids(self, partitions_by_ids: List[List[int]]):
-        '''set the test set ids as partitions for model development
-        '''
+        """set the test set ids as partitions for model development"""
         self.partitions_by_ids = partitions_by_ids
         # update number of partitions based on the provided list of ids
         self.n_partitions = len(self.partitions_by_ids)
@@ -115,7 +114,7 @@ class PartitionedExperiment:
             train, test = cls.materialize_partition(p_ids, data_dict)
             labels_train = pd.DataFrame([d['label'] for d in train])
             labels_test = pd.DataFrame([d['label'] for d in test])
-            
+
             # identify the labels (assume all labels are seen in the train set)
             outcome_classes = set(labels_train[0].unique())
             print('\n-Partition {}-'.format(i))
@@ -166,7 +165,7 @@ class PartitionedExperiment:
         median = all_accuracy_df.median(axis=1)
         mean = all_accuracy_df.mean(axis=1)
         stddev = all_accuracy_df.std(axis=1)
-        all_accuracy_df['mean']  = mean
+        all_accuracy_df['mean'] = mean
         all_accuracy_df['median'] = median
         all_accuracy_df['stddev'] = stddev
         return all_accuracy_df.sort_values('median', ascending=False)
@@ -201,7 +200,7 @@ class ModelRun:
         return self.evaluation
 
     def build_features(self, train_set: List[Dict], test_set: List[Dict]) -> Tuple[coo_matrix, coo_matrix, List, List,
-                                                                                  List, Dict]:
+                                                                                   List, Dict]:
         """Placeholder function to hold the custom feature building functionality of a ModelRun.
         build_features takes as input:
             - train_set: List

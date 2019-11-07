@@ -8,13 +8,13 @@ class TestModel(unittest.TestCase):
     def test_vectorize_html(self, ):
         test_input = ['h1', 'a']
         expected_output = pd.DataFrame({
-            'h1': 1,
-            'h2': 0,
-            'h3': 0,
-            'h4': 0,
-            'a':  1,
-            'li': 0,
-            'tr': 0,
+            'html_h1': 1,
+            'html_h2': 0,
+            'html_h3': 0,
+            'html_h4': 0,
+            'html_a':  1,
+            'html_li': 0,
+            'html_tr': 0,
         }, index=[0])
         pd.testing.assert_frame_equal(adm.vectorize_html(test_input), expected_output, check_like=True)
 
