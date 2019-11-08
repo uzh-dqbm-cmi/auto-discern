@@ -9,7 +9,7 @@ from neural.data_processor import DataDictProcessor
 from neural.dataset import generate_docpartition_per_question
 from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import predict_neural_discern, get_saved_config, return_attnw_over_sents
-from neural.utilities import create_directory, ReaderWriter
+from neural.utilities import create_directory, ReaderWriter, get_device
 from neural.neural_discern_run_script import load_biobert_model
 from typing import Dict, List
 
@@ -114,6 +114,8 @@ def biobert_predict(data_dict: dict):
     state_dict_path_form = 'train_validation/question_{}/fold_0/model_statedict/'  # TODO QUESTION:  why not in test?
     config_path_form = 'test/question_{}/fold_0/config/'
 
+    default_device = get_device(to_gpu=False)
+
     # ---
 
     q_partitions = create_prediction_qdoc_partitions(questions, fold_num)
@@ -131,7 +133,7 @@ def biobert_predict(data_dict: dict):
 
     # load BERT model
     pytorch_dump_path = os.path.join(base_dir, 'aa_neural', 'pytorch_biobert')
-    bert_for_pretrain = load_biobert_model(pytorch_dump_path)
+    bert_for_pretrain = load_biobert_model(pytorch_dump_path, default_device)
     bertmodel = bert_for_pretrain.bert
 
     processor = build_DataDictProcessor(transformed_data, vocab_path, processor_config)
