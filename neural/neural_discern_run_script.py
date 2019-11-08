@@ -242,14 +242,31 @@ if __name__ == '__main__':
         'base_dir': args.base_dir,
     }
 
+    # config = {
+    #     'test_mode': False,
+    #     'biobert': False,
+    #     'rewrite_sentence_embeddings': False,
+    #     'run_hyper_param_search': False,
+    #     'hyperparam_search_dir': None,
+    #     'questions_to_run': [4],  #, 5, 9, 10, 11],
+    #     'max_folds': 5,
+    #     'num_epochs': 25,
+    #     'verbose': True,
+    #     'experiment_to_rerun': 'tests/2019-11-08_12-17-13',
+    #     'copy_exp_dir': True,
+    #     'questions': (4, 5, 9, 10, 11),
+    #     'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
+    #     'base_dir': args.base_dir,
+    # }
+
     if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
         print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
               "The pre-built hyperparam search dir will be used. Hyperparam search will not be run.")
 
     # under test mode (for faster debugging), run a smaller set of partitions and epochs, and no hyper param search
     if config['test_mode']:
-        config['max_folds'] = 2  # max number of data partition folds to run (for faster testing)
-        config['num_epochs'] = 2
+        config['max_folds'] = 1  # max number of data partition folds to run (for faster testing)
+        config['num_epochs'] = 1
         config['run_hyper_param_search'] = False
 
     time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')

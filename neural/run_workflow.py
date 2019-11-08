@@ -4,6 +4,7 @@ from .utilities import get_device, create_directory, ReaderWriter, perfmetric_re
 from .model import Attention, SentenceEncoder, DocEncoder, DocCategScorer, BertEmbedder, restrict_grad_
 from .dataset import construct_load_dataloaders
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 import torch.multiprocessing as mp
@@ -192,6 +193,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     if(state_dict_dir):  # load state dictionary of saved models
         for m, m_name in models:
+            print("Loading state_dict_dir: {}".format(state_dict_dir))
             m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name)), map_location=device))
 
     # update models fdtype and move to device
@@ -243,6 +245,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                   "".format(device, options.get('question'), fold_num, epoch, dsettype, pid))
             pred_class = []
             ref_class = []
+            doc_ids = []
+            probability_scores = []
 
             data_loader = data_loaders[dsettype]
             # total_num_samples = len(data_loader.dataset)
@@ -279,6 +283,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     for doc_indx in range(num_docs_perbatch):
                         # print('doc_indx', doc_indx)
                         doc_id = docs_id[doc_indx].item()
+                        doc_ids.append(doc_id)
                         if(doc_id in bert_proc_docs):
                             # due to GPU limit
                             embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device=device)
@@ -309,11 +314,11 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                         logsoftmax_scores = doc_categ_scorer(doc_out)
                         __, pred_classindx = torch.max(logsoftmax_scores, 1)  # apply max on row level
 
-                        # print('logsoftmax_scores', logsoftmax_scores.shape)
-                        # print('pred_calssindx', pred_classindx.shape)
-                        # print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
-                        # print('predicted class index:', pred_classindx.item())
-                        # print('ref class index:', docs_labels[doc_indx, question].item())
+                        print('logsoftmax_scores', logsoftmax_scores.shape)
+                        print('pred_calssindx', pred_classindx.shape)
+                        print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
+                        print('predicted class index:', pred_classindx.item())
+                        print('ref class index:', docs_labels[doc_indx, question].item())
                         pred_class.append(pred_classindx.item())
                         ref_class.append(docs_labels[doc_indx, question].item())
 
@@ -324,6 +329,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # finished processing docs in batch
                     b_logprob_scores = torch.cat(logprob_scores, dim=0)
                     b_target_class = torch.cat(target_class, dim=0)
+                    probability_scores.extend([t for t in b_logprob_scores])
                     # print("b_logprob_scores", b_logprob_scores.shape)
                     # print("b_target_class", b_target_class.shape)
                     loss = loss_func(b_logprob_scores, b_target_class)
@@ -372,6 +378,20 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     if(dump_embed_dict_flag):
         print(bert_proc_docs)
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
+
+    # save predictions
+    df_dict = {
+        'id': doc_ids,
+        'true_class': ref_class,
+        'pred_class': pred_class,
+        # 'prob_scores': probability_scores,
+        # 'attention_weight_map': docid_attnweights_map['test']
+    }
+    predictions_df = pd.DataFrame(df_dict)
+    predictions_df.set_index('id')
+    predictions_path = os.path.join(wrk_dir, 'predictions.csv')
+    predictions_df.to_csv(predictions_path)
+
     return pred_class
 
 
@@ -612,10 +632,13 @@ def train_val_run_one_question(queue, question, q_docpartitions, q_fold_config_m
 def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, gpu_index,
              num_epochs=1):
     dsettypes = ['test']
+    print(q_fold_config_map)
     for question in q_fold_config_map:
+        print("running q {}".format(question))
         mconfig, options, __ = q_fold_config_map[question]
         options['num_epochs'] = num_epochs  # override number of epochs using user specified value
         for fold_num in q_docpartitions[question]:
+            print("running fold num {}".format(fold_num))
             # update options fold num to the current fold
             options['fold_num'] = fold_num
             data_partition = q_docpartitions[question][fold_num]
@@ -629,6 +652,7 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
                 path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
                 test_wrk_dir = create_directory(path)
 
+                print('state_dict_pth: '.format(state_dict_pth))
                 run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir,
                                    sents_embed_dir, state_dict_dir=state_dict_pth, gpu_index=gpu_index)
 
