@@ -225,39 +225,39 @@ if __name__ == '__main__':
                                                                                       "autodiscern/aa_neural/")
     args = parser.parse_args()
 
-    config = {
-        'test_mode': args.test_mode,
-        'biobert': args.biobert,
-        'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
-        'run_hyper_param_search': args.run_hyper_param_search,
-        'hyperparam_search_dir': args.hyperparam_search_dir,
-        'experiment_to_rerun': args.experiment_to_rerun,
-        'copy_exp_dir': args.copy_exp_dir,
-        'questions_to_run': [4, 5, 9, 10, 11],
-        'max_folds': 5,
-        'num_epochs': 25,
-        'verbose': True,
-        'questions': (4, 5, 9, 10, 11),
-        'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
-        'base_dir': args.base_dir,
-    }
-
     # config = {
-    #     'test_mode': False,
-    #     'biobert': False,
-    #     'rewrite_sentence_embeddings': False,
-    #     'run_hyper_param_search': False,
-    #     'hyperparam_search_dir': None,
-    #     'questions_to_run': [4],  #, 5, 9, 10, 11],
+    #     'test_mode': args.test_mode,
+    #     'biobert': args.biobert,
+    #     'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
+    #     'run_hyper_param_search': args.run_hyper_param_search,
+    #     'hyperparam_search_dir': args.hyperparam_search_dir,
+    #     'experiment_to_rerun': args.experiment_to_rerun,
+    #     'copy_exp_dir': args.copy_exp_dir,
+    #     'questions_to_run': [4, 5, 9, 10, 11],
     #     'max_folds': 5,
     #     'num_epochs': 25,
     #     'verbose': True,
-    #     'experiment_to_rerun': 'tests/2019-11-08_12-17-13',
-    #     'copy_exp_dir': True,
     #     'questions': (4, 5, 9, 10, 11),
     #     'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
     #     'base_dir': args.base_dir,
     # }
+
+    config = {
+        'test_mode': False,
+        'biobert': False,
+        'rewrite_sentence_embeddings': False,
+        'run_hyper_param_search': False,
+        'hyperparam_search_dir': None,
+        'questions_to_run': [4],  #, 5, 9, 10, 11],
+        'max_folds': 1,
+        'num_epochs': 25,
+        'verbose': True,
+        'experiment_to_rerun': 'debug_aa',
+        'copy_exp_dir': True,
+        'questions': (4, 5, 9, 10, 11),
+        'question_gpu_map': {4: 2, 5: 2, 9: 3, 10: 4, 11: 5},
+        'base_dir': args.base_dir,
+    }
 
     if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
         print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
@@ -274,15 +274,19 @@ if __name__ == '__main__':
         if config['copy_exp_dir']:
             from distutils.dir_util import copy_tree
             rerun_dir_name = '{}_{}_{}'.format(config['experiment_to_rerun'], 'rerun', time_stamp)
-            orig_exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
-            exp_dir = os.path.join(config['base_dir'], 'experiments', rerun_dir_name)
+            # orig_exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            # exp_dir = os.path.join(config['base_dir'], 'experiments', rerun_dir_name)
+            orig_exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
+            exp_dir = os.path.join(config['base_dir'], rerun_dir_name)
             create_directory(exp_dir)
             # copy contents of original exp dir so experiment re-run has everything it needs
             print("copying experiment for re-run in {}...".format(exp_dir))
             copy_tree(orig_exp_dir, exp_dir)
             print("... complete")
         else:
-            exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            # exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            exp_dir = exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
+
     else:
         if config['test_mode']:
             exp_dir = os.path.join(config['base_dir'], 'experiments', 'tests', time_stamp)
@@ -353,13 +357,13 @@ if __name__ == '__main__':
 
     verbose_print("Training...", verbose)
     train_val_dir = create_directory('train_validation', exp_dir)
-    train_val_dir = run_training_parallel(config['questions_to_run'], train_val_dir, q_docpartitions, q_config_map,
-                                          bertmodel, config['sents_embed_dir'], config['question_gpu_map'],
-                                          config['num_epochs'], config['max_folds'])
+    # train_val_dir = run_training_parallel(config['questions_to_run'], train_val_dir, q_docpartitions, q_config_map,
+    #                                       bertmodel, config['sents_embed_dir'], config['question_gpu_map'],
+    #                                       config['num_epochs'], config['max_folds'])
 
     verbose_print("Evaluating on test set...", verbose)
     test_dir = evaluate_on_test_set(config['exp_dir'], q_docpartitions, q_config_map, bertmodel, train_val_dir,
-                                    config['sents_embed_dir'], gpu_index=1)
+                                    config['sents_embed_dir'], gpu_index=2)
 
     micro_f1_df, macro_f1_df, accuracy_df = build_accuracy_dfs(q_docpartitions, test_dir)
     print("micro_f1_df: {}".format(micro_f1_df))
