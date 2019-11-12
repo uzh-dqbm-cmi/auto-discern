@@ -196,7 +196,7 @@ def my_main(discern_path, cache_file, important_qs, model_class, hyperparams, mo
             ex.add_artifact(conf_matrix_path)
 
     # save F1 and accuracy scores as artifacts
-    for metric in ['f1', 'accuracy']:
+    for metric in ['f1_macro', 'accuracy', 'f1_micro']:
         all_q_metric = pd.concat([question_models[q].show_evaluation(metric=metric) for q in question_models], axis=0)
         print(all_q_metric)
         all_f1_path = Path(dm.data_path, 'results/{}.txt'.format(metric))

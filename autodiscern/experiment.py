@@ -250,7 +250,9 @@ class PartitionedExperiment:
             all_accuracy[partition_id] = self.model_runs[partition_id].evaluation[metric]
         all_accuracy_df = pd.DataFrame(all_accuracy, index=[self.name])
         median = all_accuracy_df.median(axis=1)
+        mean = all_accuracy_df.mean(axis=1)
         stddev = all_accuracy_df.std(axis=1)
+        all_accuracy_df['mean'] = mean
         all_accuracy_df['median'] = median
         all_accuracy_df['stddev'] = stddev
         return all_accuracy_df.sort_values('median', ascending=False)
@@ -446,10 +448,12 @@ class ModelRun:
 
         """
         accuracy = model.score(x_test, y_test)
-        f1 = f1_score(y_test, y_test_predicted, average='macro')
+        f1_macro = f1_score(y_test, y_test_predicted, average='macro')
+        f1_micro = f1_score(y_test, y_test_predicted, average='micro')
         return {
             "accuracy": accuracy,
-            "f1": f1,
+            "f1_macro": f1_macro,
+            "f1_micro": f1_micro,
         }
 
     def get_feature_importances(self) -> pd.DataFrame:
