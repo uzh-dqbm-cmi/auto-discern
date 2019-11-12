@@ -83,12 +83,13 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, 
 
 def biobert_predict(data_dict: dict):
     """
-    Make a prediction for an article data_dict
+    Make an autoDiscern prediction for an article data_dict using the HEA BioBERT model. Includes all of the data
+    preprocessing steps as were applied for the training of the HEA BioBERT model.
 
     Args:
-        data_dict: dictionary of {id: sib-dict}, with sub-dictionary with keys ['url', 'content', 'id']
+        data_dict: dictionary of {id: sib-dict}, with sub-dictionary with keys ['url', 'content', 'id', 'responses']
 
-    Returns: autodiscern predictions for the article
+    Returns: autodiscern predictions for the article.
 
     """
 
@@ -96,22 +97,20 @@ def biobert_predict(data_dict: dict):
     to_gpu = True
     gpu_index = 3
     fold_num = 0
-    working_dir = 'predict'  # TODO
+    working_dir = 'predict'
     # experiment_dir = '2019-10-14_14-41-53'
     experiment_dir = '2019-10-08_14-54-50'
 
     vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
-    # TODO: load config from filesystem?
     processor_config = {'tokenizer_max_sent_len': 300,
                         'label_cutoff': 3,
                         'label_avgmethod': 'round_mean'}
 
-    sents_embed_dir = os.path.join(base_dir, 'aa_neural/sents_bert_embed_cased')  # TODO
-    # TODO: load from filesystem?
+    sents_embed_dir = os.path.join(base_dir, 'aa_neural/sents_bert_embed_cased')
     bert_config = {'bert_train_flag': False,
                    'bert_all_output': False}
 
-    state_dict_path_form = 'train_validation/question_{}/fold_0/model_statedict/'  # TODO QUESTION:  why not in test?
+    state_dict_path_form = 'train_validation/question_{}/fold_0/model_statedict/'
     config_path_form = 'test/question_{}/fold_0/config/'
 
     default_device = get_device(to_gpu=False)
@@ -179,8 +178,15 @@ def biobert_predict(data_dict: dict):
 
 
 def build_data_dict(url, content):
-    fake_responses = pd.DataFrame({'fake responses': [0]*12})  # is this supposed to be a len 5 or 11 list?
-    # TODO: Q:question is used as index, not sure if that means list needs to be 11 long, or questions are actually 0-4
+    """Format the html information in a data_dict as required for the prediction routine.
+
+    Args:
+        url: url of the article
+        content: html contents of the article
+
+    Returns: Dict
+    """
+    fake_responses = pd.DataFrame({'fake responses': [0]*5})
     data_dict = {0: {'id': 0,
                      'url': url,
                      'content': content,
@@ -191,12 +197,28 @@ def build_data_dict(url, content):
 
 
 def make_prediction(url: str):
+    """
+    End to end function for making an autoDiscern prediction for a given url.
+
+    Args:
+        url: url of the article to make predictions for
+
+    Returns: autoDiscern predictions for the article
+
+    """
     html_content = retrieve_page_from_internet(url)
     data_dict = build_data_dict(url, html_content)
     return biobert_predict(data_dict)
 
 
 def test_make_prediction():
+    """
+    End to end test function for making an autoDiscern prediction, without relying on an internet connection.
+    Relies on a the existence of a test.html file.
+
+    Returns: autoDiscern predictions for the article
+
+    """
     test_data_path = os.path.join(BASE_DIR, 'data', 'test.html')
     test_article_url = 'https://www.nhs.uk/conditions/tendonitis/'
 
