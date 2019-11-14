@@ -17,7 +17,8 @@ from neural.data_processor import DataDictProcessor
 from neural.dataset import generate_docpartition_per_question, validate_q_docpartitions, compute_class_weights_per_fold_
 from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
-    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run
+    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run, \
+    build_q_config_map_from_train_val
 from neural.utilities import ReaderWriter, create_directory, get_device
 
 
@@ -244,15 +245,22 @@ if __name__ == '__main__':
 
     config = {
         'test_mode': False,
-        'biobert': False,
+        'biobert': True,
         'rewrite_sentence_embeddings': False,
         'run_hyper_param_search': False,
+        # 'hyperparam_search_dir': os.path.join(args.base_dir, 'experiments', '2019-10-08_14-54-50',
+        # 'train_validation'),
         'hyperparam_search_dir': None,
-        'questions_to_run': [4],  #, 5, 9, 10, 11],
+        'questions_to_run': [4],  # , 5, 9, 10, 11],
         'max_folds': 1,
-        'num_epochs': 25,
+        'num_epochs': 2,
         'verbose': True,
-        'experiment_to_rerun': 'debug_aa',
+        # 'experiment_to_rerun': 'tests/2019-11-08_12-17-13',
+        # 'experiment_to_rerun': 'debug_aa',
+        # 'experiment_to_rerun': '2019-11-14_09-05-21',
+        # 'experiment_to_rerun': '2019-10-08_14-54-50',  # bert dir
+        # 'experiment_to_rerun': '2019-10-08_14-54-50_rerun_2019-11-14_09-38-59',  # bert re-run dir
+        'experiment_to_rerun': '2019-10-28_15-59-09',  # biobert
         'copy_exp_dir': True,
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 2, 5: 2, 9: 3, 10: 4, 11: 5},
@@ -274,18 +282,18 @@ if __name__ == '__main__':
         if config['copy_exp_dir']:
             from distutils.dir_util import copy_tree
             rerun_dir_name = '{}_{}_{}'.format(config['experiment_to_rerun'], 'rerun', time_stamp)
-            # orig_exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
-            # exp_dir = os.path.join(config['base_dir'], 'experiments', rerun_dir_name)
-            orig_exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
-            exp_dir = os.path.join(config['base_dir'], rerun_dir_name)
+            orig_exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            exp_dir = os.path.join(config['base_dir'], 'experiments', rerun_dir_name)
+            # orig_exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
+            # exp_dir = os.path.join(config['base_dir'], rerun_dir_name)
             create_directory(exp_dir)
             # copy contents of original exp dir so experiment re-run has everything it needs
             print("copying experiment for re-run in {}...".format(exp_dir))
             copy_tree(orig_exp_dir, exp_dir)
             print("... complete")
         else:
-            # exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
-            exp_dir = exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
+            exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
+            # exp_dir = exp_dir = os.path.join(config['base_dir'], config['experiment_to_rerun'])
 
     else:
         if config['test_mode']:
@@ -332,10 +340,10 @@ if __name__ == '__main__':
         verbose_print("Writing sentence embeddings...", verbose)
         write_sents_embeddings(config['base_dir'], bertmodel, config['sents_embed_dir_name'], docs_data_tensor)
 
-    if config['hyperparam_search_dir']:
+    if config['experiment_to_rerun']:
         verbose_print("Using hyper-parameter search results from {}".format(config['hyperparam_search_dir']), verbose)
-        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], config['hyperparam_search_dir'],
-                                                             num_trials=60, metric_indx=2)
+        hyperparam_search_dir = os.path.join(config['exp_dir'], 'train_validation')
+        q_config_map = build_q_config_map_from_train_val(hyperparam_search_dir, config['questions'])
     elif config['run_hyper_param_search']:
         verbose_print("Running hyper-parameter search...", verbose)
         run_hyperparam_search(config['questions_to_run'], config['exp_dir'], q_docpartitions, bertmodel,

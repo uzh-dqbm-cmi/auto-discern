@@ -218,8 +218,10 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
     # store sentences' attention weights
 
-    if('validation' in data_loaders):
-        m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
+    # LKK: i think putting this variable init behind a conditional is unecessary?
+    # if 'validation' in data_loaders :
+    #     m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
+    m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
 
     if(num_epochs > 1):
         fig_dir = create_directory(os.path.join(wrk_dir, 'figures'))
@@ -370,6 +372,11 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # dump attention weights for the validation data
                     dump_dict_content(docid_attnweights_map, ['test'], 'docid_attnw_map', wrk_dir)
 
+            # LKK added this to debug prediction mismatch
+            if (dsettype == 'test'):
+                for m, m_name in models:
+                    torch.save(m.state_dict(), os.path.join(m_state_dict_dir, '{}.pkl'.format(m_name)))
+
     if(num_epochs > 1):
         plot_loss(epoch_loss_avgbatch, epoch_loss_avgsamples, fig_dir)
 
@@ -384,7 +391,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         'id': doc_ids,
         'true_class': ref_class,
         'pred_class': pred_class,
-        # 'prob_scores': probability_scores,
+        'prob_scores': probability_scores,
         # 'attention_weight_map': docid_attnweights_map['test']
     }
     predictions_df = pd.DataFrame(df_dict)
@@ -589,10 +596,23 @@ def get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_
                 scores[config_num, 3] = mscore.accuracy
                 scores[config_num, 4] = mscore.auc
                 exist_flag = True
+            else:
+                print("WARNING: hyperparam search dir does not exist: {}".format(score_file))
         if(exist_flag):
             argmax_indx = get_index_argmax(scores, metric_indx)
             mconfig, options = get_saved_config(os.path.join(fold_dir, 'config_{}'.format(argmax_indx), 'config'))
             q_fold_config_map[question] = (mconfig, options, argmax_indx)
+    return q_fold_config_map
+
+
+def build_q_config_map_from_train_val(train_val_dir, questions=[4, 5, 9, 10, 11], folds=[0, 1, 2, 3, 4]):
+    print("GOT HERE YAY")
+    q_fold_config_map = {}
+    for question in questions:
+        for fold_num in folds:
+            fold_dir = os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
+            mconfig, options = get_saved_config(os.path.join(fold_dir, 'config'))
+            q_fold_config_map[question] = (mconfig, options, -1)
     return q_fold_config_map
 
 
@@ -632,7 +652,7 @@ def train_val_run_one_question(queue, question, q_docpartitions, q_fold_config_m
 def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, gpu_index,
              num_epochs=1):
     dsettypes = ['test']
-    print(q_fold_config_map)
+    print('q_fold_config_map: {}'.format(q_fold_config_map))
     for question in q_fold_config_map:
         print("running q {}".format(question))
         mconfig, options, __ = q_fold_config_map[question]
@@ -652,9 +672,15 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
                 path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
                 test_wrk_dir = create_directory(path)
 
-                print('state_dict_pth: '.format(state_dict_pth))
+                print('state_dict_pth: {}'.format(state_dict_pth))
                 run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir,
                                    sents_embed_dir, state_dict_dir=state_dict_pth, gpu_index=gpu_index)
+            else:
+                print('WARNING: test dir not found: {}'.format(path))
+            print("WARNING DEBUG BREAK!!")
+            break
+        print("WARNING DEBUG BREAK!!")
+        break
 
 # ==================================================
 
