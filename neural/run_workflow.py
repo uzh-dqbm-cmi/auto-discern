@@ -777,13 +777,13 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
                 doc_id = docs_id[doc_indx].item()
                 if(doc_id in bert_proc_docs):
                     # due to GPU limit
-                    embed_sents = torch.load(bert_proc_docs[doc_id], map_location=device)
+                    embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device)
                 else:
                     embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx],
                                                docs_len[doc_indx].item())
                     # add embedding to dict
                     embed_fpath = os.path.join(sents_embed_dir, '{}.pkl'.format(doc_id))
-                    ReaderWriter.dump_data(embed_sents, embed_fpath)
+                    ReaderWriter.dump_tensor(embed_sents, embed_fpath)
                     bert_proc_docs[doc_id] = embed_fpath
 
                 sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx],
@@ -817,5 +817,6 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
 
     # end of epoch
     return {'pred_class': pred_class,
-            'prob_scores': b_logprob_scores,
+            'logprob_score_class0': [t.data.cpu().numpy()[0] for t in b_logprob_scores],
+            'logprob_score_class1': [t.data.cpu().numpy()[1] for t in b_logprob_scores],
             'attention_weight_map': docid_attnweights_map['test']}

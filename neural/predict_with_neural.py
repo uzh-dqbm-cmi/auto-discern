@@ -15,7 +15,17 @@ from typing import Dict, List
 
 
 BASE_DIR = '/opt/data/autodiscern'
-questions = [4, 5, 9, 10, 11]
+QUESTIONS = [4, 5, 9, 10, 11]
+TO_GPU = True  # NOTE: this does not currently work for False
+GPU_INDEX = 0
+BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
+QUESTION_FOLD_MAP = {
+    4: 0,
+    5: 0,
+    9: 0,
+    10: 0,
+    11: 0,
+}
 
 
 def identify_attended_senteces(docid_attnweights_map, proc_articles_repr, topk=5):
@@ -24,18 +34,17 @@ def identify_attended_senteces(docid_attnweights_map, proc_articles_repr, topk=5
 
 
 def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, results_dir, sents_embed_dir,
-                to_gpu, gpu_index, num_epochs=1):
-    fold_num = 0
+                question_fold_map, to_gpu, gpu_index, num_epochs=1):
     q_predictions = {}
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
         options['num_epochs'] = num_epochs  # override number of epochs using user specified value
 
         # update options fold num to the current fold
-        options['fold_num'] = fold_num
-        data_partition = q_docpartitions[question][fold_num]
+        options['fold_num'] = question_fold_map[question]
+        data_partition = q_docpartitions[question][options['fold_num']]
 
-        results_path = os.path.join(results_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
+        results_path = os.path.join(results_dir, 'question_{}'.format(question), 'fold_{}'.format(options['fold_num']))
         results_wrk_dir = create_directory(results_path)
 
         q_predictions[question] = predict_neural_discern(data_partition, bertmodel, mconfig, options,
@@ -51,11 +60,12 @@ def retrieve_page_from_internet(url: str):
     return html_page
 
 
-def create_prediction_qdoc_partitions(questions: List[int], fold_num: int):
+def create_prediction_qdoc_partitions(questions: List[int], question_fold_map: Dict[int, int]):
     q_docpartitions = {}
     for q in questions:
         q_docpartitions[q] = {}
-        q_docpartitions[q][fold_num] = {'train': [], 'validation': [], 'test': [0]}  # output of np.vectorize() ?!
+        fold_num = question_fold_map[q]
+        q_docpartitions[q][fold_num] = {'test': [0]}  # output of np.vectorize() ?!
     return q_docpartitions
 
 
@@ -81,7 +91,7 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, 
     return sents_embed_path
 
 
-def biobert_predict(data_dict: dict):
+def biobert_predict(data_dict: dict, questions):
     """
     Make an autoDiscern prediction for an article data_dict using the HEA BioBERT model. Includes all of the data
     preprocessing steps as were applied for the training of the HEA BioBERT model.
@@ -94,12 +104,11 @@ def biobert_predict(data_dict: dict):
     """
 
     base_dir = BASE_DIR
-    to_gpu = True
-    gpu_index = 3
-    fold_num = 0
+    to_gpu = TO_GPU
+    gpu_index = GPU_INDEX
+    question_fold_map = QUESTION_FOLD_MAP
+    experiment_dir = BIOBERT_EXP_DIR
     working_dir = 'predict'
-    # experiment_dir = '2019-10-14_14-41-53'
-    experiment_dir = '2019-10-08_14-54-50'
 
     vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
     processor_config = {'tokenizer_max_sent_len': 300,
@@ -110,14 +119,14 @@ def biobert_predict(data_dict: dict):
     bert_config = {'bert_train_flag': False,
                    'bert_all_output': False}
 
-    state_dict_path_form = 'train_validation/question_{}/fold_0/model_statedict/'
+    state_dict_path_form = 'train_validation/question_{}/fold_{}/model_statedict/'
     config_path_form = 'test/question_{}/fold_0/config/'
 
     default_device = get_device(to_gpu=False)
 
     # ---
 
-    q_partitions = create_prediction_qdoc_partitions(questions, fold_num)
+    q_partitions = create_prediction_qdoc_partitions(questions, question_fold_map)
 
     # run data processing
     # USED "2019-05-02_15-49-09_a0745f9_sent_level_MM.pkl"
@@ -163,12 +172,12 @@ def biobert_predict(data_dict: dict):
     q_state_dict_path_map = {}
     for q in questions:
         state_dict_path = os.path.join(base_dir, 'aa_neural', 'experiments', experiment_dir,
-                                       state_dict_path_form.format(q))
+                                       state_dict_path_form.format(q, question_fold_map[q]))
         q_state_dict_path_map[q] = state_dict_path
 
     print("Running predict")
     results = run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, working_dir,
-                          sents_embed_dir, to_gpu, gpu_index, num_epochs=1)
+                          sents_embed_dir, question_fold_map, to_gpu, gpu_index, num_epochs=1)
 
     proc_articles_repr = processor.articles_repr
     for q in results:
@@ -208,7 +217,7 @@ def make_prediction(url: str):
     """
     html_content = retrieve_page_from_internet(url)
     data_dict = build_data_dict(url, html_content)
-    return biobert_predict(data_dict)
+    return biobert_predict(data_dict, QUESTIONS)
 
 
 def test_make_prediction():
@@ -225,4 +234,4 @@ def test_make_prediction():
     with open(test_data_path, 'r') as f:
         html_content = f.read()
     data_dict = build_data_dict(test_article_url, html_content)
-    return biobert_predict(data_dict)
+    return biobert_predict(data_dict, QUESTIONS)
