@@ -16,7 +16,7 @@ from typing import Dict, List
 
 BASE_DIR = '/opt/data/autodiscern'
 QUESTIONS = [4, 5, 9, 10, 11]
-TO_GPU = True
+TO_GPU = True  # NOTE: this does not currently work for False
 GPU_INDEX = 0
 BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
 QUESTION_FOLD_MAP = {
