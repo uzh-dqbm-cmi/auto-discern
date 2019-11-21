@@ -784,6 +784,6 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
 
     # end of epoch
     return {'pred_class': pred_class,
-            'logprob_score_class0': [t.data.cpu().numpy()[0] for t in b_logprob_scores],
-            'logprob_score_class1': [t.data.cpu().numpy()[1] for t in b_logprob_scores],
+            'logprob_score_class0': [t[0].item() for t in b_logprob_scores.cpu()],
+            'logprob_score_class1': [t[1].item() for t in b_logprob_scores.cpu()],
             'attention_weight_map': docid_attnweights_map['test']}
