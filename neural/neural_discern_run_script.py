@@ -259,9 +259,9 @@ if __name__ == '__main__':
         # 'experiment_to_rerun': 'debug_aa',
         # 'experiment_to_rerun': '2019-11-14_09-05-21',
         # 'experiment_to_rerun': '2019-10-08_14-54-50',  # bert dir
-        # 'experiment_to_rerun': '2019-10-08_14-54-50_rerun_2019-11-14_09-38-59',  # bert re-run dir
-        'experiment_to_rerun': '2019-10-28_15-59-09',  # biobert
-        'copy_exp_dir': True,
+        'experiment_to_rerun': '2019-10-08_14-54-50_rerun_2019-11-14_09-38-59',  # bert re-run dir
+        # 'experiment_to_rerun': '2019-10-28_15-59-09',  # biobert
+        'copy_exp_dir': False,
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 2, 5: 2, 9: 3, 10: 4, 11: 5},
         'base_dir': args.base_dir,
@@ -341,7 +341,7 @@ if __name__ == '__main__':
         write_sents_embeddings(config['base_dir'], bertmodel, config['sents_embed_dir_name'], docs_data_tensor)
 
     if config['experiment_to_rerun']:
-        verbose_print("Using hyper-parameter search results from {}".format(config['hyperparam_search_dir']), verbose)
+        verbose_print("Using hyper-parameter search results from {}".format(config['exp_dir']), verbose)
         hyperparam_search_dir = os.path.join(config['exp_dir'], 'train_validation')
         q_config_map = build_q_config_map_from_train_val(hyperparam_search_dir, config['questions'])
     elif config['run_hyper_param_search']:

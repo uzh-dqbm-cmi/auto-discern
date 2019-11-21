@@ -151,6 +151,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     # setup the models
     # bert model
+    bertmodel.to(device)
     bert_encoder = BertEmbedder(bertmodel, bertencoder_config)
     bert_train_flag = bertencoder_config.get('bert_train_flag', False)
     bert_encoder.type(fdtype).to(device)
