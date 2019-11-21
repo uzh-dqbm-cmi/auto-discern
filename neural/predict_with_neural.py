@@ -86,8 +86,6 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, 
                                                      gpu_index=gpu_index)
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_path, 'bert_proc_docs.pkl'))
 
-    return
-
 
 def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, question_fold_map, to_gpu, gpu_index):
     """
