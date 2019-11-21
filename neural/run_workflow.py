@@ -151,7 +151,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     # setup the models
     # bert model
-    bertmodel.to(device)
     bert_encoder = BertEmbedder(bertmodel, bertencoder_config)
     bert_train_flag = bertencoder_config.get('bert_train_flag', False)
     bert_encoder.type(fdtype).to(device)
@@ -219,9 +218,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
     # store sentences' attention weights
 
-    # LKK: i think putting this variable init behind a conditional is unecessary?
-    # if 'validation' in data_loaders :
-    #     m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
     m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
 
     if(num_epochs > 1):
@@ -372,11 +368,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                 elif(dsettype == 'test'):
                     # dump attention weights for the validation data
                     dump_dict_content(docid_attnweights_map, ['test'], 'docid_attnw_map', wrk_dir)
-
-            # LKK added this to debug prediction mismatch
-            if (dsettype == 'test'):
-                for m, m_name in models:
-                    torch.save(m.state_dict(), os.path.join(m_state_dict_dir, '{}.pkl'.format(m_name)))
 
     if(num_epochs > 1):
         plot_loss(epoch_loss_avgbatch, epoch_loss_avgsamples, fig_dir)
@@ -607,7 +598,6 @@ def get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_
 
 
 def build_q_config_map_from_train_val(train_val_dir, questions=[4, 5, 9, 10, 11], folds=[0, 1, 2, 3, 4]):
-    print("GOT HERE YAY")
     q_fold_config_map = {}
     for question in questions:
         for fold_num in folds:
@@ -653,13 +643,10 @@ def train_val_run_one_question(queue, question, q_docpartitions, q_fold_config_m
 def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_dir, sents_embed_dir, gpu_index,
              num_epochs=1):
     dsettypes = ['test']
-    print('q_fold_config_map: {}'.format(q_fold_config_map))
     for question in q_fold_config_map:
-        print("running q {}".format(question))
         mconfig, options, __ = q_fold_config_map[question]
         options['num_epochs'] = num_epochs  # override number of epochs using user specified value
         for fold_num in q_docpartitions[question]:
-            print("running fold num {}".format(fold_num))
             # update options fold num to the current fold
             options['fold_num'] = fold_num
             data_partition = q_docpartitions[question][fold_num]
@@ -673,15 +660,10 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
                 path = os.path.join(test_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
                 test_wrk_dir = create_directory(path)
 
-                print('state_dict_pth: {}'.format(state_dict_pth))
                 run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir,
                                    sents_embed_dir, state_dict_dir=state_dict_pth, gpu_index=gpu_index)
             else:
                 print('WARNING: test dir not found: {}'.format(path))
-            print("WARNING DEBUG BREAK!!")
-            break
-        print("WARNING DEBUG BREAK!!")
-        break
 
 # ==================================================
 
