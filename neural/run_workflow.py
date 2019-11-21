@@ -245,7 +245,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
             pred_class = []
             ref_class = []
             doc_ids = []
-            probability_scores = []
+            all_probability_scores = []
 
             data_loader = data_loaders[dsettype]
             # total_num_samples = len(data_loader.dataset)
@@ -313,11 +313,11 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                         logsoftmax_scores = doc_categ_scorer(doc_out)
                         __, pred_classindx = torch.max(logsoftmax_scores, 1)  # apply max on row level
 
-                        print('logsoftmax_scores', logsoftmax_scores.shape)
-                        print('pred_calssindx', pred_classindx.shape)
-                        print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
-                        print('predicted class index:', pred_classindx.item())
-                        print('ref class index:', docs_labels[doc_indx, question].item())
+                        # print('logsoftmax_scores', logsoftmax_scores.shape)
+                        # print('pred_calssindx', pred_classindx.shape)
+                        # print('ref labels', docs_labels[doc_indx, question].unsqueeze(0).shape)
+                        # print('predicted class index:', pred_classindx.item())
+                        # print('ref class index:', docs_labels[doc_indx, question].item())
                         pred_class.append(pred_classindx.item())
                         ref_class.append(docs_labels[doc_indx, question].item())
 
@@ -328,7 +328,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # finished processing docs in batch
                     b_logprob_scores = torch.cat(logprob_scores, dim=0)
                     b_target_class = torch.cat(target_class, dim=0)
-                    probability_scores.extend([t for t in b_logprob_scores])
+                    all_probability_scores.extend(logprob_scores)
                     # print("b_logprob_scores", b_logprob_scores.shape)
                     # print("b_target_class", b_target_class.shape)
                     loss = loss_func(b_logprob_scores, b_target_class)
@@ -383,7 +383,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         'id': doc_ids,
         'true_class': ref_class,
         'pred_class': pred_class,
-        'prob_scores': probability_scores,
+        'logprob_score_class0': [t.data.cpu().numpy()[0][0] for t in all_probability_scores],
+        'logprob_score_class1': [t.data.cpu().numpy()[0][1] for t in all_probability_scores],
         # 'attention_weight_map': docid_attnweights_map['test']
     }
     predictions_df = pd.DataFrame(df_dict)

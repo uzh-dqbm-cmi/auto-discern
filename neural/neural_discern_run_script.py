@@ -216,10 +216,8 @@ if __name__ == '__main__':
     parser.add_argument("--rewrite-sentence-embeddings", action="store_true", default=False, help="(Re-)compute the "
                                                                                                   "sentence embeddings")
     parser.add_argument("--run-hyper-param-search", default=True, help="Run the hyper parameter search")
-    parser.add_argument("--hyperparam-search-dir", default=None, help="Re-use the results of a pre-run hyperparam "
-                                                                      "search")
     parser.add_argument("--experiment-to-rerun", default=None, help="Experiment directory to use as a basis for a "
-                                                                    "re-run")
+                                                                    "re-run (will use same hyperparams)")
     parser.add_argument("--copy-exp-dir", default=True, help='Whether to make a copy of the experiment dir to re-run, '
                                                              'so as not to overwrite the current one. ')
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
@@ -231,7 +229,6 @@ if __name__ == '__main__':
         'biobert': args.biobert,
         'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
         'run_hyper_param_search': args.run_hyper_param_search,
-        'hyperparam_search_dir': args.hyperparam_search_dir,
         'experiment_to_rerun': args.experiment_to_rerun,
         'copy_exp_dir': args.copy_exp_dir,
         'questions_to_run': [4, 5, 9, 10, 11],
@@ -243,9 +240,9 @@ if __name__ == '__main__':
         'base_dir': args.base_dir,
     }
 
-    if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
-        print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
-              "The pre-built hyperparam search dir will be used. Hyperparam search will not be run.")
+    if config['experiment_to_rerun'] and config['run_hyper_param_search']:
+        print("WARNING: you selected a experiment_to_rerun while also setting run-hyper-param-search as True. "
+              "The pre-built experiment_to_rerun will be used. Hyperparam search will not be run.")
 
     # under test mode (for faster debugging), run a smaller set of partitions and epochs, and no hyper param search
     if config['test_mode']:
