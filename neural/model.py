@@ -137,10 +137,11 @@ class BertEmbedder(nn.Module):
                                                     output_all_encoded_layers=self.bert_all_output)
                 embed_layers_lst.append(encoded_layers)
 
-        # TODO: see if this works
-        # with torch.set_grad_enabled(bert_train_flag):
-        #     encoded_layers, __ = bertmodel(doc_tensor, attention_mask=attention_mask,
-        #                                    output_all_encoded_layers=bert_all_output)
+        # # embed all sentences at once
+        # with torch.set_grad_enabled(self.bert_train_flag):
+        #     encoded_layers, __ = self.bertmodel(doc_tensor, attention_mask=attention_mask,
+        #                                         output_all_encoded_layers=self.bert_all_output)
+        #
         # return encoded_layers
 
         # concat everything
@@ -466,8 +467,8 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
         bert_proc_docs[doc_id] = embed_fpath
         # clean stuff
         del embed_sents
-        torch.cuda.ipc_collect()
-        torch.cuda.empty_cache()
+        # torch.cuda.ipc_collect()
+        # torch.cuda.empty_cache()
         samples_counter += 1
         print("processed doc id: {}, {}/{}".format(doc_id, samples_counter, num_iter))
     return bert_proc_docs
