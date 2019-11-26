@@ -14,12 +14,10 @@ from neural.neural_discern_run_script import load_biobert_model
 from typing import Dict, List
 
 
-BASE_DIR = '/opt/data/autodiscern'
 QUESTIONS = [4, 5, 9, 10, 11]
-TO_GPU = True  # NOTE: this does not currently work for False
-GPU_INDEX = 0
-BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
-QUESTION_FOLD_MAP = {
+DEFAULT_BASE_DIR = '/opt/data/autodiscern'
+DEFAULT_BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
+DEFAULT_QUESTION_FOLD_MAP = {
     4: 0,
     5: 0,
     9: 0,
@@ -88,10 +86,8 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, 
                                                      gpu_index=gpu_index)
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_path, 'bert_proc_docs.pkl'))
 
-    return sents_embed_path
 
-
-def biobert_predict(data_dict: dict, questions):
+def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, question_fold_map, to_gpu, gpu_index):
     """
     Make an autoDiscern prediction for an article data_dict using the HEA BioBERT model. Includes all of the data
     preprocessing steps as were applied for the training of the HEA BioBERT model.
@@ -103,11 +99,6 @@ def biobert_predict(data_dict: dict, questions):
 
     """
 
-    base_dir = BASE_DIR
-    to_gpu = TO_GPU
-    gpu_index = GPU_INDEX
-    question_fold_map = QUESTION_FOLD_MAP
-    experiment_dir = BIOBERT_EXP_DIR
     working_dir = 'predict'
 
     vocab_path = os.path.join(base_dir, 'aa_neural/aws_downloads/bert-base-cased-vocab.txt')
@@ -145,7 +136,7 @@ def biobert_predict(data_dict: dict, questions):
     bertmodel = bert_for_pretrain.bert
 
     processor = build_DataDictProcessor(transformed_data, vocab_path, processor_config)
-    tokenizer = BertTokenizer.from_pretrained(vocab_path, do_lower_case=True)  # on LeoMed
+    tokenizer = BertTokenizer.from_pretrained(vocab_path, do_lower_case=False)
 
     # generate docs data tensor from the articles i.e. instance of class DocDataTensor
     docs_data_tensor = processor.generate_doctensor_from_articles(tokenizer)
@@ -157,7 +148,7 @@ def biobert_predict(data_dict: dict, questions):
 
     # embed sentences
     print("Embedding sentences...")
-    sents_embed_dir = embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config, gpu_index)
+    embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config, gpu_index)
     print(" ... Finished embedding sentences")
 
     # load model configs
@@ -165,7 +156,7 @@ def biobert_predict(data_dict: dict, questions):
     for q in questions:
         config_path = os.path.join(base_dir, 'aa_neural', 'experiments', experiment_dir, config_path_form.format(q))
         mconfig, options = get_saved_config(config_path)
-        argmax_indx = 'ignored'
+        argmax_indx = -1
         q_fold_config_map[q] = (mconfig, options, argmax_indx)
 
     # load model state_dicts
@@ -205,22 +196,35 @@ def build_data_dict(url, content):
     return data_dict
 
 
-def make_prediction(url: str):
+def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_DIR, question_fold_map=None,
+                    to_gpu=True, gpu_index=0):
     """
     End to end function for making an autoDiscern prediction for a given url.
 
     Args:
         url: url of the article to make predictions for
+        exp_dir: experiment directory from which to retrieve the trained model.
+        base_dir: the path to the base directory (up to and including including `autodiscern/aa_neural/`.
+        question_fold_map: Dictionary mapping question number to fold number to use for the model.
+        to_gpu: whether to run on GPU.
+        gpu_index: index of gpu to use.
 
     Returns: autoDiscern predictions for the article
 
     """
+    if question_fold_map is None:
+        question_fold_map = DEFAULT_QUESTION_FOLD_MAP
+
+    if not to_gpu:
+        print("WARNING: to_gpu=False is not supported yet")
+
     html_content = retrieve_page_from_internet(url)
     data_dict = build_data_dict(url, html_content)
-    return biobert_predict(data_dict, QUESTIONS)
+    return biobert_predict(data_dict, QUESTIONS, exp_dir, base_dir, question_fold_map, to_gpu, gpu_index)
 
 
-def test_make_prediction():
+def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_DIR, question_fold_map=None,
+                         to_gpu=True, gpu_index=0):
     """
     End to end test function for making an autoDiscern prediction, without relying on an internet connection.
     Relies on a the existence of a test.html file.
@@ -228,10 +232,17 @@ def test_make_prediction():
     Returns: autoDiscern predictions for the article
 
     """
-    test_data_path = os.path.join(BASE_DIR, 'data', 'test.html')
+
+    if question_fold_map is None:
+        question_fold_map = DEFAULT_QUESTION_FOLD_MAP
+
+    if not to_gpu:
+        print("WARNING: to_gpu=False is not supported yet")
+
+    test_data_path = os.path.join(DEFAULT_BASE_DIR, 'data', 'test.html')
     test_article_url = 'https://www.nhs.uk/conditions/tendonitis/'
 
     with open(test_data_path, 'r') as f:
         html_content = f.read()
     data_dict = build_data_dict(test_article_url, html_content)
-    return biobert_predict(data_dict, QUESTIONS)
+    return biobert_predict(data_dict, QUESTIONS, exp_dir, base_dir, question_fold_map, to_gpu, gpu_index)
