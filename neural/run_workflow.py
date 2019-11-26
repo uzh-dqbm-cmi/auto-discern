@@ -4,6 +4,7 @@ from .utilities import get_device, create_directory, ReaderWriter, perfmetric_re
 from .model import Attention, SentenceEncoder, DocEncoder, DocCategScorer, BertEmbedder, restrict_grad_
 from .dataset import construct_load_dataloaders
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 import torch.multiprocessing as mp
@@ -216,7 +217,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
     # store sentences' attention weights
 
-    if('validation' in data_loaders):
+    if ('validation' in data_loaders):
         m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
 
     if(num_epochs > 1):
@@ -243,6 +244,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                   "".format(device, options.get('question'), fold_num, epoch, dsettype, pid))
             pred_class = []
             ref_class = []
+            doc_ids = []
+            all_logprob_scores = []
 
             data_loader = data_loaders[dsettype]
             # total_num_samples = len(data_loader.dataset)
@@ -279,6 +282,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     for doc_indx in range(num_docs_perbatch):
                         # print('doc_indx', doc_indx)
                         doc_id = docs_id[doc_indx].item()
+                        doc_ids.append(doc_id)
                         if(doc_id in bert_proc_docs):
                             # due to GPU limit
                             embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device=device)
@@ -324,6 +328,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # finished processing docs in batch
                     b_logprob_scores = torch.cat(logprob_scores, dim=0)
                     b_target_class = torch.cat(target_class, dim=0)
+                    all_logprob_scores.extend(logprob_scores.tolist())
                     # print("b_logprob_scores", b_logprob_scores.shape)
                     # print("b_target_class", b_target_class.shape)
                     loss = loss_func(b_logprob_scores, b_target_class)
@@ -372,7 +377,28 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     if(dump_embed_dict_flag):
         print(bert_proc_docs)
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
+
+    # save predictions
+    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_logprob_scores)
+    predictions_path = os.path.join(wrk_dir, 'predictions.csv')
+    predictions_df.to_csv(predictions_path)
+
     return pred_class
+
+
+def build_predictions_df(ids, true_class, pred_class, logprob_scores):
+    class_0_score = [t[0] for t in logprob_scores]
+    class_1_score = [t[1] for t in logprob_scores]
+    df_dict = {
+        'id': ids,
+        'true_class': true_class,
+        'pred_class': pred_class,
+        'logprob_score_class0': class_0_score,
+        'logprob_score_class1': class_1_score,
+    }
+    predictions_df = pd.DataFrame(df_dict)
+    predictions_df.set_index('id')
+    return predictions_df
 
 
 def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5):
@@ -569,10 +595,22 @@ def get_best_config_from_hyperparamsearch(questions, hyperparam_search_dir, num_
                 scores[config_num, 3] = mscore.accuracy
                 scores[config_num, 4] = mscore.auc
                 exist_flag = True
+            else:
+                print("WARNING: hyperparam search dir does not exist: {}".format(score_file))
         if(exist_flag):
             argmax_indx = get_index_argmax(scores, metric_indx)
             mconfig, options = get_saved_config(os.path.join(fold_dir, 'config_{}'.format(argmax_indx), 'config'))
             q_fold_config_map[question] = (mconfig, options, argmax_indx)
+    return q_fold_config_map
+
+
+def build_q_config_map_from_train_val(train_val_dir, questions=[4, 5, 9, 10, 11], folds=[0, 1, 2, 3, 4]):
+    q_fold_config_map = {}
+    for question in questions:
+        for fold_num in folds:
+            fold_dir = os.path.join(train_val_dir, 'question_{}'.format(question), 'fold_{}'.format(fold_num))
+            mconfig, options = get_saved_config(os.path.join(fold_dir, 'config'))
+            q_fold_config_map[question] = (mconfig, options, -1)
     return q_fold_config_map
 
 
@@ -631,6 +669,8 @@ def test_run(q_docpartitions, q_fold_config_map, bertmodel, train_val_dir, test_
 
                 run_neural_discern(data_partition, dsettypes, bertmodel, mconfig, options, test_wrk_dir,
                                    sents_embed_dir, state_dict_dir=state_dict_pth, gpu_index=gpu_index)
+            else:
+                print('WARNING: test dir not found: {}'.format(path))
 
 # ==================================================
 

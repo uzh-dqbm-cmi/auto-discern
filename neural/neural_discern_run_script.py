@@ -17,7 +17,8 @@ from neural.data_processor import DataDictProcessor
 from neural.dataset import generate_docpartition_per_question, validate_q_docpartitions, compute_class_weights_per_fold_
 from neural.model import BertEmbedder, generate_sents_embeds_from_docs
 from neural.run_workflow import generate_models_config, HyperparamConfig, hyperparam_model_search_parallel, \
-    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run
+    get_best_config_from_hyperparamsearch, train_val_run, train_val_run_one_question, test_run, \
+    build_q_config_map_from_train_val
 from neural.utilities import ReaderWriter, create_directory, get_device
 
 
@@ -215,10 +216,8 @@ if __name__ == '__main__':
     parser.add_argument("--rewrite-sentence-embeddings", action="store_true", default=False, help="(Re-)compute the "
                                                                                                   "sentence embeddings")
     parser.add_argument("--run-hyper-param-search", default=True, help="Run the hyper parameter search")
-    parser.add_argument("--hyperparam-search-dir", default=None, help="Re-use the results of a pre-run hyperparam "
-                                                                      "search")
     parser.add_argument("--experiment-to-rerun", default=None, help="Experiment directory to use as a basis for a "
-                                                                    "re-run")
+                                                                    "re-run (will use same hyperparams)")
     parser.add_argument("--copy-exp-dir", default=True, help='Whether to make a copy of the experiment dir to re-run, '
                                                              'so as not to overwrite the current one. ')
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
@@ -230,7 +229,6 @@ if __name__ == '__main__':
         'biobert': args.biobert,
         'rewrite_sentence_embeddings': args.rewrite_sentence_embeddings,
         'run_hyper_param_search': args.run_hyper_param_search,
-        'hyperparam_search_dir': args.hyperparam_search_dir,
         'experiment_to_rerun': args.experiment_to_rerun,
         'copy_exp_dir': args.copy_exp_dir,
         'questions_to_run': [4, 5, 9, 10, 11],
@@ -242,14 +240,14 @@ if __name__ == '__main__':
         'base_dir': args.base_dir,
     }
 
-    if config['hyperparam_search_dir'] and config['run_hyper_param_search']:
-        print("WARNING: you selected a hyperparam search dir while also setting run-hyper-param-search as True. "
-              "The pre-built hyperparam search dir will be used. Hyperparam search will not be run.")
+    if config['experiment_to_rerun'] and config['run_hyper_param_search']:
+        print("WARNING: you selected a experiment_to_rerun while also setting run-hyper-param-search as True. "
+              "The pre-built experiment_to_rerun will be used. Hyperparam search will not be run.")
 
     # under test mode (for faster debugging), run a smaller set of partitions and epochs, and no hyper param search
     if config['test_mode']:
-        config['max_folds'] = 2  # max number of data partition folds to run (for faster testing)
-        config['num_epochs'] = 2
+        config['max_folds'] = 1  # max number of data partition folds to run (for faster testing)
+        config['num_epochs'] = 1
         config['run_hyper_param_search'] = False
 
     time_stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -311,10 +309,10 @@ if __name__ == '__main__':
         verbose_print("Writing sentence embeddings...", verbose)
         write_sents_embeddings(config['base_dir'], bertmodel, config['sents_embed_dir_name'], docs_data_tensor)
 
-    if config['hyperparam_search_dir']:
-        verbose_print("Using hyper-parameter search results from {}".format(config['hyperparam_search_dir']), verbose)
-        q_config_map = get_best_config_from_hyperparamsearch(config['questions'], config['hyperparam_search_dir'],
-                                                             num_trials=60, metric_indx=2)
+    if config['experiment_to_rerun']:
+        verbose_print("Using hyper-parameter search results from {}".format(config['exp_dir']), verbose)
+        hyperparam_search_dir = os.path.join(config['exp_dir'], 'train_validation')
+        q_config_map = build_q_config_map_from_train_val(hyperparam_search_dir, config['questions'])
     elif config['run_hyper_param_search']:
         verbose_print("Running hyper-parameter search...", verbose)
         run_hyperparam_search(config['questions_to_run'], config['exp_dir'], q_docpartitions, bertmodel,

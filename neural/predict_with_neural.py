@@ -91,9 +91,12 @@ def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, questi
     """
     Make an autoDiscern prediction for an article data_dict using the HEA BioBERT model. Includes all of the data
     preprocessing steps as were applied for the training of the HEA BioBERT model.
+
     Args:
         data_dict: dictionary of {id: sib-dict}, with sub-dictionary with keys ['url', 'content', 'id', 'responses']
+
     Returns: autodiscern predictions for the article.
+
     """
 
     working_dir = 'predict'
@@ -176,9 +179,11 @@ def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, questi
 
 def build_data_dict(url, content):
     """Format the html information in a data_dict as required for the prediction routine.
+
     Args:
         url: url of the article
         content: html contents of the article
+
     Returns: Dict
     """
     fake_responses = pd.DataFrame({'fake responses': [0]*5})
@@ -195,6 +200,7 @@ def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_
                     to_gpu=True, gpu_index=0):
     """
     End to end function for making an autoDiscern prediction for a given url.
+
     Args:
         url: url of the article to make predictions for
         exp_dir: experiment directory from which to retrieve the trained model.
@@ -202,7 +208,9 @@ def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_
         question_fold_map: Dictionary mapping question number to fold number to use for the model.
         to_gpu: whether to run on GPU.
         gpu_index: index of gpu to use.
+
     Returns: autoDiscern predictions for the article
+
     """
     if question_fold_map is None:
         question_fold_map = DEFAULT_QUESTION_FOLD_MAP
@@ -220,7 +228,9 @@ def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_
     """
     End to end test function for making an autoDiscern prediction, without relying on an internet connection.
     Relies on a the existence of a test.html file.
+
     Returns: autoDiscern predictions for the article
+
     """
 
     if question_fold_map is None:
