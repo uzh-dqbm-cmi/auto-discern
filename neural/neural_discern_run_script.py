@@ -264,7 +264,6 @@ if __name__ == '__main__':
             print("... complete")
         else:
             exp_dir = exp_dir = os.path.join(config['base_dir'], 'experiments', config['experiment_to_rerun'])
-
     else:
         if config['test_mode']:
             exp_dir = os.path.join(config['base_dir'], 'experiments', 'tests', time_stamp)

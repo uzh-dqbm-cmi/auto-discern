@@ -193,7 +193,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
     if(state_dict_dir):  # load state dictionary of saved models
         for m, m_name in models:
-            print("Loading state_dict_dir: {}".format(state_dict_dir))
             m.load_state_dict(torch.load(os.path.join(state_dict_dir, '{}.pkl'.format(m_name)), map_location=device))
 
     # update models fdtype and move to device
@@ -379,20 +378,26 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
 
     # save predictions
-    df_dict = {
-        'id': doc_ids,
-        'true_class': ref_class,
-        'pred_class': pred_class,
-        'logprob_score_class0': [t.data.cpu().numpy()[0][0] for t in all_probability_scores],
-        'logprob_score_class1': [t.data.cpu().numpy()[0][1] for t in all_probability_scores],
-        # 'attention_weight_map': docid_attnweights_map['test']
-    }
-    predictions_df = pd.DataFrame(df_dict)
-    predictions_df.set_index('id')
+    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_probability_scores)
     predictions_path = os.path.join(wrk_dir, 'predictions.csv')
     predictions_df.to_csv(predictions_path)
 
     return pred_class
+
+
+def build_predictions_df(ids, true_class, pred_class, probability_tensor):
+    class_0_score = [t[0].item() for t in probability_tensor.cpu()]
+    class_1_score = [t[1].item() for t in probability_tensor.cpu()]
+    df_dict = {
+        'id': ids,
+        'true_class': true_class,
+        'pred_class': pred_class,
+        'logprob_score_class0': class_0_score,
+        'logprob_score_class1': class_1_score,
+    }
+    predictions_df = pd.DataFrame(df_dict)
+    predictions_df.set_index('id')
+    return predictions_df
 
 
 def highlight_attnw_over_sents(docid_attnweights_map, proc_articles_repr, topk=5):
