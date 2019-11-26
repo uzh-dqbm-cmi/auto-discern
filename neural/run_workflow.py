@@ -217,7 +217,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
     # store sentences' attention weights
 
-    m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
+    if ('validation' in data_loaders):
+        m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
 
     if(num_epochs > 1):
         fig_dir = create_directory(os.path.join(wrk_dir, 'figures'))
@@ -244,7 +245,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
             pred_class = []
             ref_class = []
             doc_ids = []
-            all_probability_scores = []
+            all_logprob_scores = []
 
             data_loader = data_loaders[dsettype]
             # total_num_samples = len(data_loader.dataset)
@@ -327,7 +328,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # finished processing docs in batch
                     b_logprob_scores = torch.cat(logprob_scores, dim=0)
                     b_target_class = torch.cat(target_class, dim=0)
-                    all_probability_scores.extend(logprob_scores)
+                    all_logprob_scores.extend(logprob_scores.tolist())
                     # print("b_logprob_scores", b_logprob_scores.shape)
                     # print("b_target_class", b_target_class.shape)
                     loss = loss_func(b_logprob_scores, b_target_class)
@@ -378,16 +379,16 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
 
     # save predictions
-    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_probability_scores)
+    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_logprob_scores)
     predictions_path = os.path.join(wrk_dir, 'predictions.csv')
     predictions_df.to_csv(predictions_path)
 
     return pred_class
 
 
-def build_predictions_df(ids, true_class, pred_class, probability_tensor):
-    class_0_score = [t[0].item() for t in probability_tensor.cpu()]
-    class_1_score = [t[1].item() for t in probability_tensor.cpu()]
+def build_predictions_df(ids, true_class, pred_class, logprob_scores):
+    class_0_score = [t[0] for t in logprob_scores]
+    class_1_score = [t[1] for t in logprob_scores]
     df_dict = {
         'id': ids,
         'true_class': true_class,
