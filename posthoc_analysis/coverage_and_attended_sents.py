@@ -82,10 +82,10 @@ for q in questions:
                 for i in [0, 1]:
                     if i not in confusion_matrix.columns:
                         confusion_matrix[i] = 0
-                print('-' * 100)
-                print(fold_coverage_df)
-                print(confusion_matrix.fillna(0)[[0, 1]])
-                print()
+                # print('-' * 100)
+                # print(fold_coverage_df)
+                # print(confusion_matrix.fillna(0)[[0, 1]])
+                # print()
 
 # print(results[['question', 'fold', 'precision', 'recall', 'threshold']])
 # print(results.groupby('question').agg({'recall': 'mean'}))
@@ -142,3 +142,40 @@ for q in questions:
         doc_id = row['id']
         sentence = attended_sents[doc_id][0]['sentence']
         print("    Doc id {}: {}".format(row['id'], sentence))
+
+
+# === get one positive example per disease category
+target_ids = pd.read_csv('/opt/data/autodiscern/data/target_ids.csv')
+all_predictions = pd.merge(all_predictions, target_ids, left_on='id', right_on='entity_id')
+
+disease_category_map = {
+    2: 'breast cancer',
+    4: 'arthritis',
+    5: 'depression',
+}
+
+data_dir = '/opt/data/autodiscern/aa_neural/proc_data_uncased'
+proc_articles_repr = ReaderWriter.read_data(os.path.join(data_dir, 'processor_articles_repr.pkl'))
+
+test_dir = '/opt/data/autodiscern/aa_neural/experiments/{}/test'.format(experiment)
+
+for q in questions:
+    print("\nQuestion {}".format(q))
+    for disease_id in disease_category_map:
+        print(" Disease Category {}".format(disease_category_map[disease_id]))
+        docs_df = all_predictions[(all_predictions['question'] == q) &
+                                  (all_predictions['categoryName'] == disease_id) &
+                                  (all_predictions['true_class'] == 1)
+                                  ].sort_values('prob_score_class1', ascending=False).head(3)
+        # print(docs_df)
+        doc_ids = list(docs_df['id'])
+        # print(doc_ids)
+
+        for i, row in docs_df.iterrows():
+            f = row['fold']
+            docid_attnw_map_val = ReaderWriter.read_data(
+                os.path.join(test_dir, 'question_{}/fold_{}/docid_attnw_map_test.pkl'.format(q, f)))
+            attended_sents = return_attnw_over_sents(docid_attnw_map_val, proc_articles_repr, topk=1)
+            doc_id = row['id']
+            sentence = attended_sents[doc_id][0]['sentence']
+            print("    Doc id {}: {}".format(row['id'], sentence))
