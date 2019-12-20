@@ -3,28 +3,25 @@
 Automating the application of the [DISCERN](http://www.discern.org.uk/index.php) instrument to rate the quality of health information on the web. 
 
 ## Table of Contents
-[How to Use this Repo](#How-to-Use-this-Repo)
-
-## How to Use this Repo
-* [How to Use this Repo](How-to-Use-this-Repo)
-  * [Installation](Installation)
-  * [A Note on Data](A-Note-on-Data)
-  * [Notebooks](Notebooks)
-  * [MetaMap](MetaMap)
-    * [Setup Instructions for MetaMap](Setup-Instructions-for-MetaMap)
-    * [To use `pymetamap`](To-use-`pymetamap`)
-* [Data Preprocessing](Data-Preprocessing)
-  * [Working with Transformed Data](Working-with-Transformed-Data)
-  * [If all you care about is loading clean data to be on your merry way...](If-all-you-care-about-is-loading-clean-data-to-be-on-your-merry-way...)
-  * [Full example code for transforming data](Full-example-code-for-transforming-data)
-* [Model Training](Model-Training)
-  * [Training the "Traditional" Random Forest Model](Training-the-"Traditional"-Random-Forest-Model)
-  * [General Sacred Usage](General-Sacred-Usage)
-  * [The Published Model](The-Published-Model)
-  * [Training the Neural Models](Training-the-Neural-Models)
-* [Model Deployment with the Web App](Model-Deployment-with-the-Web-App)
-* [Known issues](Known-issues)
-  * [Installing on Windows OS](Installing-on-Windows-OS)
+* [How to Use this Repo](#How-to-Use-this-Repo)
+  * [Installation](#Installation)
+  * [A Note on Data](#A-Note-on-Data)
+  * [Notebooks](#Notebooks)
+  * [MetaMap](#MetaMap)
+    * [Setup Instructions for MetaMap](#Setup-Instructions-for-MetaMap)
+    * [To use `pymetamap`](#To-use-`pymetamap`)
+* [Data Preprocessing](#Data-Preprocessing)
+  * [Working with Transformed Data](#Working-with-Transformed-Data)
+  * [If all you care about is loading clean data to be on your merry way...](#If-all-you-care-about-is-loading-clean-data-to-be-on-your-merry-way...)
+  * [Full example code for transforming data](#Full-example-code-for-transforming-data)
+* [Model Training](#Model-Training)
+  * [Training the "Traditional" Random Forest Model](#Training-the-"Traditional"-Random-Forest-Model)
+  * [General Sacred Usage](#General-Sacred-Usage)
+  * [The Published Model](#The-Published-Model)
+  * [Training the Neural Models](#Training-the-Neural-Models)
+* [Model Deployment with the Web App](#Model-Deployment-with-the-Web-App)
+* [Known issues](#Known-issues)
+  * [Installing on Windows OS](#Installing-on-Windows-OS)
 
 
 
