@@ -12,7 +12,7 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
 * [Data Preprocessing](#Data-Preprocessing)
   * [`DataManager` General Usage](#DataManager-General-Usage)
   * [Loading a Previously Transformed Dataset](#loading-a-previously-transformed-dataset)
-  * [Make Your Own Data Transformer](#Make-you-own-data-transformer)
+  * [Make Your Own Data Transformer](#Make-your-own-data-transformer)
 * [Model Training](#Model-Training)
   * [Training the "Traditional" Random Forest Model](#Training-the-Traditional-Random-Forest-Model)
     * [General `sacred` Usage](#General-Sacred-Usage)
@@ -157,13 +157,16 @@ dm = ad.DataManager("path/to/discern/data")
 
 # Load up a pickled data dictionary.
 # automatically loads the file with the most recent timestamp
-# To load a specific file, use
-#   dm.load_transformed_data('filename')
 transformed_data = dm.load_most_recent_transformed_data()
 
-# transformed data is a dictionary in the format {id: data_dict}.
-# Each data dict represents a snippet of text, and contains keys with information about that text.
-# Here is an example of the data structure:
+# To load a specific file, use:
+transformed_data = dm.load_transformed_data('filename')
+```
+
+`transformed data` is a dictionary in the format `{id: data_dict}`.
+Each data dict represents a snippet of text, and contains keys with information about that text.
+Here is an example of the data structure:
+```
 {
     '123-4': {
         'entity_id': 123,
@@ -219,18 +222,6 @@ transformed_data = dm.load_most_recent_transformed_data()
                 ),
     }
 }
-
-# View results
-counter = 5
-for i in transformed_data:
-    counter -= 1
-    if counter < 0:
-        break
-    print("==={}===".format(i))
-    for key in transformed_data[i]:
-        print("{}: {}".format(key, transformed_data[i][key]))
-    print()
-
 ```
 
 ### Make Your Own Data Transformer
@@ -347,7 +338,7 @@ Config parameters can be modified for a run like this:
 #### The Published Model
 
 The model that was published was trained with the following command:
-    `python sacred_experiments/doc_experiment.py with "test_mode=True"`
+    `python sacred_experiments/doc_experiment.py`
 
 ### Training the Neural Models
 

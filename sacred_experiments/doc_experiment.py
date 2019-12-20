@@ -99,7 +99,7 @@ def my_config():
                          'especially', 'term', 'mmconceptdevices', 'html_h4', 'experience', 'feel', 'work', 'want',
                          'group', 'number', 'discuss', 'MM-Physiology', 'spacy_ner_time', 'certain', 'sentiment_neg']
     feature_subset = None
-    reduce_features = False
+    reduce_features = True
 
 
 @ex.automain
