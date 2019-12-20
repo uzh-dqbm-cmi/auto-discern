@@ -342,6 +342,8 @@ Config parameters can be modified for a run like this:
 The model that was published was trained with the following command:
 
   `python sacred_experiments/doc_experiment.py`
+  
+Note to self: This model was trained in ScienceCloud. 
 
 You can open up a saved experiment object using its `sacred` id like this:
 
@@ -361,6 +363,15 @@ which you can use to calculate new results or use to make novel predictions.
 ### Training the Neural Models
 
 The neural models were trained with `neural/neural_discern_run_script.py` script. 
+
+A test version of the script can be run with `python neural_discern_run_script.py --test-mode`.
+This will train each question for one fold and one epoch, and skip doing the hyperparameter search.
+
+This script trains the 5 Discern question models in parallel across 5 GPUs. 
+You can choose which GPUs to use by modifying the `question_gpu_map` entry in the `config`. 
+
+Note to self: This model was trained on LeoMed 
+(`sing_dis; /opt/conda/bin/python neural_dicsern_run_script.py`)
 
 ## Model Deployment with the Web App
 On your local machine, from within `autodiscern/`:
