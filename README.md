@@ -9,7 +9,7 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
   * [Notebooks](#Notebooks)
   * [MetaMap](#MetaMap)
     * [Setup Instructions for MetaMap](#Setup-Instructions-for-MetaMap)
-    * [To use `pymetamap`](#To-use-`pymetamap`)
+    * [To use `pymetamap`](#pymetamap-Usage-Example)
 * [Data Preprocessing](#Data-Preprocessing)
   * [Working with Transformed Data](#Working-with-Transformed-Data)
   * [If all you care about is loading clean data to be on your merry way...](#If-all-you-care-about-is-loading-clean-data-to-be-on-your-merry-way...)
@@ -23,7 +23,7 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
 * [Known issues](#Known-issues)
   * [Installing on Windows OS](#Installing-on-Windows-OS)
 
-
+## How to Use this Repo
 
 ### Installation
 * `git clone` the repo and `cd` into it.
@@ -69,7 +69,7 @@ Please follow this notebook naming convention for exploratory notebooks in the s
     * `git checkout lite`
     * Inside your project environment: `python setup.py install`
 
-### To use `pymetamap`
+### `pymetamap` Usage Example
 `pymetamap` ingests text and returns `NamedTuples` for each MetaMap concept with named fields.
 ```python
 from pymetamap import MetaMapLite
