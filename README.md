@@ -7,16 +7,15 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
   * [Installation](#Installation)
   * [A Note on Data](#A-Note-on-Data)
   * [Notebooks](#Notebooks)
-  * [MetaMap](#MetaMap)
-    * [Setup Instructions for MetaMap](#Setup-Instructions-for-MetaMap)
+  * [Setup Instructions for MetaMap](#Setup-Instructions-for-MetaMap)
     * [`pymetamap` Usage Example](#pymetamap-Usage-Example)
 * [Data Preprocessing](#Data-Preprocessing)
-  * [Working with Transformed Data](#Working-with-Transformed-Data)
-  * [Loading a Previously Transformed Dataset](#Loading-a-Previosuly-Transformed-Dataset)
-  * [Transforming data](#Transforming-data)
+  * [`DataManager` General Usage](#DataManager-General-Usage)
+  * [Loading a Previously Transformed Dataset](#loading-a-previously-transformed-dataset)
+  * [Make Your Own Data Transformer](#Make-you-own-data-transformer)
 * [Model Training](#Model-Training)
-  * [Training the "Traditional" Random Forest Model](#Training-the-"Traditional"-Random-Forest-Model)
-    * [General Sacred Usage](#General-Sacred-Usage)
+  * [Training the "Traditional" Random Forest Model](#Training-the-Traditional-Random-Forest-Model)
+    * [General `sacred` Usage](#General-Sacred-Usage)
     * [The Published Model](#The-Published-Model)
   * [Training the Neural Models](#Training-the-Neural-Models)
 * [Model Deployment with the Web App](#Model-Deployment-with-the-Web-App)
@@ -55,8 +54,6 @@ path/to/discern/
 Please follow this notebook naming convention for exploratory notebooks in the shared Switchdrive folder: 
 `<number>_<initials>_<short_description>.ipynb`. 
 
-## MetaMap
-
 ### Setup Instructions for MetaMap
 * Download MetaMapLite:
     * Download MetaMapLite from [here](https://metamap.nlm.nih.gov/MetaMapLite.shtml). You will need to request a license to access the download, which takes a few hours.
@@ -69,7 +66,7 @@ Please follow this notebook naming convention for exploratory notebooks in the s
     * `git checkout lite`
     * Inside your project environment: `python setup.py install`
 
-### `pymetamap` Usage Example
+#### `pymetamap` Usage Example
 `pymetamap` ingests text and returns `NamedTuples` for each MetaMap concept with named fields.
 ```python
 from pymetamap import MetaMapLite
@@ -100,7 +97,7 @@ tree_codes: C14.280.647.500;C14.907.585.500
 
 ## Data Preprocessing
 
-### Data Manager General Usage
+### `DataManager` General Usage
 `DataManager` provides an interface for saving and loading intermediary data sets, 
 while automatically tracking how each data set was generated. 
 
@@ -236,7 +233,7 @@ for i in transformed_data:
 
 ```
 
-### Transforming data
+### Make Your Own Data Transformer
 
 ```python
 # IPython magics for auto-reloading code changes to the library
@@ -339,7 +336,7 @@ HTML(adt.ner_tuples_to_html(ner))
 Model training experiments are managed via `sacred`. 
 Experiment files are located at `auto-discern/sacred_experiments/`.
 
-#### General Sacred Usage
+#### General `sacred` Usage
 
 Experiments can be run like this: 
     `python sacred_experiments/first_experiment.py`
