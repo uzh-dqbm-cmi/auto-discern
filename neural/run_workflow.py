@@ -328,7 +328,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     # finished processing docs in batch
                     b_logprob_scores = torch.cat(logprob_scores, dim=0)
                     b_target_class = torch.cat(target_class, dim=0)
-                    all_logprob_scores.extend(logprob_scores.tolist())
+                    all_logprob_scores.extend(logprob_scores)
+
                     # print("b_logprob_scores", b_logprob_scores.shape)
                     # print("b_target_class", b_target_class.shape)
                     loss = loss_func(b_logprob_scores, b_target_class)
@@ -387,8 +388,8 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
 
 
 def build_predictions_df(ids, true_class, pred_class, logprob_scores):
-    class_0_score = [t[0] for t in logprob_scores]
-    class_1_score = [t[1] for t in logprob_scores]
+    class_0_score = [t.tolist()[0][0] for t in logprob_scores]
+    class_1_score = [t.tolist()[0][1] for t in logprob_scores]
     df_dict = {
         'id': ids,
         'true_class': true_class,
