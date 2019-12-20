@@ -9,15 +9,15 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
   * [Notebooks](#Notebooks)
   * [MetaMap](#MetaMap)
     * [Setup Instructions for MetaMap](#Setup-Instructions-for-MetaMap)
-    * [To use `pymetamap`](#pymetamap-Usage-Example)
+    * [`pymetamap` Usage Example](#pymetamap-Usage-Example)
 * [Data Preprocessing](#Data-Preprocessing)
   * [Working with Transformed Data](#Working-with-Transformed-Data)
-  * [If all you care about is loading clean data to be on your merry way...](#If-all-you-care-about-is-loading-clean-data-to-be-on-your-merry-way...)
-  * [Full example code for transforming data](#Full-example-code-for-transforming-data)
+  * [Loading a Previously Transformed Dataset](#Loading-a-Previosuly-Transformed-Dataset)
+  * [Transforming data](#Transforming-data)
 * [Model Training](#Model-Training)
   * [Training the "Traditional" Random Forest Model](#Training-the-"Traditional"-Random-Forest-Model)
-  * [General Sacred Usage](#General-Sacred-Usage)
-  * [The Published Model](#The-Published-Model)
+    * [General Sacred Usage](#General-Sacred-Usage)
+    * [The Published Model](#The-Published-Model)
   * [Training the Neural Models](#Training-the-Neural-Models)
 * [Model Deployment with the Web App](#Model-Deployment-with-the-Web-App)
 * [Known issues](#Known-issues)
@@ -100,7 +100,7 @@ tree_codes: C14.280.647.500;C14.907.585.500
 
 ## Data Preprocessing
 
-### Working with Transformed Data
+### Data Manager General Usage
 `DataManager` provides an interface for saving and loading intermediary data sets, 
 while automatically tracking how each data set was generated. 
 
@@ -147,7 +147,7 @@ data_processor.view_code()
 
 The files for generating cached data sets in this way are stored in `auto-discern/autodiscern/data_processors/*.py`.
 
-### If all you care about is loading clean data to be on your merry way...
+### Loading a Previously Transformed Dataset
 ```python
 # IPython magics for auto-reloading code changes to the library
 %load_ext autoreload
@@ -236,7 +236,7 @@ for i in transformed_data:
 
 ```
 
-### Full example code for transforming data
+### Transforming data
 
 ```python
 # IPython magics for auto-reloading code changes to the library
