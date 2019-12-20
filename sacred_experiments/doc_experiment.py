@@ -8,7 +8,8 @@ from sacred import Experiment
 from sklearn.ensemble import RandomForestClassifier
 from sacred.observers import MongoObserver
 
-# run with python doc_experiment.py
+# run with `python doc_experiment.py`
+# or `python doc_experiment.py with "test_mode=True"`
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(
