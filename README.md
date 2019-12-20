@@ -330,15 +330,33 @@ Experiment files are located at `auto-discern/sacred_experiments/`.
 #### General `sacred` Usage
 
 Experiments can be run like this: 
-    `python sacred_experiments/first_experiment.py`
+
+  `python sacred_experiments/first_experiment.py`
 
 Config parameters can be modified for a run like this: 
-    `python first_experiment.py with "test_mode=True"`
+
+  `python first_experiment.py with "test_mode=True"`
 
 #### The Published Model
 
 The model that was published was trained with the following command:
-    `python sacred_experiments/doc_experiment.py`
+
+  `python sacred_experiments/doc_experiment.py`
+
+You can open up a saved experiment object using its `sacred` id like this:
+
+```
+from autodiscern import DataManager
+
+# See "Note on Data" above for what to pass here
+dm = DataManager("path/to/discern/data")
+
+sacred_id = 147
+exp = dm.load_experiment(sacred_id)
+```
+
+This will return the trained experiment object,
+which you can use to calculate new results or use to make novel predictions.
 
 ### Training the Neural Models
 
