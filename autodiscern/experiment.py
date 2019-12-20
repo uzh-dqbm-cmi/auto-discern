@@ -257,6 +257,26 @@ class PartitionedExperiment:
         all_accuracy_df['stddev'] = stddev
         return all_accuracy_df.sort_values('median', ascending=False)
 
+    def show_accuracy(self):
+        res = {}
+        for level in ('doc_level', 'sentence_level'):
+            res[level] = self.show_accuracy_perlevel(level)
+        return res
+
+    def show_accuracy_perlevel(self, level):
+        metric = 'accuracy'
+        all_accuracy = {}
+        for partition_id in self.model_runs:
+            all_accuracy['partition{}'.format(partition_id)] = self.model_runs[partition_id][level].evaluation[metric]
+        all_accuracy_df = pd.DataFrame(all_accuracy, index=[self.name])
+        median = all_accuracy_df.median(axis=1)
+        mean = all_accuracy_df.mean(axis=1)
+        stddev = all_accuracy_df.std(axis=1)
+        all_accuracy_df['mean'] = mean
+        all_accuracy_df['median'] = median
+        all_accuracy_df['stddev'] = stddev
+        return all_accuracy_df.sort_values('median', ascending=False)
+
     def generate_predictor(self, partition=0):
         """
         Return a Predictor from the trained model of a specific partition.
@@ -418,7 +438,7 @@ class ModelRun:
         return [entity_dict[label_key] for entity_dict in data_set]
 
     @classmethod
-    def search_hyperparameters(cls, model, hyperparams, x_train, y_train, reduce_features=False):
+    def search_hyperparameters(cls, model, hyperparams, x_train, y_train):
         random_search = RandomizedSearchCV(estimator=model, param_distributions=hyperparams, n_iter=5, cv=2, verbose=2,
                                            random_state=42, n_jobs=-1, scoring='f1_macro')
         random_search.fit(x_train, y_train)

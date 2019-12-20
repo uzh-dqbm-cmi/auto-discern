@@ -71,9 +71,9 @@ class Transformer:
         if segment_into is None:
             pass
         elif segment_into in {'w', 'word', 'words'}:
+            from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
-            from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
             self.segmenter_helper_obj = WordTokenizer()
         elif segment_into in {'s', 'sent', 'sents', 'sentence', 'sentences'}:
             self.transforms.append(self._to_sentences)

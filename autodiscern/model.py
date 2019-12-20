@@ -30,9 +30,15 @@ questions = {
 }
 
 
-def get_score_for_question(data_dict: Dict, question_no: int) -> float:
+def get_score_for_question(data_dict: Dict, question_no: int, rating_option: str = 'mean_rating') -> float:
     r = data_dict['responses']
-    return r.loc[question_no].mean()
+    if(rating_option == 'first_rater'):
+        r_score = r.loc[question_no][5]
+    elif(rating_option == 'second_rater'):
+        r_score = r.loc[question_no][6]
+    elif(rating_option == 'mean_rating'):
+        r_score = r.loc[question_no].mean()
+    return r_score
 
 
 def continuous_regression(score):

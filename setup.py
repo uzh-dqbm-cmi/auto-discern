@@ -8,7 +8,6 @@ setup(name='autodiscern',
       package_data={'autodiscern': ['package_data/*']},
       python_requires='>3.5.0',
       install_requires=[
-            # 'allennlp==0.8.2',
             'beautifulsoup4',
             'flake8',
             'flask',
