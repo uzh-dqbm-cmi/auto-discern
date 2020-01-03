@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='autodiscern',
-      version='0.0.1',
+      version='0.0.2',
       description='',
       url='https://github.com/CMI-UZH/auto-discern',
       packages=['autodiscern', 'autodiscern.experiments', 'autodiscern.predictors'],
