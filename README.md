@@ -59,7 +59,7 @@ Please follow this notebook naming convention for exploratory notebooks in the s
     * Download MetaMapLite from [here](https://metamap.nlm.nih.gov/MetaMapLite.shtml). You will need to request a license to access the download, which takes a few hours.
     * Place the zip file in a new directory called `metamap`, and unzip.
     * If necessary, install Java as per metamap instructions.
-    * Test metamap by creating a test.txt file with the contents "John had a huge heart attack". Run `./metamap.sh test.txt`. A new file, test.mmi, shoudl be created with details about the Myocardial Infarction concept.
+    * Test metamap by creating a test.txt file with the contents "John had a huge heart attack". Run `./metamap.sh test.txt`. A new file, test.mmi, should be created with details about the Myocardial Infarction concept.
 * Install `pymetamap` wrapper:
     * (A working version of `pymetamap` compatible with MetaMapLite is on someone's forked repo's branch)
     * `git clone https://github.com/kaushikacharya/pymetamap.git`
