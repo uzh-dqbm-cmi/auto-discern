@@ -18,7 +18,7 @@ from typing import Dict, List
 QUESTIONS = [4, 5, 9, 10, 11]
 DEFAULT_BASE_DIR = '/opt/data/autodiscern'
 DEFAULT_BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
-DEFAULT_USE_GPU = True
+DEFAULT_USE_GPU = False
 DEFAULT_QUESTION_FOLD_MAP = {
     4: 0,
     5: 0,
@@ -77,14 +77,14 @@ def build_DataDictProcessor(data_dict, vocab_path: str, processor_config: Dict):
     return processor
 
 
-def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, gpu_index):
+def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, to_gpu, gpu_index):
     # from the second notebook
 
     bertembeder = BertEmbedder(bertmodel, bert_config)
     fdtype = torch.float32
 
     # generate and dump bert embedding for the tokens inside the specificed embedding directory
-    bert_proc_docs = generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, sents_embed_path, fdtype,
+    bert_proc_docs = generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, sents_embed_path, fdtype, to_gpu,
                                                      gpu_index=gpu_index)
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_path, 'bert_proc_docs.pkl'))
 
@@ -150,7 +150,7 @@ def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, questi
 
     # embed sentences
     print("Embedding sentences...")
-    embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config, gpu_index)
+    embed_sentences(docs_data_tensor, sents_embed_dir, bertmodel, bert_config, to_gpu, gpu_index)
     print(" ... Finished embedding sentences")
 
     # load model configs
