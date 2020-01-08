@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import pandas as pd
 from pytorch_pretrained_bert import BertTokenizer
@@ -17,6 +18,7 @@ from typing import Dict, List
 QUESTIONS = [4, 5, 9, 10, 11]
 DEFAULT_BASE_DIR = '/opt/data/autodiscern'
 DEFAULT_BIOBERT_EXP_DIR = '2019-10-28_15-59-09'
+DEFAULT_USE_GPU = True
 DEFAULT_QUESTION_FOLD_MAP = {
     4: 0,
     5: 0,
@@ -32,7 +34,7 @@ def identify_attended_senteces(docid_attnweights_map, proc_articles_repr, topk=5
 
 
 def run_predict(q_docpartitions, q_fold_config_map, bertmodel, q_state_dict_path_map, results_dir, sents_embed_dir,
-                question_fold_map, to_gpu, gpu_index, num_epochs=1):
+                question_fold_map, to_gpu, gpu_index, num_epochs=1) -> Dict:
     q_predictions = {}
     for question in q_fold_config_map:
         mconfig, options, __ = q_fold_config_map[question]
@@ -87,13 +89,13 @@ def embed_sentences(docs_data_tensor, sents_embed_path, bertmodel, bert_config, 
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_path, 'bert_proc_docs.pkl'))
 
 
-def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, question_fold_map, to_gpu, gpu_index):
+def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, question_fold_map, to_gpu, gpu_index) -> Dict:
     """
     Make an autoDiscern prediction for an article data_dict using the HEA BioBERT model. Includes all of the data
     preprocessing steps as were applied for the training of the HEA BioBERT model.
 
     Args:
-        data_dict: dictionary of {id: sib-dict}, with sub-dictionary with keys ['url', 'content', 'id', 'responses']
+        data_dict: dictionary of {id: sub-dict}, with sub-dictionary with keys ['url', 'content', 'id', 'responses']
 
     Returns: autodiscern predictions for the article.
 
@@ -125,7 +127,7 @@ def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, questi
                                                    html_to_plain_text=True,
                                                    segment_into='sentences',
                                                    flatten=True,
-                                                   # remove_newlines=False,  # in newer version
+                                                   remove_newlines=False,  # in newer version
                                                    annotate_html=True,
                                                    parallelism=False)
     transformed_data = html_to_sentence_transformer.apply(data_dict)
@@ -196,6 +198,48 @@ def build_data_dict(url, content):
     return data_dict
 
 
+def parse_prediction_results(raw_predictions: Dict) -> Dict:
+    """
+    Parses the prediction dict into an easily consumable form. During train/test, predictions are usually made in batch,
+    so the return values are lists. FOr novel predictions, we only have one document to predict, so clean those lists up
+    into values! Also get rid of anything we don't care about showing on the website.
+
+    Args:
+        raw_predictions: a dictionary describing the predictions for a single article. The dictionary consists of 5
+        sub-dictionaries (one for each discern question), each of which contains the following keys:
+        - pred_class: List, containing either 0 or 1
+        - logprob_score_class0: List, containing the log probability for prediction class 0
+        - logprob_score_class1: List, containing the log probability for prediction class 1
+        - attention_weight_map: dictionary of {doc id: tensor}
+        - attended_sentences: dictionary of {doc id: List[attended_sent_dicts]}
+           where each attended_sent_dict is of the form:
+            {str('sentence'): attended_sentence, str('weight'): float }]}
+
+    Returns: A dictionary describing the predictions for a single article. Contains the following keys:
+        - pred_cass: 0 or 1
+        - probability: float
+        - sentences: List[sentences]
+
+    """
+    clean_predictions = {}
+    for q in raw_predictions:
+        clean_predictions[q] = {}
+        # remove list wrapper around prediction class
+        clean_predictions[q]['pred_class'] = raw_predictions[q]['pred_class'][0]
+
+        # convert log prob scores to prob, and only report the one associated with the predicted class for simplicity
+        logprog_key = 'logprob_score_class0'
+        if clean_predictions[q]['pred_class'] == 1:
+            logprog_key = 'logprob_score_class1'
+        clean_predictions[q]['probability'] = np.exp(raw_predictions[q][logprog_key][0])
+
+        # extract attended sentences, ignore weights (their ordering is sufficient information)
+        attended_sentence_dicts = raw_predictions[q]['attended_sentences'][0]
+        clean_predictions[q]['sentences'] = [sentence_dict['sentence'] for sentence_dict in attended_sentence_dicts]
+
+    return clean_predictions
+
+
 def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_DIR, question_fold_map=None,
                     to_gpu=True, gpu_index=0):
     """
@@ -224,7 +268,7 @@ def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_
 
 
 def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_DIR, question_fold_map=None,
-                         to_gpu=True, gpu_index=0):
+                         to_gpu=DEFAULT_USE_GPU, gpu_index=0) -> Dict:
     """
     End to end test function for making an autoDiscern prediction, without relying on an internet connection.
     Relies on a the existence of a test.html file.
@@ -246,3 +290,16 @@ def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, base_dir=DEFAULT_BASE_
         html_content = f.read()
     data_dict = build_data_dict(test_article_url, html_content)
     return biobert_predict(data_dict, QUESTIONS, exp_dir, base_dir, question_fold_map, to_gpu, gpu_index)
+
+
+if __name__ == '__main__':
+    predictions_dict = test_make_prediction()
+    print("\n\nRAW PREDICTIONS DICT")
+    print(predictions_dict)
+
+    clean_predictions = parse_prediction_results(predictions_dict)
+    print("\n\nCLEAN PREDICTIONS DICT")
+    for q in clean_predictions:
+        print(q)
+        print(clean_predictions[q])
+        print()

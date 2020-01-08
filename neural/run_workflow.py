@@ -690,7 +690,7 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
     generic_config = config['generic_config']
     fdtype = generic_config['fdtype']
 
-    class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all casess equally
+    class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all cases equally
 
     print("class weights", class_weights)
 
