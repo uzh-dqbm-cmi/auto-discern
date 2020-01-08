@@ -381,13 +381,7 @@ class TestAcceptanceTransformation(unittest.TestCase):
         transformer = adt.Transformer(leave_some_html=False)
 
         test_input = self.test_input_1
-        self.expected_output[0]['content'] = """Antidepressants. 
-Antidepressants are medications primarily used for treating depression. 
-What Are Antidepressants? 
-Antidepressants are medications used to treat depression. Some of these medications are blue. 
-(Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.). 
-Types of Antidepressants. 
-There are several types of antidepressants available to treat depression."""
+        self.expected_output[0]['content'] = """Antidepressants. Antidepressants are medications primarily used for treating depression. What Are Antidepressants? Antidepressants are medications used to treat depression. Some of these medications are blue. (Click Antidepressant Uses for more information on what they are used for, including possible off-label uses.). Types of Antidepressants. There are several types of antidepressants available to treat depression."""
 
         output = transformer.apply(test_input)
         self.assertEqual(output, self.expected_output)
@@ -396,13 +390,7 @@ There are several types of antidepressants available to treat depression."""
         transformer = adt.Transformer(leave_some_html=True)
 
         test_input = self.test_input_1
-        self.expected_output[0]['content'] = """<h1>Antidepressants</h1> 
-<h3>Antidepressants are medications primarily used for treating depression.</h3>
-<a href="emedtv"></a><h2>What Are Antidepressants?</h2> 
-Antidepressants are medications used to treat <a href="emedtv">depression</a>. Some of these medications are blue. 
-(Click <a href="emedtv">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="emedtv">off-label</a> uses.) 
-<a href="emedtv"></a><h2>Types of Antidepressants</h2> 
-There are several types of antidepressants available to treat depression."""
+        self.expected_output[0]['content'] = """<h1>Antidepressants</h1> <h3>Antidepressants are medications primarily used for treating depression.</h3> <a href="emedtv"></a><h2>What Are Antidepressants?</h2> Antidepressants are medications used to treat <a href="emedtv">depression</a>. Some of these medications are blue. (Click <a href="emedtv">Antidepressant Uses</a> for more information on what they are used for, including possible <a href="emedtv">off-label</a> uses.) <a href="emedtv"></a><h2>Types of Antidepressants</h2> There are several types of antidepressants available to treat depression."""
         output = transformer.apply(test_input)
         self.assertEqual(output, self.expected_output)
 
@@ -410,37 +398,34 @@ There are several types of antidepressants available to treat depression."""
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True)
 
         test_input = self.test_input_1
-        self.expected_output[0]['content'] = """thisisah1tag Antidepressants. 
-thisisah3tag Antidepressants are medications primarily used for treating depression. 
-thisisalinktagemedtv thisisah2tag What Are Antidepressants? 
-Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. 
-(Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.). 
-thisisalinktagemedtv thisisah2tag Types of Antidepressants. 
-There are several types of antidepressants available to treat depression."""
+        self.expected_output[0]['content'] = """thisisah1tag Antidepressants. thisisah3tag Antidepressants are medications primarily used for treating depression. thisisalinktagemedtv thisisah2tag What Are Antidepressants? Antidepressants are medications used to treat thisisalinktagemedtv depression . Some of these medications are blue. (Click thisisalinktagemedtv Antidepressant Uses for more information on what they are used for, including possible thisisalinktagemedtv off-label uses.). thisisalinktagemedtv thisisah2tag Types of Antidepressants. There are several types of antidepressants available to treat depression."""
         output = transformer.apply(test_input)
         self.assertEqual(output, self.expected_output)
 
-    def test_html_to_text_to_words(self):
-        transformer = adt.Transformer(leave_some_html=False, segment_into='words')
-
-        test_input = self.test_input_1
-        self.expected_output[0]['content'] = [
-            "Antidepressants", ".",
-            "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
-            "What", "Are", "Antidepressants", "?",
-            "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
-            "Some", "of", "these", "medications", "are", "blue", ".",
-            "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
-            "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")", ".",
-            "Types", "of", "Antidepressants", ".",
-            "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
-        ]
-
-        output = transformer.apply(test_input)
-        self.assertEqual(output, self.expected_output)
+    # skipping test because requires allennlp, which is slow on travis
+    # def test_html_to_text_to_words(self):
+    #     transformer = adt.Transformer(leave_some_html=False, segment_into='words',
+    #                                   remove_newlines=False)
+    #
+    #     test_input = self.test_input_1
+    #     self.expected_output[0]['content'] = [
+    #         "Antidepressants", ".",
+    #         "Antidepressants", "are", "medications", "primarily", "used", "for", "treating", "depression", ".",
+    #         "What", "Are", "Antidepressants", "?",
+    #         "Antidepressants", "are", "medications", "used", "to", "treat", "depression", ".",
+    #         "Some", "of", "these", "medications", "are", "blue", ".",
+    #         "(", "Click", "Antidepressant", "Uses", "for", "more", "information", "on", "what", "they", "are", "used",
+    #         "for", ",", "including", "possible", "off", "-", "label", "uses", ".", ")", ".",
+    #         "Types", "of", "Antidepressants", ".",
+    #         "There", "are", "several", "types", "of", "antidepressants", "available", "to", "treat", "depression", ".",
+    #     ]
+    #
+    #     output = transformer.apply(test_input)
+    #     self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_sentences(self):
-        transformer = adt.Transformer(leave_some_html=False, segment_into='sentences')
+        transformer = adt.Transformer(leave_some_html=False, segment_into='sentences',
+                                      remove_newlines=False)
 
         test_input = self.test_input_1
         self.expected_output[0]['content'] = [
@@ -458,7 +443,8 @@ There are several types of antidepressants available to treat depression."""
         self.assertEqual(output, self.expected_output)
 
     def test_html_to_text_to_paragraphs(self):
-        transformer = adt.Transformer(leave_some_html=False, segment_into='paragraphs')
+        transformer = adt.Transformer(leave_some_html=False, segment_into='paragraphs',
+                                      remove_newlines=False)
 
         test_input = self.test_input_1
         self.expected_output[0]['content'] = [
@@ -477,7 +463,8 @@ There are several types of antidepressants available to treat depression."""
     # to_limited_html_plain_text segmentation tests
 
     def test_html_to_limited_html_plain_text_to_sentences(self):
-        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences')
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
+                                      remove_newlines=False)
 
         test_input = self.test_input_1
         self.expected_output[0]['content'] = [
@@ -495,7 +482,8 @@ There are several types of antidepressants available to treat depression."""
         self.assertEqual(output, self.expected_output)
 
     def test_html_to_limited_html_plain_text_to_paragraphs(self):
-        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='paragraphs')
+        transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='paragraphs',
+                                      remove_newlines=False)
 
         test_input = self.test_input_1
         self.expected_output[0]['content'] = [
@@ -513,7 +501,7 @@ There are several types of antidepressants available to treat depression."""
 
     def test_html_to_limited_html_plain_text_to_sentences_flattened(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
-                                      flatten=True, annotate_html=False)
+                                      remove_newlines=False, flatten=True, annotate_html=False)
 
         test_input = self.test_input_1
         expected_output = {
@@ -573,7 +561,7 @@ There are several types of antidepressants available to treat depression."""
 
     def test_html_to_limited_html_plain_text_to_sentences_flattened_annotated(self):
         transformer = adt.Transformer(leave_some_html=True, html_to_plain_text=True, segment_into='sentences',
-                                      flatten=True, annotate_html=True)
+                                      remove_newlines=False, flatten=True, annotate_html=True)
 
         test_input = self.test_input_1
         expected_output = {

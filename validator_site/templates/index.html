@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block css %}
+{% if style_button %}
+    <link rel=stylesheet type=text/css href="{{url_for('static', filename='style2.css')}}" />
+{% else %}
+    <link rel=stylesheet type=text/css href="{{url_for('static', filename='style.css')}}" />
+{% endif %}
+{% endblock %}
+{% block title %} autoDiscern {% endblock %}
+{% block body %}
+    <div id='content'>
+            <span id='title'>autoDiscern Validator</span>
+        <br>
+
+        <div class="metanav">
+            <span style="align:right">alpha v0.0.1</span>
+            | <a href="https://uzh-dqbm-cmi.github.io/cmi-website/research/">Built at UZH</a>
+            | <a href="https://github.com/uzh-dqbm-cmi/auto-discern">View the Code on GitHub</a>
+        </div>
+
+        <br>
+        <form method = "post" action = "/validate">
+            <input type="text" name="url" placeholder="Enter url to validate">
+        </form>
+        <br>
+        <form method = "post" action = "/test">
+            <input type="submit" name="test" value="Or preview an example">
+        </form>
+
+        <hr>
+
+        {% if url_str != '' %}
+            <h3>Results for:</h3>
+            {{ url_str }}
+        {% endif %}
+
+        {% for question in predictions %}
+            <h3 {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ question }} </h3>
+            <p {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ predictions[question] }} </p>
+          <br>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+Built by Krauthammer Lab at the University of Zurich

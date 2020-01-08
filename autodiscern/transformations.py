@@ -2,7 +2,6 @@ import html
 import multiprocessing as mp
 import re
 import tldextract
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
 from bs4 import BeautifulSoup, Comment, CData, ProcessingInstruction, Declaration, Doctype
 from bs4.element import Tag
 from nltk.tokenize.punkt import PunktSentenceTokenizer
@@ -25,7 +24,8 @@ class Transformer:
     """
 
     def __init__(self, leave_some_html: bool = False, html_to_plain_text: bool = False, segment_into: str = None,
-                 flatten: bool = False, annotate_html: bool = False, parallelism: bool = False, num_cores=8):
+                 remove_newlines: bool = True, flatten: bool = False, annotate_html: bool = False,
+                 parallelism: bool = False, num_cores=8):
         """
         Sets the parameters of the Transformer object.
 
@@ -71,6 +71,7 @@ class Transformer:
         if segment_into is None:
             pass
         elif segment_into in {'w', 'word', 'words'}:
+            from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
             self.transforms.append(self._to_words)
             self.segmentation_type = 'words'
             self.segmenter_helper_obj = WordTokenizer()
@@ -86,6 +87,10 @@ class Transformer:
             self.segmenter_helper_obj = None
         else:
             raise ValueError("Invalid segment_type: {}".format(segment_into))
+
+        if remove_newlines:
+            self.transforms.append(self.remove_newlines)
+            self.transforms.append(self.regex_out_punctuation_and_white_space)
 
         # annotations to use
         if annotate_html:
@@ -335,6 +340,7 @@ class Transformer:
                     return domain
                 else:
                     return 'NA'
+        return 'NA'
 
     def replace_html(self, soup: BeautifulSoup, tags_to_keep: Set[str], tags_to_keep_with_attr: Set[str],
                      tags_to_replace_with_str: Dict[str, Tuple[str, str]], default_tag_replacement_str: str,
@@ -438,6 +444,10 @@ class Transformer:
         for p in chars_to_replace:
             x = x.replace(p, replacement_char)
         return x
+
+    @classmethod
+    def remove_newlines(cls, x: str) -> str:
+        return cls.replace_chars(x, ['\n'], ' ')
 
     # === Annotation Functions ==================================
 

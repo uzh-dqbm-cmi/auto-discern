@@ -104,6 +104,8 @@ venv.bak/
 .mypy_cache/
 
 # Data
+data/
+package_data/public_mm_lite/*
 .csv
 .ipynb
 

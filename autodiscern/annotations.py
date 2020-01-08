@@ -1,13 +1,14 @@
-from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
-from allennlp.predictors.predictor import Predictor
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+import pandas as pd
 import re
+import string
 from typing import Callable, Dict, List, Tuple
-from autodiscern.data_manager import DataManager
+import pkg_resources
 
 
 def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    from allennlp.data.tokenizers.word_tokenizer import WordTokenizer
     tok = WordTokenizer()
     for id in inputs:
         # have to convert tokens to text because spacy tokens are not pickleable
@@ -15,15 +16,36 @@ def add_word_token_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     return inputs
 
 
-def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_path: str = None,
-                            git_bash_pth: str = None) -> Dict[str, Dict]:
+def remove_punctuation(s: str) -> str:
+    # remove smart quotes, which aren't included in string.punctuation
+    s = s.replace('“', '').replace('”', '').replace('’', '')
+    return s.translate(str.maketrans('', '', string.punctuation))
+
+
+def replace_bad_punctuation_encoding(s: str) -> str:
+    # remove smart quotes, which aren't included in string.punctuation
+    return s.replace('“', '"').replace('”', '"').replace('’', "'")
+
+
+def ammed_content_replace_bad_punctuation_encoding(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        inputs[id]['content'] = replace_bad_punctuation_encoding(inputs[id]['content'])
+    return inputs
+
+
+# === METAMAP =========================================================================================================
+
+def add_metamap_annotations(inputs: Dict[str, Dict], git_bash_pth: str = None) -> Dict[str, Dict]:
     from pymetamap import MetaMapLite
 
-    if metamap_path is None:
-        print("NOTE: no Metamap path provided. Using Laura's default")
-        metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
+    # if metamap_path is None:
+    #     print("NOTE: no Metamap path provided. Using Laura's default")
+    #     metamap_path = '/Users/laurakinkead/Documents/metamap/public_mm_lite/'
 
-    metamap_semantics = dm.metamap_semantics
+    metamap_path = pkg_resources.resource_filename('autodiscern', 'package_data/public_mm_lite/')
+    metamap_semantics_filename = pkg_resources.resource_filename('autodiscern',
+                                                                 'package_data/metamap_semantics/metamap_semantics.csv')
+    metamap_semantics = pd.read_csv(metamap_semantics_filename)
     groups_to_keep = [
         'Anatomy',
         'Devices',
@@ -52,9 +74,13 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
         sentences.append(inputs[id]['content'])
 
     # run metamap
-    print("Extracing MetaMap concepts...")
+    import time
+    start_time = time.time()
+    print("Extracting MetaMap concepts for {} documents, starting at {}...".format(len(sentences), start_time))
     mm = MetaMapLite.get_instance(metamap_path, git_bash_pth=git_bash_pth)
     concepts, error = mm.extract_concepts(sentences, ids)
+    end_time = time.time()
+    print("Finished at {}. That took {}".format(end_time, end_time - start_time))
 
     print("Attaching Metamap concepts...")
     # add concepts with score above 1 and matching the semantics filter to input sentences
@@ -70,6 +96,12 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
                     # attach concept to input_dict
                     id = concept_dict['index']
                     id = id.replace('"', '').replace("'", '')
+                    if id not in inputs.keys():
+                        if int(id) in inputs.keys():
+                            id = int(id)
+                        else:
+                            raise ValueError("ERROR: MetaMap index {} not found in input keys")
+
                     if 'metamap' not in inputs[id]:
                         inputs[id]['metamap'] = []
                         inputs[id]['metamap_detail'] = []
@@ -83,18 +115,179 @@ def add_metamap_annotations(inputs: Dict[str, Dict], dm: DataManager, metamap_pa
     return inputs
 
 
-def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
-    # is there a batch predictor?
-    # https://allenai.github.io/allennlp-docs/api/allennlp.predictors.html#sentence-tagger
+def amend_content_with_metamap_concepts(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        if 'metamap' in inputs[id].keys():
+            inputs[id]['content'] = replace_metamap_content_with_concept_name(inputs[id]['content'],
+                                                                              inputs[id]['metamap_detail'],
+                                                                              inputs[id]['metamap'],)
+    return inputs
 
-    predictor = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/ner-model-2018.12.18.tar.gz")
+
+def get_metamap_pos(pos_info: str) -> Tuple[int, int]:
+    pos_start, pos_end = pos_info.split('/')
+    pos_start = int(pos_start)
+    pos_end = pos_start + int(pos_end)
+    return pos_start, pos_end
+
+
+def replace_metamap_content_with_concept_name(content: str, metamap_detail: List[Dict], metamap_concepts: List[str]
+                                              ) -> str:
+    # add concepts directly into detail dicts
+    for i, mm_d in enumerate(metamap_detail):
+        metamap_detail[i]['concept'] = metamap_concepts[i]
+
+    metamap_detail = split_repeated_metamap_concepts(metamap_detail)
+    metamap_detail = sorted(metamap_detail, key=lambda k: k['start_pos'])
+    metamap_detail = prune_overlapping_metamap_details(metamap_detail)
+
+    # metamap position indexes are based on raw strings, where '\n' counts as two characters, but they are only counted
+    #    as 1 by Python, which breaks the position-based replacement. Convert newlines to 2-character placeholders.
+    escape_char_replacements = {
+        '\n': '^^',
+        "\'": '@@',
+    }
+    for c in escape_char_replacements:
+        content = content.replace(c, escape_char_replacements[c])
+
+    for mm_d in reversed(metamap_detail):
+        pos_start, pos_end = get_metamap_pos(mm_d['pos_info'])
+        # replace token with "MMConcept" + <concept name with spaces removed>
+        # and also '&' removed (present in the "Chemicals & Drugs" category
+        concept = "MMConcept" + mm_d['concept'].replace(' ', '').replace('&', '')
+        content = ''.join((content[:pos_start - 1], concept, content[pos_end - 1:]))
+
+    # flip the escape char conversions back
+    for c in escape_char_replacements:
+        content = content.replace(escape_char_replacements[c], c)
+    return content
+
+
+def split_repeated_metamap_concepts(metamap_details: List[Dict]) -> List[Dict]:
+    metamap_details_split = []
+    for metamap_entry in metamap_details:
+        pos_entries = metamap_entry['pos_info'].split(';')
+        for pos in pos_entries:
+            metamap_details_split.append({
+                'pos_info': pos,
+                'start_pos': get_metamap_pos((pos))[0],
+                'concept': metamap_entry['concept'],
+                'score': metamap_entry['score'],
+            })
+    return metamap_details_split
+
+
+def prune_overlapping_metamap_details(mm_d: List[Dict]) -> List[Dict]:
+    """Iterate over the metamap details, removing adjacent concepts that overlap, until no overlaps are found.
+    Assumes metamap concepts are listed in position order."""
+    # set overlap_found to True to enter the loop for the first time
+    # subsequently, overlap_found is assumed False until an overlap is found,
+    #   at which point the for loop breaks and starts over from the beginning
+    #   because removing items from the list resets the indexes
+    overlap_found = True
+    while overlap_found:
+        overlap_found = False
+        for i, d in enumerate(mm_d):
+            if i <= len(mm_d) - 2:
+                pos_start, pos_end = get_metamap_pos(d['pos_info'])
+                next_pos_start, next_pos_end = get_metamap_pos(mm_d[i + 1]['pos_info'])
+                if pos_start <= next_pos_start <= pos_end or pos_start <= next_pos_end <= pos_end:
+                    overlap_found = True
+                    # figure out which of the two concepts to remove
+                    if mm_d[i]['score'] >= mm_d[i + 1]['score']:
+                        del mm_d[i + 1]
+                    else:
+                        del mm_d[i]
+                    break
+    return mm_d
+
+
+# === LINKS ===========================================================================================================
+
+def amend_content_with_link_plain_text(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    for id in inputs:
+        inputs[id]['content'] = replace_links_with_plain_text(inputs[id]['content'])
+    return inputs
+
+
+def replace_links_with_plain_text(input_str: str) -> str:
+    """
+    Regex from http://www.regexguru.com/2008/11/detecting-urls-in-a-block-of-text/
+
+    Args:
+        input_str: string in which to replace links.
+
+    Returns: string with links replaced with "thisisalink".
+
+    """
+    r = r'\b(?:(?:https?|ftp|file):\/\/|www\.|ftp\.)[-A-Za-z0-9+&@#/%=~_|$?!:,.]*[A-Za-z0-9+&@#/%=~_|$]'
+    return re.sub(r, 'thisisalink', input_str)
+
+
+# === NER =============================================================================================================
+
+def amend_content_with_ner_type_labels(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    entity_types_to_not_replace = ['ORG', 'NORP', 'PERSON']
+    for id in inputs:
+        inputs[id]['content'] = replace_ner_with_type_labels(inputs[id]['content'], inputs[id]['ner'],
+                                                             entity_types_to_not_replace)
+    return inputs
+
+
+def replace_ner_with_type_labels(input_str: str, ner_info: List[Dict[str, str]], entity_types_to_not_replace: List[str]
+                                 ) -> str:
+    # TODO: untested
+    output_str = input_str
+    for entity in reversed(ner_info):
+        if entity['label'] not in entity_types_to_not_replace:
+            pos_start = entity['start_char']
+            pos_end = entity['end_char']
+            output_str = ''.join((output_str[:pos_start], entity['custom_label'], output_str[pos_end:]))
+    return output_str
+
+
+def add_ner_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
+    import spacy
+    nlp = spacy.load('en_core_web_sm')
 
     for id in inputs:
-        sentence = inputs[id]['content']
-        ner_output = allennlp_ner_tagger(sentence, predictor)
-        ner_output = [x for x in ner_output if x[1] != 'O']
-        inputs[id]['ner'] = ner_output
+        inputs[id]['ner'] = execute_spacy_ner(inputs[id]['content'], nlp)
     return inputs
+
+
+def execute_spacy_ner(input_str, nlp):
+    results = []
+    doc = nlp(input_str)
+    for ent in doc.ents:
+        entity_dict = {
+            'text': ent.text,
+            'start_char': ent.start_char,
+            'end_char': ent.end_char,
+            'label': ent.label_,
+        }
+        entity_dict['custom_label'] = select_custom_ner_label(entity_dict['text'], entity_dict['label'])
+        results.append(entity_dict)
+    return results
+
+
+def select_custom_ner_label(text: str, spacy_label: str) -> str:
+    """
+    Custom logic for defining more specific Named Entity labels than what spacy gives by default
+
+    Args:
+        text: the text of the entity spacy recognized
+        spacy_label: the label spacy assigned to the entity
+
+    Returns: custom label
+
+    """
+    default_label = 'SPACY_NER_{}'.format(spacy_label)
+    if spacy_label == 'DATE':
+        if any(i.isdigit() for i in text):
+            return default_label
+        else:
+            return '{}_NO_DIGIT'.format(default_label)
+    return default_label
 
 
 def allennlp_ner_tagger(sentence: str, predictor: Callable) -> List[Tuple[str, str]]:
@@ -132,6 +325,8 @@ def ner_tuples_to_html(tuples: List[Tuple[str, str]]) -> str:
 
     return ner_html
 
+
+# === CITATIONS =======================================================================================================
 
 def add_inline_citations_annotations(inputs: Dict[str, Dict]) -> Dict[str, Dict]:
     for id in inputs:

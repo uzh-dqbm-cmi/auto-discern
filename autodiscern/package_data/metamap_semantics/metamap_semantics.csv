@@ -1,0 +1,128 @@
+,abbreviation,id,name,group_abreviation,group_name
+0,aapp,T116,"Amino Acid, Peptide, or Protein",CHEM,Chemicals & Drugs
+1,acab,T020,Acquired Abnormality,DISO,Disorders
+2,acty,T052,Activity,ACTI,Activities & Behaviors
+3,aggp,T100,Age Group,LIVB,Living Beings
+4,amas,T087,Amino Acid Sequence,GENE,Genes & Molecular Sequences
+5,amph,T011,Amphibian,LIVB,Living Beings
+6,anab,T190,Anatomical Abnormality,DISO,Disorders
+7,anim,T008,Animal,LIVB,Living Beings
+8,anst,T017,Anatomical Structure,ANAT,Anatomy
+9,antb,T195,Antibiotic,CHEM,Chemicals & Drugs
+10,arch,T194,Archaeon,LIVB,Living Beings
+11,bacs,T123,Biologically Active Substance,CHEM,Chemicals & Drugs
+12,bact,T007,Bacterium,LIVB,Living Beings
+13,bdsu,T031,Body Substance,ANAT,Anatomy
+14,bdsy,T022,Body System,ANAT,Anatomy
+15,bhvr,T053,Behavior,ACTI,Activities & Behaviors
+16,biof,T038,Biologic Function,PHEN,Phenomena
+17,bird,T012,Bird,LIVB,Living Beings
+18,blor,T029,Body Location or Region,ANAT,Anatomy
+19,bmod,T091,Biomedical Occupation or Discipline,OCCU,Occupations
+20,bodm,T122,Biomedical or Dental Material,CHEM,Chemicals & Drugs
+21,bpoc,T023,"Body Part, Organ, or Organ Component",ANAT,Anatomy
+22,bsoj,T030,Body Space or Junction,ANAT,Anatomy
+23,celc,T026,Cell Component,ANAT,Anatomy
+24,celf,T043,Cell Function,PHYS,Physiology
+25,cell,T025,Cell,ANAT,Anatomy
+26,cgab,T019,Congenital Abnormality,DISO,Disorders
+27,chem,T103,Chemical,CHEM,Chemicals & Drugs
+28,chvf,T120,Chemical Viewed Functionally,CHEM,Chemicals & Drugs
+29,chvs,T104,Chemical Viewed Structurally,CHEM,Chemicals & Drugs
+30,clas,T185,Classification,CONC,Concepts & Ideas
+31,clna,T201,Clinical Attribute,PHYS,Physiology
+32,clnd,T200,Clinical Drug,CHEM,Chemicals & Drugs
+33,cnce,T077,Conceptual Entity,CONC,Concepts & Ideas
+34,comd,T049,Cell or Molecular Dysfunction,DISO,Disorders
+35,crbs,T088,Carbohydrate Sequence,GENE,Genes & Molecular Sequences
+36,diap,T060,Diagnostic Procedure,PROC,Procedures
+37,dora,T056,Daily or Recreational Activity,ACTI,Activities & Behaviors
+38,drdd,T203,Drug Delivery Device,DEVI,Devices
+39,dsyn,T047,Disease or Syndrome,DISO,Disorders
+40,edac,T065,Educational Activity,PROC,Procedures
+41,eehu,T069,Environmental Effect of Humans,PHEN,Phenomena
+42,elii,T196,"Element, Ion, or Isotope",CHEM,Chemicals & Drugs
+43,emod,T050,Experimental Model of Disease,DISO,Disorders
+44,emst,T018,Embryonic Structure,ANAT,Anatomy
+45,enty,T071,Entity,OBJC,Objects
+46,enzy,T126,Enzyme,CHEM,Chemicals & Drugs
+47,euka,T204,Eukaryote,LIVB,Living Beings
+48,evnt,T051,Event,ACTI,Activities & Behaviors
+49,famg,T099,Family Group,LIVB,Living Beings
+50,ffas,T021,Fully Formed Anatomical Structure,ANAT,Anatomy
+51,fish,T013,Fish,LIVB,Living Beings
+52,fndg,T033,Finding,DISO,Disorders
+53,fngs,T004,Fungus,LIVB,Living Beings
+54,food,T168,Food,OBJC,Objects
+55,ftcn,T169,Functional Concept,CONC,Concepts & Ideas
+56,genf,T045,Genetic Function,PHYS,Physiology
+57,geoa,T083,Geographic Area,GEOG,Geographic Areas
+58,gngm,T028,Gene or Genome,GENE,Genes & Molecular Sequences
+59,gora,T064,Governmental or Regulatory Activity,ACTI,Activities & Behaviors
+60,grpa,T102,Group Attribute,CONC,Concepts & Ideas
+61,grup,T096,Group,LIVB,Living Beings
+62,hcpp,T068,Human-caused Phenomenon or Process,PHEN,Phenomena
+63,hcro,T093,Health Care Related Organization,ORGA,Organizations
+64,hlca,T058,Health Care Activity,PROC,Procedures
+65,hops,T131,Hazardous or Poisonous Substance,CHEM,Chemicals & Drugs
+66,horm,T125,Hormone,CHEM,Chemicals & Drugs
+67,humn,T016,Human,LIVB,Living Beings
+68,idcn,T078,Idea or Concept,CONC,Concepts & Ideas
+69,imft,T129,Immunologic Factor,CHEM,Chemicals & Drugs
+70,inbe,T055,Individual Behavior,ACTI,Activities & Behaviors
+71,inch,T197,Inorganic Chemical,CHEM,Chemicals & Drugs
+72,inpo,T037,Injury or Poisoning,DISO,Disorders
+73,inpr,T170,Intellectual Product,CONC,Concepts & Ideas
+74,irda,T130,"Indicator, Reagent, or Diagnostic Aid",CHEM,Chemicals & Drugs
+75,lang,T171,Language,CONC,Concepts & Ideas
+76,lbpr,T059,Laboratory Procedure,PROC,Procedures
+77,lbtr,T034,Laboratory or Test Result,PHEN,Phenomena
+78,mamm,T015,Mammal,LIVB,Living Beings
+79,mbrt,T063,Molecular Biology Research Technique,PROC,Procedures
+80,mcha,T066,Machine Activity,ACTI,Activities & Behaviors
+81,medd,T074,Medical Device,DEVI,Devices
+82,menp,T041,Mental Process,PHYS,Physiology
+83,mnob,T073,Manufactured Object,OBJC,Objects
+84,mobd,T048,Mental or Behavioral Dysfunction,DISO,Disorders
+85,moft,T044,Molecular Function,PHYS,Physiology
+86,mosq,T085,Molecular Sequence,GENE,Genes & Molecular Sequences
+87,neop,T191,Neoplastic Process,DISO,Disorders
+88,nnon,T114,"Nucleic Acid, Nucleoside, or Nucleotide",CHEM,Chemicals & Drugs
+89,npop,T070,Natural Phenomenon or Process,PHEN,Phenomena
+90,nusq,T086,Nucleotide Sequence,GENE,Genes & Molecular Sequences
+91,ocac,T057,Occupational Activity,ACTI,Activities & Behaviors
+92,ocdi,T090,Occupation or Discipline,OCCU,Occupations
+93,orch,T109,Organic Chemical,CHEM,Chemicals & Drugs
+94,orga,T032,Organism Attribute,PHYS,Physiology
+95,orgf,T040,Organism Function,PHYS,Physiology
+96,orgm,T001,Organism,LIVB,Living Beings
+97,orgt,T092,Organization,ORGA,Organizations
+98,ortf,T042,Organ or Tissue Function,PHYS,Physiology
+99,patf,T046,Pathologic Function,DISO,Disorders
+100,phob,T072,Physical Object,OBJC,Objects
+101,phpr,T067,Phenomenon or Process,PHEN,Phenomena
+102,phsf,T039,Physiologic Function,PHYS,Physiology
+103,phsu,T121,Pharmacologic Substance,CHEM,Chemicals & Drugs
+104,plnt,T002,Plant,LIVB,Living Beings
+105,podg,T101,Patient or Disabled Group,LIVB,Living Beings
+106,popg,T098,Population Group,LIVB,Living Beings
+107,prog,T097,Professional or Occupational Group,LIVB,Living Beings
+108,pros,T094,Professional Society,ORGA,Organizations
+109,qlco,T080,Qualitative Concept,CONC,Concepts & Ideas
+110,qnco,T081,Quantitative Concept,CONC,Concepts & Ideas
+111,rcpt,T192,Receptor,CHEM,Chemicals & Drugs
+112,rept,T014,Reptile,LIVB,Living Beings
+113,resa,T062,Research Activity,PROC,Procedures
+114,resd,T075,Research Device,DEVI,Devices
+115,rnlw,T089,Regulation or Law,CONC,Concepts & Ideas
+116,sbst,T167,Substance,OBJC,Objects
+117,shro,T095,Self-help or Relief Organization,ORGA,Organizations
+118,socb,T054,Social Behavior,ACTI,Activities & Behaviors
+119,sosy,T184,Sign or Symptom,DISO,Disorders
+120,spco,T082,Spatial Concept,CONC,Concepts & Ideas
+121,tisu,T024,Tissue,ANAT,Anatomy
+122,tmco,T079,Temporal Concept,CONC,Concepts & Ideas
+123,topp,T061,Therapeutic or Preventive Procedure,PROC,Procedures
+124,virs,T005,Virus,LIVB,Living Beings
+125,vita,T127,Vitamin,CHEM,Chemicals & Drugs
+126,vtbt,T010,Vertebrate,LIVB,Living Beings
