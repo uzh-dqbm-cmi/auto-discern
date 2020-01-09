@@ -292,7 +292,9 @@ def make_prediction(url: str, exp_dir=DEFAULT_BIOBERT_EXP_DIR, question_fold_map
 
     html_content = retrieve_page_from_internet(url)
     data_dict = build_data_dict(url, html_content)
-    return biobert_predict(data_dict, QUESTIONS, exp_dir, question_fold_map, to_gpu, gpu_index)
+    raw_predictions = biobert_predict(data_dict, QUESTIONS, exp_dir, question_fold_map, to_gpu, gpu_index)
+    clean_predictions = parse_prediction_results(raw_predictions)
+    return clean_predictions
 
 
 def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, question_fold_map=None, to_gpu=DEFAULT_USE_GPU, gpu_index=0
@@ -317,17 +319,14 @@ def test_make_prediction(exp_dir=DEFAULT_BIOBERT_EXP_DIR, question_fold_map=None
     with open(test_data_path, 'r') as f:
         html_content = f.read()
     data_dict = build_data_dict(test_article_url, html_content)
-    return biobert_predict(data_dict, QUESTIONS, exp_dir, question_fold_map, to_gpu, gpu_index)
+    raw_predictions = biobert_predict(data_dict, QUESTIONS, exp_dir, question_fold_map, to_gpu, gpu_index)
+    clean_predictions = parse_prediction_results(raw_predictions)
+    return clean_predictions
 
 
 if __name__ == '__main__':
     predictions_dict = test_make_prediction()
-    print("\n\nRAW PREDICTIONS DICT")
-    print(predictions_dict)
-
-    clean_predictions = parse_prediction_results(predictions_dict)
-    print("\n\nCLEAN PREDICTIONS DICT")
-    for q in clean_predictions:
+    for q in predictions_dict:
         print(q)
-        print(clean_predictions[q])
+        print(predictions_dict[q])
         print()

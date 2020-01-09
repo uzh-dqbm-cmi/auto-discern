@@ -17,7 +17,6 @@ NEURAL = True
 RF_MODEL_PREDICTOR_FILE_PATH = 'data/models/2019_06_14_doc_models_important_qs.pkl'
 
 # Neural (BioBERT) Model Configs
-DEFAULT_NEURAL_BASE_DIR = 'data/models'
 DEFAULT_NEURAL_EXP_DIR = '2019-10-28_15-59-09'
 DEFAULT_USE_GPU = False
 DEFAULT_QUESTION_FOLD_MAP = {
@@ -87,14 +86,24 @@ def create_app(test_config=None):
         }
         return flask.render_template('index.html', url_str=url, predictions=predictions)
 
-    def make_neural_prediction(url: str, exp_dir=DEFAULT_NEURAL_EXP_DIR, base_dir=DEFAULT_NEURAL_BASE_DIR,
-                               question_fold_map=None, to_gpu=DEFAULT_USE_GPU, gpu_index=0):
-        prediction = make_prediction(url, exp_dir=exp_dir, base_dir=base_dir, question_fold_map=question_fold_map,
-                                     to_gpu=to_gpu, gpu_index=gpu_index)
+    def make_neural_prediction(url: str, exp_dir=DEFAULT_NEURAL_EXP_DIR, question_fold_map=None, to_gpu=DEFAULT_USE_GPU,
+                               gpu_index=0):
+        predictions = make_prediction(url, exp_dir=exp_dir, question_fold_map=question_fold_map, to_gpu=to_gpu,
+                                      gpu_index=gpu_index)
 
-        # process predictions here
+        predictions_to_display = {}
+        for q in predictions:
+            predictions_to_display[q] = {}
+            predictions_to_display[q]['question'] = "Q{}: {}".format(q, adm.questions[q])
+            if predictions[q]['pred_class'] == 1:
+                predictions_to_display[q]['answer'] = 'Yes'
+                predictions_to_display[q]['sentences'] = predictions[q]['sentences']
+            elif predictions[q]['pred_class'] == 0:
+                predictions_to_display[q]['answer'] = 'No'
+            else:
+                predictions_to_display[q]['answer'] = 'Unknown'
 
-        return prediction
+        return predictions_to_display
 
     def make_rf_prediction(predictors, url: str):
         # load the webpage content
