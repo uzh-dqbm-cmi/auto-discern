@@ -370,6 +370,89 @@ class DocEncoder(nn.Module):
         return doc_vec, attn_weights_norm
 
 
+class DocEncoder_MeanPooling(nn.Module):
+    def __init__(self, input_dim, hidden_dim,
+                 num_hiddenlayers=1, bidirection=False, pdropout=0.1,
+                 rnn_class=nn.GRU, nonlinear_func=torch.relu, config={}, to_gpu=True, gpu_index=0):
+
+        super(DocEncoder_MeanPooling, self).__init__()
+        self.device = get_device(to_gpu, gpu_index)
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim  # dimension of the hidden vector from rnn
+        self.num_hiddenlayers = num_hiddenlayers
+        self.pdropout = pdropout
+        self.dropout_layer = nn.Dropout(pdropout)
+
+        self.config = config
+        # to get options for the attention module
+        self.fdtype = self.config.get('fdtype', torch.float32)
+
+        if(bidirection):
+            self.num_directions = 2
+        else:
+            self.num_directions = 1
+
+        # rnn module inserts dropout between layers of rnn except for the output of the last layer!
+        if(self.num_hiddenlayers == 1 and self.pdropout > 0):
+            rnn_dropout = 0
+        else:
+            rnn_dropout = self.pdropout
+
+        self.rnn = rnn_class(self.input_dim, self.hidden_dim, num_layers=self.num_hiddenlayers, dropout=rnn_dropout,
+                             bidirectional=bidirection, batch_first=True)
+
+        self.nonlinear_func = nonlinear_func
+
+    def init_hidden(self, batch_size):
+        """initialize hidden vectors at t=0
+
+        Args:
+            batch_size: int, the size of the current evaluated batch
+        """
+        # a hidden vector has the shape (num_layers*num_directions, batch, hidden_dim)
+        h0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim).to(device=self.device,
+                                                                                                    dtype=self.fdtype)
+        if(isinstance(self.rnn, nn.LSTM)):
+            c0 = torch.zeros(self.num_hiddenlayers*self.num_directions, batch_size, self.hidden_dim
+                             ).to(device=self.device, dtype=self.fdtype)
+            hiddenvec = (h0, c0)
+        else:
+            hiddenvec = h0
+        return(hiddenvec)
+
+    def _reshape_rnn_output(self, rnn_out):
+        """
+        Args:
+            rnn_out: torch tensor, (batch, seq_len, num_directions * hidden_size)
+        """
+        encoder_approach = self.config.get('encoder_approach')
+        if(encoder_approach == '[h_f+h_b]'):
+            return rnn_out[:, :, :self.hidden_dim] + rnn_out[:, :, self.hidden_dim:]
+        else:
+            return rnn_out
+
+    def forward(self, doc_tensor):
+        """ perform forward computation
+
+            Args:
+                doc_tensor: torch.Tensor, (1, sents, encoding_dim), dtype=torch.float32
+                            currently, it accepts one batch (i.e. one doc at a time due to GPU memory limit)
+        """
+
+        # init hidden
+        num_sents = doc_tensor.size(0)
+        hidden = self.init_hidden(num_sents)
+        rnn_out, hidden = self.rnn(doc_tensor, hidden)
+        # print('rnn_out before', rnn_out.shape)
+        # print("rnn_out", "\n", rnn_out)
+        # print("hidden", "\n", hidden)
+        # print('rnn_out size', rnn_out.shape)
+        rnn_out = self._reshape_rnn_output(rnn_out)
+        # print('rnn_out after', rnn_out.shape)
+        doc_vec = rnn_out.mean(axis=1) # mean pooling across the sentences (docs, embed_dim)
+        doc_vec = self.dropout_layer(doc_vec)
+        return doc_vec, None # placeholder for attn_weights
+
 class DocCategScorer(nn.Module):
     def __init__(self, input_dim, num_labels):
 

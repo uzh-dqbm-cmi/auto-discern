@@ -171,6 +171,8 @@ def biobert_predict(data_dict: dict, questions, experiment_dir, base_dir, questi
                           sents_embed_dir, question_fold_map, to_gpu, gpu_index, num_epochs=1)
 
     proc_articles_repr = processor.articles_repr
+    # TODO: do not run this if monfig['attnmodel_config'] is empty dict
+    # currently if model ran with no attention then 'attention_weight_map' will be {} (i.e. empty dict)
     for q in results:
         results[q]['attended_sentences'] = identify_attended_senteces(results[q]['attention_weight_map'],
                                                                       proc_articles_repr)
