@@ -316,6 +316,13 @@ if __name__ == '__main__':
         verbose_print("Using hyper-parameter search results from {}".format(config['exp_dir']), verbose)
         hyperparam_search_dir = os.path.join(config['exp_dir'], 'train_validation')
         q_config_map = build_q_config_map_from_train_val(hyperparam_search_dir, config['questions'])
+        if not config['attention']:
+            print('CLEARING ATTENTION CONFIG')
+            for q in config['questions']:
+                # config is in position 0
+                mconfig, options, argmax_indx = q_config_map[q]
+                mconfig['attnmodel_config'] = {}
+
     elif config['run_hyper_param_search']:
         verbose_print("Running hyper-parameter search...", verbose)
         run_hyperparam_search(config['questions_to_run'], config['exp_dir'], q_docpartitions, bertmodel,

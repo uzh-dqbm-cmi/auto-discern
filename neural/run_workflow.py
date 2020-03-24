@@ -137,7 +137,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     else:
         class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all casess equally
 
-    print("class weights", class_weights)
+    # print("class weights", class_weights)
     loss_func = torch.nn.NLLLoss(weight=class_weights, reduction='mean')  # negative log likelihood loss
     rgrad_mode = options.get('restrict_grad_mode')  # we can add these to options
     rgrad_limit = options.get('restrict_grad_limit')
@@ -248,6 +248,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
         dump_embed_dict_flag = False
     else:
+        print('===NOT=== READING BERT EMBEDS')
         bert_proc_docs = {}
         dump_embed_dict_flag = True
 
@@ -304,6 +305,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                             embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device=device)
                             # embed_sents = embed_sents.to(device)  # send to gpu device
                         else:
+                            print('===NOT=== READING BERT EMBEDS 2')
                             embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx],
                                                        docs_len[doc_indx].item())
                             # add embedding to dict
