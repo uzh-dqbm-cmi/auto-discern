@@ -449,9 +449,10 @@ class DocEncoder_MeanPooling(nn.Module):
         # print('rnn_out size', rnn_out.shape)
         rnn_out = self._reshape_rnn_output(rnn_out)
         # print('rnn_out after', rnn_out.shape)
-        doc_vec = rnn_out.mean(axis=1) # mean pooling across the sentences (docs, embed_dim)
+        doc_vec = rnn_out.mean(axis=1)  # mean pooling across the sentences (docs, embed_dim)
         doc_vec = self.dropout_layer(doc_vec)
-        return doc_vec, None # placeholder for attn_weights
+        return doc_vec, None  # placeholder for attn_weights
+
 
 class DocCategScorer(nn.Module):
     def __init__(self, input_dim, num_labels):

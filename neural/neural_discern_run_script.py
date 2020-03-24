@@ -93,7 +93,8 @@ def write_sents_embeddings(directory, bertmodel, sents_embed_dir_name, docs_data
     ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
 
 
-def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map):
+def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmodel, sents_embed_dir, question_gpu_map,
+                          attention):
     hyperparam_search_dir = create_directory('hyperparam_search', directory)
     hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir,
                                      hyperparam_search_dir,
@@ -101,7 +102,7 @@ def run_hyperparam_search(questions_to_run, directory, q_docpartitions, bertmode
                                      fdtype=torch.float32,
                                      num_epochs=15,
                                      prob_interval_truemax=0.05,
-                                     prob_estim=0.95, random_seed=42)
+                                     prob_estim=0.95, random_seed=42, attention=attention)
 
 
 def run_training_parallel(questions_to_run, train_val_dir, q_docpartitions, q_config_map, bertmodel, sents_embed_dir,
@@ -222,6 +223,7 @@ if __name__ == '__main__':
                                                              'so as not to overwrite the current one. ')
     parser.add_argument("--base-dir", default='/opt/data/autodiscern/aa_neural', help="Base dir to and including "
                                                                                       "autodiscern/aa_neural/")
+    parser.add_argument("--disable-attention", action="store_true", default=False, help="Run with the attention layer")
     args = parser.parse_args()
 
     config = {
@@ -238,6 +240,7 @@ if __name__ == '__main__':
         'questions': (4, 5, 9, 10, 11),
         'question_gpu_map': {4: 1, 5: 2, 9: 3, 10: 4, 11: 5},
         'base_dir': args.base_dir,
+        'attention': not args.disable_attention,
     }
 
     if config['experiment_to_rerun'] and config['run_hyper_param_search']:
@@ -316,7 +319,7 @@ if __name__ == '__main__':
     elif config['run_hyper_param_search']:
         verbose_print("Running hyper-parameter search...", verbose)
         run_hyperparam_search(config['questions_to_run'], config['exp_dir'], q_docpartitions, bertmodel,
-                              config['sents_embed_dir'], config['question_gpu_map'])
+                              config['sents_embed_dir'], config['question_gpu_map'], config['attention'])
         hyperparam_search_dir = create_directory('hyperparam_search', exp_dir)
         q_config_map = get_best_config_from_hyperparamsearch(config['questions'], hyperparam_search_dir, num_trials=60,
                                                              metric_indx=2)
@@ -329,7 +332,8 @@ if __name__ == '__main__':
         fold_num = -1
         for q in config['questions']:
             if q in config['questions_to_run']:
-                mconfig, options = generate_models_config(hyperparam_config, q, fold_num, torch.float32)
+                mconfig, options = generate_models_config(hyperparam_config, q, fold_num, torch.float32,
+                                                          attn_enabled=config['attention'])
                 q_config_map[q] = (mconfig, options, -1)
 
     verbose_print("Training...", verbose)
