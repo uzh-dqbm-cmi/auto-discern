@@ -34,9 +34,18 @@
             {{ url_str }}
         {% endif %}
 
-        {% for question in predictions %}
-            <h3 {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ question }} </h3>
-            <p {% if predictions[question] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ predictions[question] }} </p>
+        {% for q in predictions %}
+            <h3 {% if predictions[q]['answer'] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ predictions[q]['question'] }} </h3>
+            <p {% if predictions[q]['answer'] == 'Yes' %} style="color:green" {% else %} style="color:red" {% endif %}> {{ predictions[q]['answer'] }} </p>
+
+            {% if predictions[q]['sentences'] != [] %}
+                <p>Based on these phrases in the text:</p>
+                <ul>
+                    {% for sentence in predictions[q]['sentences'] %}
+                        <li> {{ sentence }} </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
           <br>
         {% endfor %}
     </div>

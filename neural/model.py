@@ -523,7 +523,7 @@ def restrict_grad_(mparams, mode, limit):
                 param.grad.data.clamp_(minl, maxl)
 
 
-def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fdtype, gpu_index=0):
+def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fdtype, to_gpu=True, gpu_index=0):
     """Generate token embedding for sentences in docs
 
     Args:
@@ -531,19 +531,21 @@ def generate_sents_embeds_from_docs(docs_data_tensor, bertembeder, embed_dir, fd
         bertembeder: instance of :class:`BertEmbedder`
         embed_dir: string, path to directory where to dump embedding per document
         fdtype: torch dtype, {torch.float32 or torch.float64}
+        to_gpu: bool, whether to use gpu or cpu
+        gpu_index: if to_gpu, which gpu index to use
 
     """
     bert_proc_docs = {}
-    gpu_device = get_device(to_gpu=True, index=gpu_index)
+    device = get_device(to_gpu=to_gpu, index=gpu_index)
     # move bertembedder to gpu
-    bertembeder.type(fdtype).to(gpu_device)
+    bertembeder.type(fdtype).to(device)
     samples_counter = 0
     num_iter = len(docs_data_tensor)  # number of samples
     for doc_indx in range(num_iter):
         print(doc_indx)
         doc_batch, doc_len, doc_sents_len, doc_attn_mask, doc_labels, doc_id = docs_data_tensor[doc_indx]
         # push to gpu
-        embed_sents = bertembeder(doc_batch.to(gpu_device), doc_attn_mask.to(gpu_device), doc_len.item())
+        embed_sents = bertembeder(doc_batch.to(device), doc_attn_mask.to(device), doc_len.item())
         # write to disk for now
         embed_fpath = os.path.join(embed_dir, '{}.pkl'.format(doc_id))
         ReaderWriter.dump_tensor(embed_sents, embed_fpath)
