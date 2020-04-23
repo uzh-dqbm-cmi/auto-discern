@@ -1,7 +1,8 @@
 import os
 import itertools
 from .utilities import get_device, create_directory, ReaderWriter, perfmetric_report, plot_loss
-from .model import Attention, SentenceEncoder, DocEncoder, DocCategScorer, BertEmbedder, restrict_grad_
+from .model import Attention, SentenceEncoder, DocEncoder, DocEncoder_MeanPooling, DocCategScorer, BertEmbedder,\
+    restrict_grad_
 from .dataset import construct_load_dataloaders
 import numpy as np
 import pandas as pd
@@ -31,7 +32,7 @@ class HyperparamConfig:
         return desc
 
 
-def generate_models_config(hyperparam_config, question, fold_num, fdtype):
+def generate_models_config(hyperparam_config, question, fold_num, fdtype, attn_enabled=True):
 
     if(hyperparam_config.encoder_approach in {'[h_f;h_b]', '[h_f+h_b]'}):
         bidirection = True
@@ -51,7 +52,7 @@ def generate_models_config(hyperparam_config, question, fold_num, fdtype):
         attn_input_dim = 2*docencoder_hiddendim
         if(hyperparam_config.attn_method == 'additive'):
             bidirectional_concat_flag = True
-    else:
+    else:  # case of dot, dot_scaled or none
         attn_input_dim = docencoder_hiddendim
 
     docscorer_input_dim = attn_input_dim
@@ -83,10 +84,13 @@ def generate_models_config(hyperparam_config, question, fold_num, fdtype):
                          'generic_config': generic_config}
 
     docscorer_config = {'input_dim': docscorer_input_dim}
-
-    attnmodel_config = {'attn_method': hyperparam_config.attn_method,
-                        'attn_input_dim': attn_input_dim,
-                        'generic_config': generic_config}
+    if attn_enabled:
+        attnmodel_config = {'attn_method': hyperparam_config.attn_method,
+                            'attn_input_dim': attn_input_dim,
+                            'generic_config': generic_config}
+    else:
+        hyperparam_config.attn_method == 'none'  # override attention method to be none
+        attnmodel_config = {}
 
     dataloader_config = {'batch_size': hyperparam_config.batch_size,
                          'num_workers': 0}
@@ -133,7 +137,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     else:
         class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all casess equally
 
-    print("class weights", class_weights)
+    # print("class weights", class_weights)
     loss_func = torch.nn.NLLLoss(weight=class_weights, reduction='mean')  # negative log likelihood loss
     rgrad_mode = options.get('restrict_grad_mode')  # we can add these to options
     rgrad_limit = options.get('restrict_grad_limit')
@@ -165,20 +169,30 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                                    gpu_index=gpu_index)
 
     # doc encoder model
-    attn_model = Attention(attnmodel_config['attn_method'],
-                           attnmodel_config['attn_input_dim'],
-                           config=attnmodel_config['generic_config'],
-                           gpu_index=gpu_index)
+    if attnmodel_config:
 
-    doc_encoder = DocEncoder(docencoder_config['input_dim'],
-                             docencoder_config['hidden_dim'],
-                             attn_model,
-                             num_hiddenlayers=docencoder_config['num_hiddenlayers'],
-                             bidirection=docencoder_config['bidirection'],
-                             pdropout=docencoder_config['pdropout'],
-                             config=docencoder_config['generic_config'],
-                             gpu_index=gpu_index)
+        attn_model = Attention(attnmodel_config['attn_method'],
+                               attnmodel_config['attn_input_dim'],
+                               config=attnmodel_config['generic_config'],
+                               gpu_index=gpu_index)
 
+        doc_encoder = DocEncoder(docencoder_config['input_dim'],
+                                 docencoder_config['hidden_dim'],
+                                 attn_model,
+                                 num_hiddenlayers=docencoder_config['num_hiddenlayers'],
+                                 bidirection=docencoder_config['bidirection'],
+                                 pdropout=docencoder_config['pdropout'],
+                                 config=docencoder_config['generic_config'],
+                                 gpu_index=gpu_index)
+
+    else:  # case of no attention model (i.e. mean pooling)
+        doc_encoder = DocEncoder_MeanPooling(docencoder_config['input_dim'],
+                                             docencoder_config['hidden_dim'],
+                                             num_hiddenlayers=docencoder_config['num_hiddenlayers'],
+                                             bidirection=docencoder_config['bidirection'],
+                                             pdropout=docencoder_config['pdropout'],
+                                             config=docencoder_config['generic_config'],
+                                             gpu_index=gpu_index)
     # doc category scorer
     num_labels = len(class_weights)
     doc_categ_scorer = DocCategScorer(docscorer_config['input_dim'], num_labels)
@@ -214,8 +228,10 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                                                           mode='triangular', cycle_momentum=False)
 
     # store attention weights for validation and test set
-    docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
-    # store sentences' attention weights
+    if attnmodel_config:
+        docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
+    else:
+        docid_attnweights_map = {}
 
     if ('validation' in data_loaders):
         m_state_dict_dir = create_directory(os.path.join(wrk_dir, 'model_statedict'))
@@ -232,6 +248,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
         bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
         dump_embed_dict_flag = False
     else:
+        print('===NOT=== READING BERT EMBEDS')
         bert_proc_docs = {}
         dump_embed_dict_flag = True
 
@@ -288,6 +305,7 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                             embed_sents = ReaderWriter.read_tensor(bert_proc_docs[doc_id], device=device)
                             # embed_sents = embed_sents.to(device)  # send to gpu device
                         else:
+                            print('===NOT=== READING BERT EMBEDS 2')
                             embed_sents = bert_encoder(docs_batch[doc_indx], docs_attn_mask[doc_indx],
                                                        docs_len[doc_indx].item())
                             # add embedding to dict
@@ -365,10 +383,17 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
                     for m, m_name in models:
                         torch.save(m.state_dict(), os.path.join(m_state_dict_dir, '{}.pkl'.format(m_name)))
                     # dump attention weights for the validation data for the best peforming model
-                    dump_dict_content(docid_attnweights_map, ['validation'], 'docid_attnw_map', wrk_dir)
+                    if docid_attnweights_map:
+                        dump_dict_content(docid_attnweights_map, ['validation'], 'docid_attnw_map', wrk_dir)
                 elif(dsettype == 'test'):
                     # dump attention weights for the validation data
-                    dump_dict_content(docid_attnweights_map, ['test'], 'docid_attnw_map', wrk_dir)
+                    if docid_attnweights_map:
+                        dump_dict_content(docid_attnweights_map, ['test'], 'docid_attnw_map', wrk_dir)
+                # save predictions
+                if dsettype in {'test', 'validation'}:
+                    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_logprob_scores)
+                    predictions_path = os.path.join(wrk_dir, 'predictions.csv')
+                    predictions_df.to_csv(predictions_path)
 
     if(num_epochs > 1):
         plot_loss(epoch_loss_avgbatch, epoch_loss_avgsamples, fig_dir)
@@ -378,11 +403,6 @@ def run_neural_discern(data_partition, dsettypes, bertmodel, config, options, wr
     if(dump_embed_dict_flag):
         print(bert_proc_docs)
         ReaderWriter.dump_data(bert_proc_docs, os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
-
-    # save predictions
-    predictions_df = build_predictions_df(doc_ids, ref_class, pred_class, all_logprob_scores)
-    predictions_path = os.path.join(wrk_dir, 'predictions.csv')
-    predictions_df.to_csv(predictions_path)
 
     return pred_class
 
@@ -493,7 +513,7 @@ def get_random_question_fold_per_hyperparam_exp(questions, random_seed=42):
 
 
 def hyperparam_model_search(q_docpartitions, bertmodel, sents_embed_dir, root_dir, fdtype=torch.float32, num_epochs=15,
-                            prob_interval_truemax=0.05, prob_estim=0.95, random_seed=42):
+                            prob_interval_truemax=0.05, prob_estim=0.95, random_seed=42, attention=True):
     questions = list(q_docpartitions.keys())
     # questions = [4]  # TODO: update this
     q_fold_map = get_random_question_fold_per_hyperparam_exp(questions, random_seed=random_seed)
@@ -504,7 +524,7 @@ def hyperparam_model_search(q_docpartitions, bertmodel, sents_embed_dir, root_di
         data_partition = q_docpartitions[q][fold_num]
         # encoder_dim, num_layers, encoder_approach, attn_method, p_dropout, l2_reg, batch_size, num_epochs
         for counter, hyperparam_config in enumerate(hyperparam_options):
-            mconfig, options = generate_models_config(hyperparam_config, q, fold_num, fdtype)
+            mconfig, options = generate_models_config(hyperparam_config, q, fold_num, fdtype, attention)
             print("Running q{} hyperparam search #{}".format(q, counter))
             path = os.path.join(root_dir, 'question_{}'.format(q), 'fold_{}'.format(fold_num),
                                 'config_{}'.format(counter))
@@ -514,13 +534,13 @@ def hyperparam_model_search(q_docpartitions, bertmodel, sents_embed_dir, root_di
 
 def run_one_questions_hyperparam_search(queue, q, fold_num, data_partition, bertmodel, sents_embed_dir, root_dir,
                                         gpu_index, fdtype=torch.float32, num_epochs=15, prob_interval_truemax=0.05,
-                                        prob_estim=0.95, random_seed=42):
+                                        prob_estim=0.95, random_seed=42, attention=True):
     # get list of hyperparam configs
     hyperparam_options = get_hyperparam_options(prob_interval_truemax, prob_estim)
     dsettypes = ['train', 'validation']
     # encoder_dim, num_layers, encoder_approach, attn_method, p_dropout, l2_reg, batch_size, num_epochs
     for counter, hyperparam_config in enumerate(hyperparam_options):
-        mconfig, options = generate_models_config(hyperparam_config, q, fold_num, fdtype)
+        mconfig, options = generate_models_config(hyperparam_config, q, fold_num, fdtype, attention)
         print("Running q{} hyperparam search #{}".format(q, counter))
         wrk_dir = create_directory(os.path.join(root_dir, 'question_{}'.format(q), 'fold_{}'.format(fold_num),
                                                 'config_{}'.format(counter)))
@@ -530,7 +550,7 @@ def run_one_questions_hyperparam_search(queue, q, fold_num, data_partition, bert
 
 def hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmodel, sents_embed_dir, root_dir,
                                      question_gpu_map, fdtype=torch.float32, num_epochs=15, prob_interval_truemax=0.05,
-                                     prob_estim=0.95, random_seed=42):
+                                     prob_estim=0.95, random_seed=42, attention=True):
     q_fold_map = get_random_question_fold_per_hyperparam_exp(questions_to_run, random_seed=random_seed)
     queue = mp.Queue()
     q_processes = []
@@ -544,7 +564,8 @@ def hyperparam_model_search_parallel(questions_to_run, q_docpartitions, bertmode
                                                                                         question_gpu_map[q],
                                                                                         fdtype, num_epochs,
                                                                                         prob_interval_truemax,
-                                                                                        prob_estim, random_seed)))
+                                                                                        prob_estim, random_seed,
+                                                                                        attention)))
 
     for q_process in q_processes:
         print(">>> spawning hyperparam search process")
@@ -719,21 +740,33 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
                                    gpu_index=gpu_index)
 
     # doc encoder model
-    attn_model = Attention(attnmodel_config['attn_method'],
-                           attnmodel_config['attn_input_dim'],
-                           config=attnmodel_config['generic_config'],
-                           to_gpu=to_gpu,
-                           gpu_index=gpu_index)
+    if attnmodel_config:
 
-    doc_encoder = DocEncoder(docencoder_config['input_dim'],
-                             docencoder_config['hidden_dim'],
-                             attn_model,
-                             num_hiddenlayers=docencoder_config['num_hiddenlayers'],
-                             bidirection=docencoder_config['bidirection'],
-                             pdropout=docencoder_config['pdropout'],
-                             config=docencoder_config['generic_config'],
-                             to_gpu=to_gpu,
-                             gpu_index=gpu_index)
+        attn_model = Attention(attnmodel_config['attn_method'],
+                               attnmodel_config['attn_input_dim'],
+                               config=attnmodel_config['generic_config'],
+                               to_gpu=to_gpu,
+                               gpu_index=gpu_index)
+
+        doc_encoder = DocEncoder(docencoder_config['input_dim'],
+                                 docencoder_config['hidden_dim'],
+                                 attn_model,
+                                 num_hiddenlayers=docencoder_config['num_hiddenlayers'],
+                                 bidirection=docencoder_config['bidirection'],
+                                 pdropout=docencoder_config['pdropout'],
+                                 config=docencoder_config['generic_config'],
+                                 to_gpu=to_gpu,
+                                 gpu_index=gpu_index)
+
+    else:  # case of no attention model (i.e. mean pooling)
+        doc_encoder = DocEncoder_MeanPooling(docencoder_config['input_dim'],
+                                             docencoder_config['hidden_dim'],
+                                             num_hiddenlayers=docencoder_config['num_hiddenlayers'],
+                                             bidirection=docencoder_config['bidirection'],
+                                             pdropout=docencoder_config['pdropout'],
+                                             config=docencoder_config['generic_config'],
+                                             to_gpu=to_gpu,
+                                             gpu_index=gpu_index)
 
     # doc category scorer
     num_labels = len(class_weights)
@@ -751,8 +784,10 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
         m.type(fdtype).to(device)
 
     # store attention weights for validation and test set
-    docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
-    # store sentences' attention weights
+    if attnmodel_config:
+        docid_attnweights_map = {dsettype: {} for dsettype in data_loaders if dsettype in {'validation', 'test'}}
+    else:
+        docid_attnweights_map = {}
 
     if(os.path.isfile(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))):
         bert_proc_docs = ReaderWriter.read_data(os.path.join(sents_embed_dir, 'bert_proc_docs.pkl'))
@@ -826,7 +861,17 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
             del docs_batch, docs_len, docs_sents_len, docs_attn_mask, docs_labels, docs_id
 
     # end of epoch
-    return {'pred_class': pred_class,
-            'logprob_score_class0': [t[0].item() for t in b_logprob_scores.cpu()],
-            'logprob_score_class1': [t[1].item() for t in b_logprob_scores.cpu()],
-            'attention_weight_map': docid_attnweights_map['test']}
+    if docid_attnweights_map:
+        target_attn_w_map = docid_attnweights_map['test']
+    else:
+        target_attn_w_map = ['NA'] * b_logprob_scores.size(0)
+
+    results = {
+        'pred_class': pred_class,
+        'logprob_score_class0': [t[0].item() for t in b_logprob_scores.cpu()],
+        'logprob_score_class1': [t[1].item() for t in b_logprob_scores.cpu()],
+    }
+    if attnmodel_config:
+        results['attention_weight_map'] = target_attn_w_map
+
+    return results
