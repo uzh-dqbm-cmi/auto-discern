@@ -19,6 +19,8 @@ Automating the application of the [DISCERN](http://www.discern.org.uk/index.php)
     * [The Published Model](#The-Published-Model)
   * [Training the Neural Models](#Training-the-Neural-Models)
 * [Model Deployment with the Web App](#Model-Deployment-with-the-Web-App)
+  * [Prepping Your Selected Model for Deployment](#Prepping-Your-Selected-Model-for-Deployment)
+  * [Deployment with Docker](#Deployment-with-Docker)
 * [Known issues](#Known-issues)
   * [Installing on Windows OS](#Installing-on-Windows-OS)
 
@@ -374,6 +376,47 @@ Note to self: This model was trained on LeoMed
 (`sing_dis; /opt/conda/bin/python neural_dicsern_run_script.py`)
 
 ## Model Deployment with the Web App
+
+### Prepping your Selected Model for Deployment
+To deploy a model, that model's `<experiment_dir>` and supporting files must be copied into the repository using the following structure:
+
+```
+auto-discern/
+└── autodiscern/
+    └── pakage_data/
+        ├── predictors/
+        |    └── <experiment_dir>/
+        |         ├── test/
+        |         |    ├── question_4/
+        |         |    |    └── fold_0/
+        |         |    |         └── config/
+        |         |    |             ├── exp_options.pkl
+        |         |    |             └── mconfig.pkl
+        |         |    └── ...
+        |         |    
+        |         └── train_validation/
+        |              ├── question_4/
+        |              |    └── fold_0/
+        |              |         └── model_statedict/
+        |              |             ├── doc_categ_scorer.pkl
+        |              |             └── doc_encoder.pkl
+        |              |             └── sent_encoder.pkl
+        |              └── ...
+        └── pytorch_biobert/
+             ├── bert-base-cased-vocab.txt
+             ├── bert_config.json
+             └── biobert_statedict.pkl
+
+```
+
+Then, in `auto-discern/validator_site/app.py`:
+
+ * Set `DEFAULT_NEURAL_EXP_DIR` to `<experiment_dir>`.
+ * Set `DEFAULT_USE_GPU` to `True` or `False`, depending on whether the machine you will be deploying the model on has GPUs.
+ * If you want to use different folds from the cross validation than the default (fold 0, as shown in the file diagram above), set `DEFAULT_QUESTION_FOLD_MAP` accordingly.
+
+### Deployment with Docker
+
 On your local machine, from within `autodiscern/`:
  1. Build the docker image
  

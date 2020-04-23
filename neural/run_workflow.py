@@ -690,7 +690,7 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
     generic_config = config['generic_config']
     fdtype = generic_config['fdtype']
 
-    class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all casess equally
+    class_weights = torch.tensor([1, 1]).type(fdtype).to(device)  # weighting all cases equally
 
     print("class weights", class_weights)
 
@@ -715,12 +715,14 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
                                    bidirection=sentencoder_config['bidirection'],
                                    pdropout=sentencoder_config['pdropout'],
                                    config=sentencoder_config['generic_config'],
+                                   to_gpu=to_gpu,
                                    gpu_index=gpu_index)
 
     # doc encoder model
     attn_model = Attention(attnmodel_config['attn_method'],
                            attnmodel_config['attn_input_dim'],
                            config=attnmodel_config['generic_config'],
+                           to_gpu=to_gpu,
                            gpu_index=gpu_index)
 
     doc_encoder = DocEncoder(docencoder_config['input_dim'],
@@ -730,6 +732,7 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
                              bidirection=docencoder_config['bidirection'],
                              pdropout=docencoder_config['pdropout'],
                              config=docencoder_config['generic_config'],
+                             to_gpu=to_gpu,
                              gpu_index=gpu_index)
 
     # doc category scorer
@@ -794,8 +797,7 @@ def predict_neural_discern(data_partition, bertmodel, config, options, wrk_dir, 
                     ReaderWriter.dump_tensor(embed_sents, embed_fpath)
                     bert_proc_docs[doc_id] = embed_fpath
 
-                sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx],
-                                                docs_len[doc_indx].item())
+                sents_rnn_hidden = sent_encoder(embed_sents, docs_sents_len[doc_indx], docs_len[doc_indx].item())
 
                 # # remove the embedding from GPU
                 # bert_proc_docs[doc_id].to(cpu_device)
