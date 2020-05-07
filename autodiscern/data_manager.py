@@ -1,13 +1,16 @@
 import datetime
+import dill
 from git import Repo
 import glob
 import inspect
 import os
+import pkg_resources
 import pandas as pd
 import pickle
 from pathlib import Path
 import subprocess
-from typing import Dict
+from typing import Any, Callable, Dict
+import yaml
 
 import autodiscern.transformations as adt
 
@@ -23,13 +26,48 @@ class DataManager:
            On windows OS, the backslash in the string should be escaped!!
     """
 
-    def __init__(self, data_path):
-        expanded_path = Path(data_path).expanduser()
-        if expanded_path.exists():
-            self.data_path = expanded_path
-        else:
-            raise ValueError("Path does not exist: {}".format(data_path))
+    def __init__(self, path_hint):
+        """
+        Initialize a DataManager pointing at a project data_path. Can refer to ~/.data_manager.yaml, which has format:
+
+            project:
+                path: ~/path/to/project
+
+        Args:
+            path_hint: a path that exists, or a key in the config for a path
+        """
+        self.data_path = self.identify_data_path(path_hint)
         self.data = {}
+        self.DataProcessorCacheManager = DataProcessorCacheManager()
+
+    def identify_data_path(self, path_hint):
+        # first check if provided data_path is a legitimate path, and use that if it is
+        # otherwise (if config exists) see if the path_hint is in the config
+        # else raise error
+
+        expanded_path = Path(path_hint).expanduser()
+        if expanded_path.exists():
+            return expanded_path
+
+        config = self.load_config()
+        if config is not None and path_hint in config:
+            expanded_config_path = Path(config[path_hint]['path']).expanduser()
+            if expanded_config_path.exists():
+                return expanded_config_path
+            else:
+                raise ValueError("Path provided in config for '{}' does not exist: {}".format(path_hint,
+                                                                                              expanded_config_path))
+
+        raise ValueError("Path does not exist: {}".format(path_hint))
+
+    @staticmethod
+    def load_config():
+        config_path = Path('~/.data_manager.yaml').expanduser()
+        if config_path.exists():
+            config = yaml.safe_load(open(config_path))
+            return config
+        else:
+            return None
 
     def build_dicts(self):
         """Build a dictionary of data dictionaries, keyed on their entity_ids. """
@@ -94,7 +132,22 @@ class DataManager:
             self._load_articles(version_id)
         return self.data[version_id]
 
-    def save_transformed_data(self, data: Dict, tag: str = None) -> None:
+    @staticmethod
+    def get_repo_path():
+        return os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+
+    @classmethod
+    def generate_filename_for_file(cls, tag: str = None) -> str:
+        repo_path = cls.get_repo_path()
+        git_hash = cls._get_git_hash(repo_path)
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        if tag:
+            filename = "{}_{}_{}".format(timestamp, git_hash, tag)
+        else:
+            filename = "{}_{}".format(timestamp, git_hash)
+        return filename
+
+    def save_transformed_data(self, data: Dict, tag: str = None, enforce_clean_git=True) -> str:
         """Save a data dictionary to data/transformed directory with a filename created from the current timestamp and
         an optional tag.
         Getting the path based on:
@@ -107,16 +160,26 @@ class DataManager:
         Returns: None
 
         """
-        repo_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-        git_hash = self._get_git_hash(repo_path)
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        if tag:
-            filepath = Path(self.data_path, "data/transformed_data/{}_{}_{}.pkl".format(timestamp, git_hash, tag))
-        else:
-            filepath = Path(self.data_path, "data/transformed_data/{}_{}.pkl".format(timestamp, git_hash))
+        if enforce_clean_git:
+            self.check_for_uncommitted_git_changes()
+
+        filename = self.generate_filename_for_file(tag)
+        filepath = Path(self.data_path, "data/transformed_data", "{}.pkl".format(filename))
         with open(filepath, "wb+") as f:
             pickle.dump(data, f)
-            print("Saved data to {}".format(filepath))
+        print("Saved data to {}".format(filepath))
+        return filepath
+
+    def cache_data_processor(self, data: Any, processing_func: Callable, tag: str = None, data_file_type='pkl',
+                             enforce_clean_git=True) -> str:
+        if enforce_clean_git:
+            self.check_for_uncommitted_git_changes()
+
+        file_name = self.generate_filename_for_file(tag)
+        file_data_path = Path(self.data_path, "data/transformed_data")
+        self.DataProcessorCacheManager.save(data, processing_func, file_name=file_name, data_file_type=data_file_type,
+                                            file_dir_path=file_data_path)
+        return file_name
 
     def load_transformed_data(self, filename: str) -> Dict:
         """Load a pickled data dictionary from the data/transformed directory.
@@ -128,6 +191,10 @@ class DataManager:
             filepath = Path(self.data_path, "data/transformed_data/{}.pkl".format(filename))
         with open(filepath, "rb+") as f:
             return pickle.load(f)
+
+    def load_cached_data_processor(self, file_name: str) -> 'DataProcessor':
+        file_data_path = Path(self.data_path, "data/transformed_data")
+        return self.DataProcessorCacheManager.load(file_name=file_name, file_dir_path=file_data_path)
 
     def load_most_recent_transformed_data(self):
         """Load the most recent pickled data dictionary from the data/transformed directory,
@@ -146,6 +213,21 @@ class DataManager:
         print("Loading {}".format(chosen_one))
         return self.load_transformed_data(chosen_one)
 
+    def save_experiment(self, experiment_object: Any, file_name: str) -> str:
+        data_interface = DataInterfaceManager.select(file_name, default_file_type='dill')
+        file_dir_path = Path(self.data_path, 'experiment_objects')
+        data_interface.save(experiment_object, file_name=file_name, file_dir_path=file_dir_path)
+        return Path(file_dir_path, file_name)
+
+    def load_experiment(self, file_name: str) -> Any:
+        # convert the file_name to a string, because file names are experiment id numbers, so an int may be passed
+        file_name = str(file_name)
+
+        data_interface = DataInterfaceManager.select(file_name, default_file_type='dill')
+        file_dir_path = Path(self.data_path, 'experiment_objects')
+        experiment_object = data_interface.load(file_name=file_name, file_dir_path=file_dir_path)
+        return experiment_object
+
     @classmethod
     def _get_git_hash(cls, path: str) -> str:
         """
@@ -159,24 +241,28 @@ class DataManager:
         Returns:
             git_hash (str): Short hash of latest commit on the active branch of the git repo.
         """
-        cls._check_for_uncommitted_git_changes(path)
         git_hash_raw = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
                                                cwd=path)
         git_hash = git_hash_raw.strip().decode("utf-8")
         return git_hash
 
     @classmethod
-    def _check_for_uncommitted_git_changes(cls, repopath: str) -> bool:
+    def check_for_uncommitted_git_changes(cls):
+        repo_path = cls.get_repo_path()
+        return cls._check_for_uncommitted_git_changes_at_path(repo_path)
+
+    @classmethod
+    def _check_for_uncommitted_git_changes_at_path(cls, repo_path: str) -> bool:
         """
         Check if there are uncommitted changes in the git repo, and raise an error if there are.
 
         Args:
-            repopath: str. Path to the repo to check.
+            repo_path: str. Path to the repo to check.
 
         Returns: bool. False: no uncommitted changes found, Repo is valid.
             True: uncommitted changes found. Repo is not valid.
         """
-        repo = Repo(repopath, search_parent_directories=True)
+        repo = Repo(repo_path, search_parent_directories=True)
 
         try:
             # get list of gitignore filenames and extensions as these wouldn't have been code synced over
@@ -227,10 +313,255 @@ class DataManager:
         return self.data['responses']
 
     def _load_metamap_semantics(self):
-        self.data['metamap_semantics'] = pd.read_csv(Path(self.data_path, "data/metamap/metamap_semantics.csv"))
+        metamap_semantics_path = pkg_resources.resource_filename('autodiscern',
+                                                                 'data/metamap_semantics/metamap_semantics.csv')
+        self.data['metamap_semantics'] = pd.read_csv(metamap_semantics_path)
 
     @property
     def metamap_semantics(self) -> pd.DataFrame:
         if 'metamap_semantics' not in self.data:
             self._load_metamap_semantics()
         return self.data['metamap_semantics']
+
+
+class DataProcessor:
+
+    def __init__(self, data, processor_func, code):
+        self.data_set = data
+        self.processor_func = processor_func
+        self.code = code
+
+    @property
+    def data(self):
+        return self.data_set
+
+    @property
+    def func(self):
+        return self.processor_func
+
+    def rerun(self, *args, **kwargs):
+        return self.processor_func(*args, **kwargs)
+
+    def view_code(self):
+        return self.code
+
+
+class DataProcessorCacheManager:
+
+    def __init__(self):
+        self.processor_designation = '_processor'
+        self.processor_data_interface = DillDataInterface
+        self.code_designation = '_code'
+        self.code_data_interface = TextDataInterface
+
+    def save(self, data: Any, processing_func: Callable, file_name: str, data_file_type: str, file_dir_path: str):
+        if self.check_name_already_exists(file_name, file_dir_path):
+            raise ValueError("That data processor name is already in use")
+
+        data_interface = DataInterfaceManager.select(data_file_type)
+        data = processing_func(data)
+        data_interface.save(data, file_name, file_dir_path)
+        self.processor_data_interface.save(processing_func, file_name+self.processor_designation, file_dir_path)
+        processing_func_code = inspect.getsource(processing_func)
+        self.code_data_interface.save(processing_func_code, file_name+self.code_designation, file_dir_path)
+
+    def load(self, file_name: str, file_dir_path: str) -> DataProcessor:
+        """
+        Load a cached data processor- the data and the function that generated it.
+        Accepts a file name with or without a file extension.
+
+        Args:
+            file_name: The base name of the data file. May include the file extension, otherwise the file extension
+                will be deduced.
+            file_dir_path: the path to the directory where cached data processors are stored.
+
+        Returns: Tuple(data, processing_func)
+
+        """
+        data_file_extension = None
+        if '.' in file_name:
+            file_name, data_file_extension = file_name.split('.')
+
+        # load the processor
+        processing_func = self.processor_data_interface.load(file_name+self.processor_designation, file_dir_path)
+
+        # load the data
+        code = self.code_data_interface.load(file_name+self.code_designation, file_dir_path)
+
+        # find and load the data
+        if data_file_extension is None:
+            data_file_extension = self.get_data_processor_data_type(file_name, file_dir_path)
+        data_interface = DataInterfaceManager.select(data_file_extension)
+        data = data_interface.load(file_name, file_dir_path)
+        return DataProcessor(data, processing_func, code)
+
+    def check_name_already_exists(self, file_name, file_dir_path):
+        existing_data_processors = self.list_cached_data_processors(file_dir_path)
+        if file_name in existing_data_processors:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def get_data_processor_data_type(file_name, file_dir_path):
+        data_path = Path("{}/{}.*".format(file_dir_path, file_name))
+        processor_files = glob.glob(data_path.__str__())
+
+        if len(processor_files) == 0:
+            raise ValueError("No data file found for processor {}".format(file_name))
+        elif len(processor_files) > 1:
+            raise ValueError("Something went wrong- there's more than one file that matches this processor name: "
+                             "{}".format("\n - ".join(processor_files)))
+
+        data_file = processor_files[0]
+        data_file_extension = os.path.basename(data_file).split('.')[1]
+        return data_file_extension
+
+    def list_cached_data_processors(self, file_dir_path: str):
+        # glob for all processor files
+        processors_path = Path("{}/*{}.{}".format(file_dir_path, self.processor_designation,
+                                                  self.processor_data_interface.file_extension))
+        processor_files = glob.glob(processors_path.__str__())
+        processor_names = [os.path.basename(file).split('.')[0] for file in processor_files]
+        return processor_names
+
+
+class DataInterface:
+
+    file_extension = None
+
+    @classmethod
+    def construct_file_path(cls, file_name: str, file_dir_path: str) -> Path:
+        """Construct the file path.
+         Can handle both cases of the file extension being included in the file_name or not
+
+        Args:
+            file_name: File name, with or without file extension
+            file_dir_path: Path for the file
+
+        Returns: Path
+
+        """
+        if '.{}'.format(cls.file_extension) in file_name:
+            return Path(file_dir_path, file_name)
+        else:
+            return Path(file_dir_path, "{}.{}".format(file_name, cls.file_extension))
+
+    @classmethod
+    def save(cls, data: Any, file_name: str, file_dir_path: str) -> None:
+        file_path = cls.construct_file_path(file_name, file_dir_path)
+        return cls._interface_specific_save(data, file_path)
+
+    @classmethod
+    def _interface_specific_save(cls, data: Any, file_path) -> None:
+        raise NotImplementedError
+
+    @classmethod
+    def load(cls, file_name: str, file_dir_path: str) -> Any:
+        file_path = cls.construct_file_path(file_name, file_dir_path)
+        return cls._interface_specific_load(file_path)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path) -> Any:
+        raise NotImplementedError
+
+
+class PickleDataInterface(DataInterface):
+
+    file_extension = 'pkl'
+
+    @classmethod
+    def _interface_specific_save(cls, data: Any, file_path) -> None:
+        with open(file_path, "wb+") as f:
+            pickle.dump(data, f)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path) -> Any:
+        with open(file_path, "rb+") as f:
+            return pickle.load(f)
+
+
+class DillDataInterface(DataInterface):
+
+    file_extension = 'dill'
+
+    @classmethod
+    def _interface_specific_save(cls, data: Any, file_path) -> None:
+        with open(file_path, "wb+") as f:
+            dill.dump(data, f)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path) -> Any:
+        with open(file_path, "rb+") as f:
+            return dill.load(f)
+
+
+class CSVDataInterface(DataInterface):
+
+    file_extension = 'csv'
+
+    @classmethod
+    def _interface_specific_save(cls, data, file_path):
+        data.to_csv(file_path)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path):
+        return pd.read_csv(file_path)
+
+
+class TextDataInterface(DataInterface):
+
+    file_extension = 'txt'
+
+    @classmethod
+    def _interface_specific_save(cls, data, file_path):
+        with open(file_path, 'w+') as f:
+            f.write(data)
+
+    @classmethod
+    def _interface_specific_load(cls, file_path):
+        with open(file_path, 'r') as f:
+            data = f.read()
+        return data
+
+
+class DataInterfaceManager:
+
+    file_extension = None
+    registered_interfaces = {
+        'pkl': PickleDataInterface,
+        'csv': CSVDataInterface,
+        'dill': DillDataInterface,
+        'txt': TextDataInterface,
+    }
+
+    @classmethod
+    def create(cls, file_type: str) -> DataInterface:
+        if file_type in cls.registered_interfaces:
+            return cls.registered_interfaces[file_type]()
+        else:
+            raise ValueError("File type {} not recognized. Supported file types include {}".format(
+                file_type, list(cls.registered_interfaces.keys())))
+
+    @classmethod
+    def select(cls, file_hint: str, default_file_type=None):
+        """
+        Select the appropriate data interface based on the file_hint.
+
+        Args:
+            file_hint: May be a file name with an extension, or just a file extension.
+            default_file_type: default file type to use, if the file_hint doesn't specify.
+
+        Returns: A DataInterface.
+
+        """
+        if '.' in file_hint:
+            file_name, file_extension = file_hint.split('.')
+            return cls.create(file_extension)
+        elif file_hint in cls.registered_interfaces:
+            return cls.create(file_hint)
+        elif default_file_type is not None:
+            return cls.create(default_file_type)
+        else:
+            raise ValueError("File hint {} not recognized. Supported file types include {}".format(
+                file_hint, list(cls.registered_interfaces.keys())))

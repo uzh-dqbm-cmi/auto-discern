@@ -69,9 +69,6 @@ docs/_build/
 # PyBuilder
 target/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
 # pyenv
 .python-version
 
@@ -104,11 +101,23 @@ venv.bak/
 .mypy_cache/
 
 # Data
-.csv
-.ipynb
+data/
+*.csv
+
+# Jupyter Notebook
+*.ipynb_checkpoints
+*.ipynb
 
 # Vs code
 .vscode
 
 # notes
 work_in_progress.txt
+.idea
+
+.DS_Store
+
+# Package Data not stored in Git
+autodiscern/package_data/predictors/*
+autodiscern/package_data/public_mm_lite/*
+autodiscern/package_data/pytorch_biobert/*
