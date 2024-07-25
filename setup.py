@@ -20,7 +20,7 @@ setup(name='autodiscern',
             'scikit-learn',
             'spacy==2.0.18',
             'tldextract',
-            'torch==1.2',
+            'torch==2.2.0',
             'pyyaml',
       ],
       extras_requires={
